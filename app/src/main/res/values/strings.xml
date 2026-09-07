@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">HorizonOS</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Launcher Settings</string>
+
+    <string name="settings_general">General</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_games">Games</string>
+    <string name="settings_controllers">Controllers</string>
+    <string name="settings_interface">Interface</string>
+    <string name="settings_power">Power</string>
+    <string name="settings_system">System</string>
+
+    <!-- General -->
+    <string name="settings_general_title">General</string>
+    <string name="settings_general_description">Configure general launcher behavior.</string>
+
+    <string name="settings_launcher_startup">Launcher Startup</string>
+    <string name="settings_start_page">Start Page</string>
+    <string name="settings_confirm_game_launch">Confirm Game Launch</string>
+    <string name="settings_remember_last_game">Remember Last Game</string>
+    <string name="settings_interface_sounds">Interface Sounds</string>
+
+    <!-- Appearance -->
+    <string name="settings_appearance_title">Appearance</string>
+    <string name="settings_appearance_description">Customize the look of the launcher.</string>
+
+    <string name="settings_theme">Theme</string>
+    <string name="settings_accent_color">Accent Color</string>
+    <string name="settings_interface_scale">Interface Scale</string>
+    <string name="settings_animations">Animations</string>
+    <string name="settings_background">Background</string>
+    <string name="settings_show_clock">Show Clock</string>
+    <string name="settings_show_battery">Show Battery</string>
+
+    <!-- Games -->
+    <string name="settings_games_title">Games</string>
+    <string name="settings_games_description">Manage your game library and game display.</string>
+
+    <string name="settings_game_library">Game Library</string>
+    <string name="settings_scan_games">Scan Games</string>
+    <string name="settings_game_covers">Game Covers</string>
+    <string name="settings_game_backgrounds">Game Backgrounds</string>
+    <string name="settings_sort_games">Sort Games</string>
+    <string name="settings_game_folders">Game Folders</string>
+
+    <!-- Controllers -->
+    <string name="settings_controllers_title">Controllers</string>
+    <string name="settings_controllers_description">Configure controllers and input.</string>
+
+    <string name="settings_button_mapping">Button Mapping</string>
+    <string name="settings_vibration">Vibration</string>
+    <string name="settings_analog_sensitivity">Analog Sensitivity</string>
+    <string name="settings_dead_zone">Dead Zone</string>
+    <string name="settings_controller_hints">Controller Hints</string>
+    <string name="settings_gamesir_integration">GameSir Integration</string>
+
+    <!-- Interface -->
+    <string name="settings_interface_title">Interface</string>
+    <string name="settings_interface_description">Customize launcher navigation and controls.</string>
+
+    <string name="settings_gamepad_navigation">Gamepad Navigation</string>
+    <string name="settings_touch_input">Touch Input</string>
+    <string name="settings_page_indicators">Page Indicators</string>
+    <string name="settings_navigation_sounds">Navigation Sounds</string>
+
+    <!-- Power -->
+    <string name="settings_power_title">Power</string>
+    <string name="settings_power_description">Configure sleep and power behavior.</string>
+
+    <string name="settings_sleep_mode">Sleep Mode</string>
+    <string name="settings_screen_timeout">Screen Timeout</string>
+    <string name="settings_suspend_games">Suspend Games</string>
+
+    <!-- System -->
+    <string name="settings_system_title">System</string>
+    <string name="settings_system_description">Launcher and device information.</string>
+
+    <string name="settings_launcher_version">Launcher Version</string>
+    <string name="settings_device_information">Device Information</string>
+    <string name="settings_storage">Storage</string>
+    <string name="settings_android_settings">Android Settings</string>
+    <string name="settings_restart_launcher">Restart Launcher</string>
+
+    <!-- Common -->
+    <string name="back">Back</string>
+    <string name="ok">OK</string>
+    <string name="on">On</string>
+    <string name="off">Off</string>
+
+</resources>

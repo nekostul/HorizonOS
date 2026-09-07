@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">HorizonOS</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Настройки лаунчера</string>
+
+    <string name="settings_general">Основные</string>
+    <string name="settings_appearance">Внешний вид</string>
+    <string name="settings_games">Игры</string>
+    <string name="settings_controllers">Контроллеры</string>
+    <string name="settings_interface">Интерфейс</string>
+    <string name="settings_power">Питание</string>
+    <string name="settings_system">Система</string>
+
+    <!-- General -->
+    <string name="settings_general_title">Основные</string>
+    <string name="settings_general_description">Основные параметры работы лаунчера.</string>
+
+    <string name="settings_launcher_startup">Запуск лаунчера</string>
+    <string name="settings_start_page">Стартовая страница</string>
+    <string name="settings_confirm_game_launch">Подтверждение запуска игры</string>
+    <string name="settings_remember_last_game">Запоминать последнюю игру</string>
+    <string name="settings_interface_sounds">Звуки интерфейса</string>
+
+    <!-- Appearance -->
+    <string name="settings_appearance_title">Внешний вид</string>
+    <string name="settings_appearance_description">Настройка внешнего вида лаунчера.</string>
+
+    <string name="settings_theme">Тема</string>
+    <string name="settings_accent_color">Цвет выделения</string>
+    <string name="settings_interface_scale">Размер интерфейса</string>
+    <string name="settings_animations">Анимации</string>
+    <string name="settings_background">Фон</string>
+    <string name="settings_show_clock">Показывать часы</string>
+    <string name="settings_show_battery">Показывать заряд</string>
+
+    <!-- Games -->
+    <string name="settings_games_title">Игры</string>
+    <string name="settings_games_description">Управление игровой библиотекой и отображением игр.</string>
+
+    <string name="settings_game_library">Игровая библиотека</string>
+    <string name="settings_scan_games">Поиск игр</string>
+    <string name="settings_game_covers">Обложки игр</string>
+    <string name="settings_game_backgrounds">Фоны игр</string>
+    <string name="settings_sort_games">Сортировка игр</string>
+    <string name="settings_game_folders">Папки с играми</string>
+
+    <!-- Controllers -->
+    <string name="settings_controllers_title">Контроллеры</string>
+    <string name="settings_controllers_description">Настройка контроллеров и управления.</string>
+
+    <string name="settings_button_mapping">Назначение кнопок</string>
+    <string name="settings_vibration">Вибрация</string>
+    <string name="settings_analog_sensitivity">Чувствительность стиков</string>
+    <string name="settings_dead_zone">Мёртвая зона</string>
+    <string name="settings_controller_hints">Подсказки контроллера</string>
+    <string name="settings_gamesir_integration">Интеграция с GameSir</string>
+
+    <!-- Interface -->
+    <string name="settings_interface_title">Интерфейс</string>
+    <string name="settings_interface_description">Настройка навигации и управления лаунчером.</string>
+
+    <string name="settings_gamepad_navigation">Навигация геймпадом</string>
+    <string name="settings_touch_input">Сенсорное управление</string>
+    <string name="settings_page_indicators">Индикаторы страниц</string>
+    <string name="settings_navigation_sounds">Звуки навигации</string>
+
+    <!-- Power -->
+    <string name="settings_power_title">Питание</string>
+    <string name="settings_power_description">Настройка сна и поведения питания.</string>
+
+    <string name="settings_sleep_mode">Режим сна</string>
+    <string name="settings_screen_timeout">Тайм-аут экрана</string>
+    <string name="settings_suspend_games">Приостанавливать игры</string>
+
+    <!-- System -->
+    <string name="settings_system_title">Система</string>
+    <string name="settings_system_description">Информация о лаунчере и устройстве.</string>
+
+    <string name="settings_launcher_version">Версия лаунчера</string>
+    <string name="settings_device_information">Информация об устройстве</string>
+    <string name="settings_storage">Хранилище</string>
+    <string name="settings_android_settings">Настройки Android</string>
+    <string name="settings_restart_launcher">Перезапустить лаунчер</string>
+
+    <!-- Common -->
+    <string name="back">Назад</string>
+    <string name="ok">ОК</string>
+    <string name="on">Вкл.</string>
+    <string name="off">Выкл.</string>
+
+</resources>

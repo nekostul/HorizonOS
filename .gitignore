@@ -1,0 +1,56 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Local configuration
+local.properties
+
+# Kotlin
+.kotlin/
+
+# Android generated
+captures/
+.externalNativeBuild/
+.cxx/
+**/generated/
+
+# Build outputs
+*.apk
+*.aab
+*.apks
+*.dex
+
+# Signing / secrets
+*.jks
+*.keystore
+*.p12
+*.pem
+keystore.properties
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs / temp
+*.log
+*.tmp
+*.temp
+
+# VS Code
+.vscode/
+
+# Firebase / local secrets
+google-services.json
+
+# Environment
+.env
+.env.*
+!.env.example
