@@ -4,10 +4,10 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +68,7 @@ import ru.nekostul.horizonos.ui.settings.storage.StorageScreen
 import ru.nekostul.horizonos.ui.settings.system.SystemScreen
 import ru.nekostul.horizonos.ui.settings.themes.ThemesScreen
 import ru.nekostul.horizonos.ui.settings.wifi.WifiScreen
+import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 
 private data class SettingsCategory(val titleRes: Int, val dividerAfter: Boolean = false)
 
@@ -172,9 +175,9 @@ fun LauncherSettingsScreen(
     }
 
     CompositionLocalProvider(LocalSettingsOverlayVisible provides overlayVisible) {
-    // Always consume Back while Settings is displayed. The top overlay gets
-    // the first chance; only an empty stack falls back to Settings/Home.
-    BackHandler(enabled = true) {
+    // Only the controller B button navigates back. Native Android Back is
+    // consumed by MainActivity and never reaches this screen.
+    fun handleControllerBack() {
         val dismissOverlay = overlayBackHandlers.lastOrNull()
         if (dismissOverlay != null) {
             dismissOverlay()
@@ -201,7 +204,7 @@ fun LauncherSettingsScreen(
             Key.DirectionRight -> { rightFocus = true; true }
             Key.DirectionLeft -> { rightFocus = false; true }
             Key.Enter, Key.NumPadEnter -> { if (rightFocus) activateOption() else rightFocus = true; true }
-            Key.Escape, Key.Back, Key.ButtonB -> { if (rightFocus) rightFocus = false else onBack(); true }
+            Key.ButtonB -> { handleControllerBack(); true }
             else -> false
         }
     }) {
@@ -212,7 +215,13 @@ fun LauncherSettingsScreen(
                 .padding(horizontal = 30.dp, vertical = 18.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("⚙", color = SettingsWhite, fontSize = 30.sp)
+                Image(
+                    painter = painterResource(R.drawable.setting),
+                    contentDescription = null,
+                    modifier = Modifier.width(32.dp).height(32.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(SettingsWhite)
+                )
                 Spacer(Modifier.width(15.dp))
                 Text(stringResource(R.string.horizon_settings_title), color = SettingsWhite, fontSize = 25.sp)
             }
@@ -254,7 +263,19 @@ fun LauncherSettingsScreen(
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsGray))
             Row(Modifier.fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                Text("B", color = SettingsWhite, fontSize = 18.sp); Spacer(Modifier.width(7.dp)); Text(stringResource(R.string.settings_action_back), color = SettingsWhite, fontSize = 16.sp); Spacer(Modifier.width(25.dp)); Text("A", color = SettingsWhite, fontSize = 18.sp); Spacer(Modifier.width(7.dp)); Text(stringResource(R.string.settings_action_select), color = SettingsWhite, fontSize = 16.sp)
+                SettingsFooterButton(
+                    glyph = "B",
+                    label = stringResource(R.string.settings_action_back),
+                    onClick = { handleControllerBack() }
+                )
+                Spacer(Modifier.width(25.dp))
+                SettingsFooterButton(
+                    glyph = "A",
+                    label = stringResource(R.string.settings_action_select),
+                    onClick = {
+                        if (rightFocus) activateOption() else rightFocus = true
+                    }
+                )
             }
         }
     }
@@ -304,5 +325,24 @@ private fun SettingsCategoryRow(text: String, selected: Boolean, focused: Boolea
         Box(Modifier.width(if (selected) 4.dp else 0.dp).height(38.dp).background(if (selected) SettingsBlue else Color.Transparent))
         Spacer(Modifier.width(if (selected) 13.dp else 17.dp))
         Text(text, color = if (focused) SettingsBlue else SettingsWhite, fontSize = 18.sp)
+    }
+}
+
+@Composable
+private fun SettingsFooterButton(
+    glyph: String,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .height(44.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HorizonButtonGlyph(label = glyph, size = 28.dp)
+        Spacer(Modifier.width(7.dp))
+        Text(label, color = SettingsWhite, fontSize = 16.sp)
     }
 }

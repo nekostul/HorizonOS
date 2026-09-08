@@ -1,7 +1,7 @@
 package ru.nekostul.horizonos
 
 import android.os.Bundle
-import android.view.KeyEvent
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
@@ -25,22 +25,20 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var runtimePermissionLauncher: ActivityResultLauncher<Array<String>>
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // Some gamepads expose B as BUTTON_B instead of forwarding Android
-        // Back. Route it through the same callback stack used by overlays and
-        // Settings, so it can never fall through to Activity.finish().
-        if (event.keyCode == KeyEvent.KEYCODE_BUTTON_B &&
-            event.action == KeyEvent.ACTION_DOWN &&
-            event.repeatCount == 0
-        ) {
-            onBackPressedDispatcher.onBackPressed()
-            return true
-        }
-        return super.dispatchKeyEvent(event)
-    }
+    private var nativeBackCallback: android.window.OnBackInvokedCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // HorizonOS uses the controller B button for navigation. Consume the
+        // platform Back gesture/button so it can never finish the launcher.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            nativeBackCallback = android.window.OnBackInvokedCallback { }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+                nativeBackCallback!!
+            )
+        }
 
         runtimePermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
@@ -84,5 +82,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onBackPressed() {
+        // Intentionally disabled. Navigation is controller-first.
+    }
+
+    override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            nativeBackCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+        }
+        super.onDestroy()
     }
 }

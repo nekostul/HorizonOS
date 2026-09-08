@@ -4,7 +4,6 @@ import android.graphics.drawable.ColorDrawable
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -141,16 +140,10 @@ internal fun HorizonOverlay(
         onDispose { overlayBackHandlers?.remove(dismissAction) }
     }
 
-    // Dialog is a separate window. Consume Android Back here so it closes the
-    // current HorizonOS overlay instead of finishing the Activity.
-    BackHandler(enabled = true) {
-        dismissAnimated()
-    }
-
     Dialog(
-        onDismissRequest = { dismissAnimated() },
+        onDismissRequest = { /* Native Android Back is intentionally disabled. */ },
         properties = DialogProperties(
-            dismissOnBackPress = true,
+            dismissOnBackPress = false,
             dismissOnClickOutside = false,
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false
@@ -166,6 +159,14 @@ internal fun HorizonOverlay(
                     if (hasFocus) hideDialogSystemBars(window)
                 }
                 decorView.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+                var nativeDialogBackCallback: android.window.OnBackInvokedCallback? = null
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    nativeDialogBackCallback = android.window.OnBackInvokedCallback { }
+                    window.onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                        android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+                        nativeDialogBackCallback!!
+                    )
+                }
                 window.apply {
                 setDimAmount(0f)
                 setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
@@ -189,6 +190,9 @@ internal fun HorizonOverlay(
                 }
                 onDispose {
                     decorView.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        nativeDialogBackCallback?.let { window.onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+                    }
                 }
             }
         }
@@ -201,11 +205,10 @@ internal fun HorizonOverlay(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.42f))
+                .clickable(onClick = { dismissAnimated() })
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown &&
-                        (event.key == Key.Back ||
-                            event.key == Key.Escape ||
-                            event.key == Key.ButtonB)
+                        event.key == Key.ButtonB
                     ) {
                         dismissAnimated()
                         true
@@ -233,6 +236,9 @@ internal fun HorizonOverlay(
                         .verticalScroll(rememberScrollState())
                         .background(SettingsPanel, RoundedCornerShape(12.dp))
                         .border(1.dp, SettingsBlue, RoundedCornerShape(12.dp))
+                        // Consume taps inside the panel so only the scrim
+                        // closes the overlay.
+                        .clickable(onClick = {})
                         .padding(24.dp)
                         .focusGroup(),
                     horizontalAlignment = Alignment.CenterHorizontally

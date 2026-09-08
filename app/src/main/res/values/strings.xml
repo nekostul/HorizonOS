@@ -258,6 +258,11 @@
     <string name="capability_no_system_brightness">Window brightness is available. Global brightness requires WRITE_SETTINGS.</string>
     <string name="home_profile_name">Eden Page</string>
     <string name="action_ok">OK</string>
+    <string name="home_menu_games">Games</string>
+    <string name="home_menu_files">Files</string>
+    <string name="home_menu_gamesir">GameSir</string>
+    <string name="home_menu_settings">System Settings</string>
+    <string name="home_menu_power">Power</string>
     <string name="storage_gb">GB</string>
     <string name="horizon_version">HorizonOS %1$s</string>
     <string name="system_display_body">Display
