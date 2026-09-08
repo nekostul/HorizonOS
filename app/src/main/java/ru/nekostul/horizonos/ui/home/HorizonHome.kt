@@ -2,6 +2,9 @@ package ru.nekostul.horizonos.ui.home
 
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,9 +41,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -83,9 +88,6 @@ import ru.nekostul.horizonos.R
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.requiredHeight
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
 import ru.nekostul.horizonos.ui.settings.LauncherSettingsScreen
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
@@ -288,6 +290,24 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
         gamepadNavigationRequest++
     }
 
+    fun moveMenuSelection(direction: Int) {
+        selectedMenu = (selectedMenu + direction + 5) % 5
+        menuSelectionArmed = true
+        tappedGameIndex = -1
+    }
+
+    fun moveDownToMenu() {
+        selectedMenu = 0
+        menuSelectionArmed = true
+        tappedGameIndex = -1
+    }
+
+    fun moveUpToGames() {
+        selectedMenu = -1
+        menuSelectionArmed = false
+        tappedGameIndex = selectedGame
+    }
+
     fun activateMenu(index: Int) {
 
         if (selectedMenu != index || !menuSelectionArmed) {
@@ -395,12 +415,39 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                 when (event.key) {
 
                     Key.DirectionLeft -> {
-                        moveGameSelection(-1)
+                        if (menuSelectionArmed) {
+                            moveMenuSelection(-1)
+                        } else {
+                            moveGameSelection(-1)
+                        }
                         true
                     }
 
                     Key.DirectionRight -> {
-                        moveGameSelection(1)
+                        if (menuSelectionArmed) {
+                            moveMenuSelection(1)
+                        } else {
+                            moveGameSelection(1)
+                        }
+                        true
+                    }
+
+                    Key.DirectionDown -> {
+                        moveDownToMenu()
+                        true
+                    }
+
+                    Key.DirectionUp -> {
+                        if (menuSelectionArmed) {
+                            moveUpToGames()
+                        }
+                        true
+                    }
+
+                    Key.Enter, Key.NumPadEnter -> {
+                        if (menuSelectionArmed && selectedMenu >= 0) {
+                            activateMenu(selectedMenu)
+                        }
                         true
                     }
 
@@ -603,6 +650,16 @@ private fun HorizonGameCarousel(
     onSwipe: () -> Unit
 ) {
     val density = LocalDensity.current
+    val selectionTransition = rememberInfiniteTransition(label = "cardSelectionPulse")
+    val selectionPulse by selectionTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1050, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cardSelectionPulseValue"
+    )
     val cardSizePx = with(density) { cardSize.toPx() }
     val gapPx = with(density) { cardGap.toPx() }
     val stepPx = cardSizePx + gapPx
@@ -777,6 +834,7 @@ private fun HorizonGameCarousel(
                             game = game,
                             selected = cardSelected,
                             size = cardSize,
+                            selectionPulse = selectionPulse,
                             onClick = {
                                 flingVelocityPx = 0f
                                 bringCardIntoView(index)
@@ -787,6 +845,7 @@ private fun HorizonGameCarousel(
                         HorizonEmptyGameCard(
                             selected = cardSelected,
                             size = cardSize,
+                            selectionPulse = selectionPulse,
                             onClick = {
                                 flingVelocityPx = 0f
                                 bringCardIntoView(index)
@@ -804,19 +863,53 @@ private fun HorizonGameCarousel(
 private fun HorizonEmptyGameCard(
     selected: Boolean,
     size: Dp,
+    selectionPulse: Float,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val frameColor = if (selected) {
+        lerp(HorizonBlue, Color(0xFF9EEFFF), selectionPulse)
+    } else {
+        Color(0xFF333333)
+    }
 
     Box(
         modifier = Modifier
             .requiredSize(size)
+            .then(
+                if (selected) {
+                    Modifier.shadow(
+                        elevation = 4.dp,
+                        shape = RoundedCornerShape(1.dp),
+                        clip = false,
+                        ambientColor = frameColor.copy(alpha = 0.22f),
+                        spotColor = frameColor.copy(alpha = 0.22f)
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .clip(RoundedCornerShape(1.dp))
             .drawBehind {
                 val strokeWidth = (if (selected) 4.dp else 2.dp).toPx()
                 drawRect(color = Color(0xFF303030))
+                if (selected) {
+                    val glowWidth = strokeWidth + 10.dp.toPx()
+                    val glowOffset = (strokeWidth - glowWidth) / 2f
+                    drawRect(
+                        color = frameColor.copy(
+                            alpha = 0.10f + selectionPulse * 0.08f
+                        ),
+                        topLeft = Offset(glowOffset, glowOffset),
+                        size = Size(
+                            width = this.size.width - 2f * glowOffset,
+                            height = this.size.height - 2f * glowOffset
+                        ),
+                        style = Stroke(width = glowWidth)
+                    )
+                }
                 drawRect(
-                    color = if (selected) HorizonBlue else Color(0xFF333333),
+                    color = frameColor,
                     topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f),
                     size = Size(
                         width = this.size.width - strokeWidth,
@@ -843,21 +936,55 @@ private fun HorizonGameCard(
     game: HorizonGame,
     selected: Boolean,
     size: Dp,
+    selectionPulse: Float,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val frameColor = if (selected) {
+        lerp(HorizonBlue, Color(0xFF9EEFFF), selectionPulse)
+    } else {
+        Color(0xFF333333)
+    }
 
     Box(
         modifier = Modifier
             .requiredSize(size)
+            .then(
+                if (selected) {
+                    Modifier.shadow(
+                        elevation = 4.dp,
+                        shape = RoundedCornerShape(1.dp),
+                        clip = false,
+                        ambientColor = frameColor.copy(alpha = 0.22f),
+                        spotColor = frameColor.copy(alpha = 0.22f)
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .clip(
                 RoundedCornerShape(1.dp)
             )
             .drawBehind {
                 val strokeWidth = (if (selected) 4.dp else 2.dp).toPx()
                 drawRect(color = game.color)
+                if (selected) {
+                    val glowWidth = strokeWidth + 10.dp.toPx()
+                    val glowOffset = (strokeWidth - glowWidth) / 2f
+                    drawRect(
+                        color = frameColor.copy(
+                            alpha = 0.10f + selectionPulse * 0.08f
+                        ),
+                        topLeft = Offset(glowOffset, glowOffset),
+                        size = Size(
+                            width = this.size.width - 2f * glowOffset,
+                            height = this.size.height - 2f * glowOffset
+                        ),
+                        style = Stroke(width = glowWidth)
+                    )
+                }
                 drawRect(
-                    color = if (selected) HorizonBlue else Color(0xFF333333),
+                    color = frameColor,
                     topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f),
                     size = Size(
                         width = this.size.width - strokeWidth,
