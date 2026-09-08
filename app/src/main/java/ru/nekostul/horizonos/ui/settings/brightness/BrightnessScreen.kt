@@ -30,13 +30,14 @@ fun BrightnessScreen(
     val view = LocalView.current
     val controller = BrightnessController(context)
     val activity = view.context as? Activity
+    val automaticBrightness = controller.isAutomaticBrightnessEnabled() ?: settings.autoBrightness
 
     Column {
         Text(stringResource(R.string.settings_brightness_title), color = SettingsWhite, fontSize = 25.sp)
         Spacer(Modifier.height(12.dp))
         SettingsToggleRow(
             title = stringResource(R.string.settings_auto_brightness),
-            checked = settings.autoBrightness,
+            checked = automaticBrightness,
             selected = selectedIndex == 0,
             description = stringResource(R.string.settings_auto_brightness_description),
             enabled = controller.canChangeSystemBrightness,
@@ -46,8 +47,8 @@ fun BrightnessScreen(
             title = stringResource(R.string.settings_brightness),
             value = settings.brightness,
             selected = selectedIndex == 1,
-            enabled = !settings.autoBrightness,
-            description = if (settings.autoBrightness) {
+            enabled = !automaticBrightness,
+            description = if (automaticBrightness) {
                 stringResource(R.string.settings_brightness_manual_disabled)
             } else {
                 stringResource(R.string.settings_brightness_window_description)

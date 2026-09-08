@@ -4,8 +4,10 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,14 +30,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -45,6 +51,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.blur
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import ru.nekostul.horizonos.R
@@ -83,6 +90,10 @@ fun LauncherSettingsScreen(
     var selectedCategory by remember { mutableIntStateOf(0) }
     var selectedOption by remember { mutableIntStateOf(0) }
     var rightFocus by remember { mutableStateOf(false) }
+    var systemOverlayRequest by remember { mutableStateOf<Int?>(null) }
+    val overlayVisible = remember { mutableStateOf(false) }
+    val overlayBackHandlers = remember { mutableStateListOf<() -> Unit>() }
+    val settingsFocusRequester = remember { FocusRequester() }
     val leftListState = rememberLazyListState()
 
     fun optionCount(category: Int): Int = when (category) {
@@ -113,16 +124,36 @@ fun LauncherSettingsScreen(
         scope.launch {
             when (selectedCategory) {
                 0 -> when (selectedOption) {
-                    0 -> repository.setAirplaneMode(!settings.airplaneMode)
+                    0 -> {
+                        val controller = ru.nekostul.horizonos.ui.settings.AirplaneModeController(context)
+                        val next = !(controller.currentState() ?: false)
+                        if (controller.setEnabled(next)) repository.setAirplaneMode(next)
+                    }
                     1 -> repository.setAirplaneWifiAllowed(!settings.airplaneWifiAllowed)
                     2 -> repository.setAirplaneBluetoothAllowed(!settings.airplaneBluetoothAllowed)
                 }
-                1 -> if (selectedOption == 0) repository.setAutoBrightness(!settings.autoBrightness)
-                3 -> if (selectedOption == 0) repository.setLockScreenEnabled(!settings.lockScreenEnabled)
+                1 -> if (selectedOption == 0) {
+                    val enabled = !settings.autoBrightness
+                    val controller = ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
+                    if (controller.setAutomaticBrightnessEnabled(enabled)) repository.setAutoBrightness(enabled)
+                }
+                3 -> when (selectedOption) {
+                    0 -> repository.setLockScreenEnabled(!settings.lockScreenEnabled)
+                    in 1..5 -> {
+                        val timeout = listOf(0, 1, 5, 10, 30)[selectedOption - 1]
+                        repository.setLockScreenTimeoutMinutes(timeout)
+                        ru.nekostul.horizonos.ui.settings.lockscreen.LockScreenController(context)
+                            .setSystemTimeout(timeout * 60 * 1000)
+                    }
+                }
                 6 -> repository.setTheme(if (selectedOption == 0) "dark" else "light")
                 7 -> if (selectedOption == 0) repository.setNotificationsEnabled(!settings.notificationsEnabled)
-                8 -> if (selectedOption == 0) repository.setSleepEnabled(!settings.sleepEnabled)
+                8 -> when (selectedOption) {
+                    0 -> repository.setSleepEnabled(!settings.sleepEnabled)
+                    in 1..5 -> repository.setSleepTimeoutMinutes(listOf(0, 5, 10, 30, 60)[selectedOption - 1])
+                }
                 9 -> if (selectedOption == 1) repository.setVibrationEnabled(!settings.vibrationEnabled)
+                10 -> systemOverlayRequest = selectedOption
             }
         }
     }
@@ -133,11 +164,36 @@ fun LauncherSettingsScreen(
         leftListState.animateScrollToItem(selectedCategory)
         requestRuntimePermissions(selectedCategory)
     }
+    LaunchedEffect(Unit) {
+        settingsFocusRequester.requestFocus()
+    }
     LaunchedEffect(settings.airplaneMode) {
         if (selectedCategory == 0) selectedOption = selectedOption.coerceIn(0, optionCount(0) - 1)
     }
 
-    Box(Modifier.fillMaxSize().background(SettingsBackground).onPreviewKeyEvent { event ->
+    CompositionLocalProvider(LocalSettingsOverlayVisible provides overlayVisible) {
+    // Always consume Back while Settings is displayed. The top overlay gets
+    // the first chance; only an empty stack falls back to Settings/Home.
+    BackHandler(enabled = true) {
+        val dismissOverlay = overlayBackHandlers.lastOrNull()
+        if (dismissOverlay != null) {
+            dismissOverlay()
+        } else if (rightFocus) {
+            rightFocus = false
+        } else {
+            onBack()
+        }
+    }
+
+    CompositionLocalProvider(
+        LocalSettingsOverlayBackHandlers provides overlayBackHandlers
+    ) {
+    Box(Modifier
+        .fillMaxSize()
+        .background(SettingsBackground)
+        .focusRequester(settingsFocusRequester)
+        .focusable()
+        .onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when (event.key) {
             Key.DirectionUp -> { if (rightFocus) selectedOption = (selectedOption - 1).coerceAtLeast(0) else selectedCategory = (selectedCategory - 1).coerceAtLeast(0); true }
@@ -145,11 +201,16 @@ fun LauncherSettingsScreen(
             Key.DirectionRight -> { rightFocus = true; true }
             Key.DirectionLeft -> { rightFocus = false; true }
             Key.Enter, Key.NumPadEnter -> { if (rightFocus) activateOption() else rightFocus = true; true }
-            Key.Escape, Key.Back -> { onBack(); true }
+            Key.Escape, Key.Back, Key.ButtonB -> { if (rightFocus) rightFocus = false else onBack(); true }
             else -> false
         }
     }) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 18.dp)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .then(if (overlayVisible.value) Modifier.blur(7.dp) else Modifier)
+                .padding(horizontal = 30.dp, vertical = 18.dp)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("⚙", color = SettingsWhite, fontSize = 30.sp)
                 Spacer(Modifier.width(15.dp))
@@ -170,7 +231,25 @@ fun LauncherSettingsScreen(
                 }
                 Spacer(Modifier.width(24.dp))
                 Column(Modifier.fillMaxHeight().weight(0.57f).verticalScroll(rememberScrollState())) {
-                    SettingsContent(context, selectedCategory, settings, selectedOption, repository, scope, { selectedOption = it; rightFocus = true; activateOption() }, { scope.launch { repository.setBrightness(it) } }, { scope.launch { repository.setTheme(it) } })
+                    SettingsContent(
+                        context,
+                        selectedCategory,
+                        settings,
+                        selectedOption,
+                        repository,
+                        scope,
+                        { selectedOption = it; rightFocus = true; activateOption() },
+                        { value ->
+                            scope.launch {
+                                repository.setBrightness(value)
+                                ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
+                                    .setGlobalBrightness(value)
+                            }
+                        },
+                        { scope.launch { repository.setTheme(it) } }
+                        ,systemOverlayRequest,
+                        { systemOverlayRequest = null }
+                    )
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsGray))
@@ -179,10 +258,14 @@ fun LauncherSettingsScreen(
             }
         }
     }
+    }
 }
 
+}
+
+
 @Composable
-private fun SettingsContent(context: Context, category: Int, settings: LauncherSettings, selectedOption: Int, repository: LauncherSettingsRepository, scope: kotlinx.coroutines.CoroutineScope, onOptionSelected: (Int) -> Unit, onBrightnessChange: (Float) -> Unit, onThemeSelected: (String) -> Unit) {
+private fun SettingsContent(context: Context, category: Int, settings: LauncherSettings, selectedOption: Int, repository: LauncherSettingsRepository, scope: kotlinx.coroutines.CoroutineScope, onOptionSelected: (Int) -> Unit, onBrightnessChange: (Float) -> Unit, onThemeSelected: (String) -> Unit, systemOverlayRequest: Int?, onSystemOverlayConsumed: () -> Unit) {
     when (category) {
         0 -> AirplaneModeScreen(context, settings, selectedOption, { onOptionSelected(0) }, { onOptionSelected(1) }, { onOptionSelected(2) })
         1 -> BrightnessScreen(settings, selectedOption, { onOptionSelected(0) }, onBrightnessChange)
@@ -200,7 +283,18 @@ private fun SettingsContent(context: Context, category: Int, settings: LauncherS
         7 -> NotificationsScreen(settings, selectedOption) { onOptionSelected(0) }
         8 -> SleepScreen(context, settings, selectedOption, { onOptionSelected(0) }, { timeout -> scope.launch { repository.setSleepTimeoutMinutes(timeout) } })
         9 -> ControllersScreen(settings, selectedOption, { scope.launch { repository.setVibrationEnabled(!settings.vibrationEnabled) } }, { value -> scope.launch { repository.setControllerSensitivity(value) } }, { value -> scope.launch { repository.setControllerDeadZone(value) } })
-        else -> SystemScreen(settings.language, selectedOption, onOptionSelected, { language -> scope.launch { repository.setLanguage(language) } })
+        else -> SystemScreen(
+            settings = settings,
+            language = settings.language,
+            selectedIndex = selectedOption,
+            onSelect = onOptionSelected,
+            onLanguageSelected = { language -> scope.launch { repository.setLanguage(language) } },
+            onInterfaceScaleChange = { value -> scope.launch { repository.setInterfaceScale(value) } },
+            onAnimationsToggle = { scope.launch { repository.setAnimations(!settings.animations) } },
+            onInterfaceSoundsToggle = { scope.launch { repository.setInterfaceSounds(!settings.interfaceSounds) } },
+            openOverlayIndex = systemOverlayRequest,
+            onOverlayRequestConsumed = onSystemOverlayConsumed
+        )
     }
 }
 

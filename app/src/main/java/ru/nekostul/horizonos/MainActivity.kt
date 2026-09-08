@@ -1,6 +1,7 @@
 package ru.nekostul.horizonos
 
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
@@ -23,6 +24,20 @@ import ru.nekostul.horizonos.ui.settings.LanguageManager
 class MainActivity : ComponentActivity() {
 
     private lateinit var runtimePermissionLauncher: ActivityResultLauncher<Array<String>>
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Some gamepads expose B as BUTTON_B instead of forwarding Android
+        // Back. Route it through the same callback stack used by overlays and
+        // Settings, so it can never fall through to Activity.finish().
+        if (event.keyCode == KeyEvent.KEYCODE_BUTTON_B &&
+            event.action == KeyEvent.ACTION_DOWN &&
+            event.repeatCount == 0
+        ) {
+            onBackPressedDispatcher.onBackPressed()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

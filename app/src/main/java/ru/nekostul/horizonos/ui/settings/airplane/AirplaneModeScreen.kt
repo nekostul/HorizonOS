@@ -15,6 +15,8 @@ import ru.nekostul.horizonos.ui.settings.LauncherSettings
 import ru.nekostul.horizonos.ui.settings.SettingsCapabilitiesNote
 import ru.nekostul.horizonos.ui.settings.SettingsToggleRow
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
+import ru.nekostul.horizonos.ui.settings.HorizonSettingRow
+import ru.nekostul.horizonos.ui.settings.SettingRow
 
 @Composable
 fun AirplaneModeScreen(
@@ -26,14 +28,19 @@ fun AirplaneModeScreen(
     onToggleBluetooth: () -> Unit
 ) {
     val controller = AirplaneModeStateController(context)
+    val systemState = controller.systemState()
     Column {
         Text(stringResource(R.string.settings_airplane_title), color = SettingsWhite, fontSize = 25.sp)
         Spacer(Modifier.height(12.dp))
-        SettingsToggleRow(
-            title = stringResource(R.string.settings_airplane_title),
-            checked = settings.airplaneMode,
+        HorizonSettingRow(
+            row = SettingRow(
+                title = stringResource(R.string.settings_airplane_title),
+                value = systemState?.let { if (it) stringResource(R.string.settings_status_on) else stringResource(R.string.settings_status_off) }
+                    ?: stringResource(R.string.settings_status_unavailable),
+                description = stringResource(R.string.settings_airplane_description),
+                enabled = controller.canControlSystemMode
+            ),
             selected = selectedIndex == 0,
-            description = stringResource(R.string.settings_airplane_description),
             onClick = onToggleAirplane
         )
         if (settings.airplaneMode) {

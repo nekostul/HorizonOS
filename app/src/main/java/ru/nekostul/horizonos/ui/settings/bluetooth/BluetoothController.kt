@@ -11,6 +11,8 @@ class BluetoothSettingsController(private val context: Context) {
     val available: Boolean get() = adapter != null
     val canControl: Boolean
         get() = SystemCapabilitiesDetector.detect(context).canControlBluetooth && BluetoothPermission.hasConnect(context)
+    val canScan: Boolean
+        get() = available && BluetoothPermission.hasScan(context)
 
     fun enabled(): Boolean? = runCatching {
         if (!BluetoothPermission.hasConnect(context)) return@runCatching null
@@ -22,6 +24,24 @@ class BluetoothSettingsController(private val context: Context) {
         @Suppress("DEPRECATION")
         adapter?.bondedDevices.orEmpty().mapNotNull { it.name?.takeIf(String::isNotBlank) }.sorted()
     }.getOrDefault(emptyList())
+
+    fun startDiscovery(): Boolean = runCatching {
+        if (!canScan || !BluetoothPermission.hasConnect(context)) return@runCatching false
+        adapter?.startDiscovery() == true
+    }.getOrDefault(false)
+
+    fun cancelDiscovery(): Boolean = runCatching { adapter?.cancelDiscovery() == true }.getOrDefault(false)
+
+    fun createBond(device: android.bluetooth.BluetoothDevice): Boolean = runCatching {
+        if (!BluetoothPermission.hasConnect(context)) return@runCatching false
+        device.createBond()
+    }.getOrDefault(false)
+
+    fun removeBond(device: android.bluetooth.BluetoothDevice): Boolean = runCatching {
+        if (!BluetoothPermission.hasConnect(context)) return@runCatching false
+        @Suppress("DEPRECATION")
+        device.javaClass.getMethod("removeBond").invoke(device) as? Boolean ?: false
+    }.getOrDefault(false)
 
     fun setEnabled(enabled: Boolean): Boolean {
         if (!canControl || !BluetoothPermission.hasConnect(context)) return false

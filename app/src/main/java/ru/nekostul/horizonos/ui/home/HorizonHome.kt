@@ -58,6 +58,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.activity.compose.BackHandler
 import ru.nekostul.horizonos.ui.settings.LauncherSettingsScreen
 
 private val HorizonBackground = Color(0xFF2B2B2B)
@@ -170,6 +171,17 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
 
     var showLauncherSettings by remember {
         mutableStateOf(false)
+    }
+
+    // HorizonOS is a console shell: Back leaves transient menus/settings, but
+    // does not terminate the launcher while the Home surface is visible.
+    // Child Settings/overlay BackHandlers are composed later and therefore
+    // receive the event first when they are active.
+    BackHandler(enabled = true) {
+        when {
+            showLauncherSettings -> showLauncherSettings = false
+            showPowerMenu -> showPowerMenu = false
+        }
     }
 
     fun activateMenu(index: Int) {

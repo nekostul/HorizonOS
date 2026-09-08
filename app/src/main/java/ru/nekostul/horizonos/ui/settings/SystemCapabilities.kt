@@ -18,7 +18,8 @@ data class SystemCapabilities(
     val canEnterSleep: Boolean,
     val isDeviceOwner: Boolean,
     val isPrivilegedApp: Boolean,
-    val hasRootAccess: Boolean = false
+    val hasRootAccess: Boolean = false,
+    val canChangeDateTime: Boolean = false
 )
 
 object SystemCapabilitiesDetector {
@@ -28,21 +29,23 @@ object SystemCapabilitiesDetector {
         val appInfo = context.applicationInfo
         val isPrivilegedApp = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0 ||
             appInfo.flags and android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0
-        val canBrightness = Settings.System.canWrite(context)
+        val hasRoot = PrivilegedSystemAccess.hasRootAccess()
+        val canBrightness = Settings.System.canWrite(context) || hasRoot
         val bluetoothPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
         return SystemCapabilities(
-            canControlAirplaneMode = isPrivilegedApp,
-            canControlWifi = isPrivilegedApp || isDeviceOwner,
-            canControlBluetooth = isPrivilegedApp,
+            canControlAirplaneMode = isPrivilegedApp || isDeviceOwner || hasRoot,
+            canControlWifi = isPrivilegedApp || isDeviceOwner || hasRoot,
+            canControlBluetooth = isPrivilegedApp || hasRoot,
             canChangeSystemBrightness = canBrightness,
             canChangeSystemTimeout = canBrightness,
-            canControlNotifications = isPrivilegedApp,
-            canEnterSleep = isPrivilegedApp,
+            canControlNotifications = isPrivilegedApp || isDeviceOwner || hasRoot,
+            canEnterSleep = isPrivilegedApp || isDeviceOwner || hasRoot,
             isDeviceOwner = isDeviceOwner,
             isPrivilegedApp = isPrivilegedApp,
-            hasRootAccess = false
+            hasRootAccess = hasRoot,
+            canChangeDateTime = isPrivilegedApp || hasRoot
         )
     }
 }
