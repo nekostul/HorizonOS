@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -65,8 +66,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.Context
+import android.hardware.input.InputManager
 import android.os.BatteryManager
+import android.os.Handler
+import android.os.Looper
 import android.text.format.DateFormat
+import android.view.InputDevice
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
@@ -171,6 +177,50 @@ private fun CurrentTime(): String {
     return currentTime
 }
 
+private fun isExternalGamepadConnected(): Boolean {
+    return InputDevice.getDeviceIds().any { deviceId ->
+        val device = InputDevice.getDevice(deviceId) ?: return@any false
+        val sources = device.sources
+        device.isExternal &&
+                !device.isVirtual &&
+                (sources and InputDevice.SOURCE_GAMEPAD != 0 ||
+                        sources and InputDevice.SOURCE_JOYSTICK != 0)
+    }
+}
+
+@Composable
+private fun ExternalGamepadConnected(): Boolean {
+    val context = LocalContext.current
+    var connected by remember { mutableStateOf(isExternalGamepadConnected()) }
+
+    DisposableEffect(context) {
+        val inputManager = context.getSystemService(Context.INPUT_SERVICE) as InputManager
+        val listener = object : InputManager.InputDeviceListener {
+            private fun refresh() {
+                connected = isExternalGamepadConnected()
+            }
+
+            override fun onInputDeviceAdded(deviceId: Int) = refresh()
+
+            override fun onInputDeviceRemoved(deviceId: Int) = refresh()
+
+            override fun onInputDeviceChanged(deviceId: Int) = refresh()
+        }
+
+        inputManager.registerInputDeviceListener(
+            listener,
+            Handler(Looper.getMainLooper())
+        )
+        connected = isExternalGamepadConnected()
+
+        onDispose {
+            inputManager.unregisterInputDeviceListener(listener)
+        }
+    }
+
+    return connected
+}
+
 @Composable
 fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
 
@@ -178,6 +228,7 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
 
     val currentTime = CurrentTime()
     val battery = BatteryLevel()
+    val externalGamepadConnected = ExternalGamepadConnected()
 
     // The Home library is intentionally a fixed strip of 12 empty slots for
     // now. Game discovery and card contents will be added separately later.
@@ -486,9 +537,11 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     horizontalAlignment = Alignment.Start,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    PageIndicator(selected = selectedGame, total = slotCount)
-                    Spacer(Modifier.height(3.dp))
-                    ControllerIcon(size = h * 0.062f)
+                    if (externalGamepadConnected) {
+                        GamepadIndicator()
+                        Spacer(Modifier.height(3.dp))
+                        ControllerIcon(size = h * 0.062f)
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -970,32 +1023,27 @@ private fun HorizonMenuButton(
 
 
 // ═══════════════════════════════════════════════════════════════════
-// PAGE INDICATOR
+// GAMEPAD INDICATOR
 // ═══════════════════════════════════════════════════════════════════
 
 @Composable
-private fun PageIndicator(
-    selected: Int,
-    total: Int
-) {
+private fun GamepadIndicator() {
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(
-            4.dp
-        ),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
 
-        repeat(total.coerceAtMost(4)) { index ->
+        repeat(4) { index ->
 
             Box(
                 modifier = Modifier
                     .size(
-                        width = 10.dp,
-                        height = 7.dp
+                        width = 7.dp,
+                        height = 6.dp
                     )
                     .background(
-                        if (index == selected % 4) {
+                        if (index == 0) {
                             Color(0xFFB6E800)
                         } else {
                             Color(0xFF777777)
@@ -1019,7 +1067,9 @@ private fun ControllerIcon(
     Image(
         painter = painterResource(R.drawable.game),
         contentDescription = null,
-        modifier = Modifier.size(size),
+        modifier = Modifier
+            .size(size)
+            .padding(2.dp),
         contentScale = ContentScale.Fit,
         colorFilter = ColorFilter.tint(HorizonWhite)
     )
