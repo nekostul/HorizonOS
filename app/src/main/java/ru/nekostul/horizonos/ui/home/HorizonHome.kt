@@ -5,8 +5,10 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -42,11 +44,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -94,6 +103,9 @@ import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.PI
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.Job
 
@@ -227,6 +239,7 @@ private fun ExternalGamepadConnected(): Boolean {
 fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
 
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val currentTime = CurrentTime()
     val battery = BatteryLevel()
@@ -268,6 +281,14 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
         mutableStateOf(false)
     }
 
+    var menuOpeningIndex by remember {
+        mutableIntStateOf(-1)
+    }
+
+    var menuOpeningJob by remember {
+        mutableStateOf<Job?>(null)
+    }
+
     var showPowerMenu by remember {
         mutableStateOf(false)
     }
@@ -276,13 +297,21 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
         mutableStateOf(false)
     }
 
+    fun cancelMenuOpening() {
+        menuOpeningJob?.cancel()
+        menuOpeningJob = null
+        menuOpeningIndex = -1
+    }
+
     fun clearHomeSelection() {
+        cancelMenuOpening()
         selectedMenu = -1
         menuSelectionArmed = false
         tappedGameIndex = -1
     }
 
     fun moveGameSelection(direction: Int) {
+        cancelMenuOpening()
         selectedGame = (selectedGame + direction + slotCount) % slotCount
         selectedMenu = -1
         menuSelectionArmed = false
@@ -291,24 +320,29 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
     }
 
     fun moveMenuSelection(direction: Int) {
+        cancelMenuOpening()
         selectedMenu = (selectedMenu + direction + 5) % 5
         menuSelectionArmed = true
         tappedGameIndex = -1
     }
 
     fun moveDownToMenu() {
+        cancelMenuOpening()
         selectedMenu = 0
         menuSelectionArmed = true
         tappedGameIndex = -1
     }
 
     fun moveUpToGames() {
+        cancelMenuOpening()
         selectedMenu = -1
         menuSelectionArmed = false
         tappedGameIndex = selectedGame
     }
 
     fun activateMenu(index: Int) {
+
+        if (menuOpeningIndex >= 0) return
 
         if (selectedMenu != index || !menuSelectionArmed) {
             selectedMenu = index
@@ -317,53 +351,60 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
             return
         }
 
-        // A completed action starts a fresh selection cycle when the user
-        // returns to Home.
-        menuSelectionArmed = false
+        // Let the selected icon finish its entrance animation before opening
+        // the destination screen or external application.
+        menuOpeningIndex = index
+        menuOpeningJob = coroutineScope.launch {
+            delay(640)
+            if (menuOpeningIndex != index) return@launch
+            menuSelectionArmed = false
+            menuOpeningIndex = -1
+            menuOpeningJob = null
 
-        when (index) {
+            when (index) {
 
-            // Игры
-            0 -> {
-                // Уже главный экран
-            }
-
-            // Файлы
-            1 -> {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "*/*"
+                // Игры
+                0 -> {
+                    // Уже главный экран
                 }
 
-                context.startActivity(intent)
-            }
+                // Файлы
+                1 -> {
+                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                    }
 
-            // GameSir
-            2 -> {
-                val packages = listOf(
-                    "com.xiaoji.gamemiracle",
-                    "com.gamesir"
-                )
+                    context.startActivity(intent)
+                }
 
-                for (packageName in packages) {
-                    val launchIntent =
-                        context.packageManager.getLaunchIntentForPackage(packageName)
+                // GameSir
+                2 -> {
+                    val packages = listOf(
+                        "com.xiaoji.gamemiracle",
+                        "com.gamesir"
+                    )
 
-                    if (launchIntent != null) {
-                        context.startActivity(launchIntent)
-                        break
+                    for (packageName in packages) {
+                        val launchIntent =
+                            context.packageManager.getLaunchIntentForPackage(packageName)
+
+                        if (launchIntent != null) {
+                            context.startActivity(launchIntent)
+                            break
+                        }
                     }
                 }
-            }
 
-            // Настройки лаунчера
-            3 -> {
-                showLauncherSettings = true
-            }
+                // Настройки лаунчера
+                3 -> {
+                    showLauncherSettings = true
+                }
 
-            // Питание
-            4 -> {
-                showPowerMenu = true
+                // Питание
+                4 -> {
+                    showPowerMenu = true
+                }
             }
         }
     }
@@ -556,11 +597,51 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                 verticalAlignment = Alignment.Top
             ) {
                 // The existing button meanings and actions are intentionally unchanged.
-                HorizonMenuButton("▣", Color(0xFFFF0033), h * 0.105f, menuSelectionArmed && selectedMenu == 0, menuSelectionArmed && selectedMenu == 0, stringResource(R.string.home_menu_games)) { activateMenu(0) }
-                HorizonMenuButton("▤", Color(0xFF35D060), h * 0.105f, menuSelectionArmed && selectedMenu == 1, menuSelectionArmed && selectedMenu == 1, stringResource(R.string.home_menu_files)) { activateMenu(1) }
-                HorizonMenuButton("▥", Color(0xFF20BFFF), h * 0.105f, menuSelectionArmed && selectedMenu == 2, menuSelectionArmed && selectedMenu == 2, stringResource(R.string.home_menu_gamesir)) { activateMenu(2) }
-                HorizonMenuButton("☼", HorizonWhite, h * 0.105f, menuSelectionArmed && selectedMenu == 3, menuSelectionArmed && selectedMenu == 3, stringResource(R.string.home_menu_settings)) { activateMenu(3) }
-                HorizonMenuButton("⏻", HorizonWhite, h * 0.105f, menuSelectionArmed && selectedMenu == 4, menuSelectionArmed && selectedMenu == 4, stringResource(R.string.home_menu_power)) { activateMenu(4) }
+                HorizonMenuButton(
+                    icon = HorizonMenuIconType.GAMES,
+                    iconColor = Color(0xFFFF0033),
+                    size = h * 0.105f,
+                    selected = menuSelectionArmed && selectedMenu == 0 || menuOpeningIndex == 0,
+                    showLabel = menuSelectionArmed && selectedMenu == 0 || menuOpeningIndex == 0,
+                    label = stringResource(R.string.home_menu_games),
+                    opening = menuOpeningIndex == 0
+                ) { activateMenu(0) }
+                HorizonMenuButton(
+                    icon = HorizonMenuIconType.FILES,
+                    iconColor = Color(0xFF35D060),
+                    size = h * 0.105f,
+                    selected = menuSelectionArmed && selectedMenu == 1 || menuOpeningIndex == 1,
+                    showLabel = menuSelectionArmed && selectedMenu == 1 || menuOpeningIndex == 1,
+                    label = stringResource(R.string.home_menu_files),
+                    opening = menuOpeningIndex == 1
+                ) { activateMenu(1) }
+                HorizonMenuButton(
+                    icon = HorizonMenuIconType.GAMESIR,
+                    iconColor = Color(0xFF20BFFF),
+                    size = h * 0.105f,
+                    selected = menuSelectionArmed && selectedMenu == 2 || menuOpeningIndex == 2,
+                    showLabel = menuSelectionArmed && selectedMenu == 2 || menuOpeningIndex == 2,
+                    label = stringResource(R.string.home_menu_gamesir),
+                    opening = menuOpeningIndex == 2
+                ) { activateMenu(2) }
+                HorizonMenuButton(
+                    icon = HorizonMenuIconType.SETTINGS,
+                    iconColor = HorizonWhite,
+                    size = h * 0.105f,
+                    selected = menuSelectionArmed && selectedMenu == 3 || menuOpeningIndex == 3,
+                    showLabel = menuSelectionArmed && selectedMenu == 3 || menuOpeningIndex == 3,
+                    label = stringResource(R.string.home_menu_settings),
+                    opening = menuOpeningIndex == 3
+                ) { activateMenu(3) }
+                HorizonMenuButton(
+                    icon = HorizonMenuIconType.POWER,
+                    iconColor = HorizonWhite,
+                    size = h * 0.105f,
+                    selected = menuSelectionArmed && selectedMenu == 4 || menuOpeningIndex == 4,
+                    showLabel = menuSelectionArmed && selectedMenu == 4 || menuOpeningIndex == 4,
+                    label = stringResource(R.string.home_menu_power),
+                    opening = menuOpeningIndex == 4
+                ) { activateMenu(4) }
             }
 
             Spacer(Modifier.weight(1f))
@@ -1081,14 +1162,23 @@ private fun BatteryIcon(
 // SYSTEM MENU BUTTON
 // ═══════════════════════════════════════════════════════════════════
 
+private enum class HorizonMenuIconType {
+    GAMES,
+    FILES,
+    GAMESIR,
+    SETTINGS,
+    POWER
+}
+
 @Composable
 private fun HorizonMenuButton(
-    symbol: String,
-    symbolColor: Color,
+    icon: HorizonMenuIconType,
+    iconColor: Color,
     size: Dp,
     selected: Boolean = false,
     showLabel: Boolean = false,
     label: String = "",
+    opening: Boolean = false,
     onClick: () -> Unit
 ) {
     val selectionTransition = rememberInfiniteTransition(label = "menuSelectionPulse")
@@ -1101,6 +1191,13 @@ private fun HorizonMenuButton(
         ),
         label = "menuSelectionAlpha"
     )
+    val iconReveal by animateFloatAsState(
+        targetValue = if (opening) 1f else 0f,
+        animationSpec = tween(620, easing = FastOutSlowInEasing),
+        label = "menuIconReveal"
+    )
+    val iconProgress = if (opening) iconReveal else 1f
+
     Box(
         modifier = Modifier
             .width(size)
@@ -1127,10 +1224,13 @@ private fun HorizonMenuButton(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = symbol,
-                color = symbolColor,
-                fontSize = (size.value * 0.32f).sp
+            HorizonMenuGlyph(
+                type = icon,
+                color = iconColor,
+                progress = iconProgress,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(size * 0.21f)
             )
         }
         if (showLabel) {
@@ -1144,6 +1244,196 @@ private fun HorizonMenuButton(
                     .offset(y = size + 4.dp)
                     .wrapContentWidth(unbounded = true)
             )
+        }
+    }
+}
+
+@Composable
+private fun HorizonMenuGlyph(
+    type: HorizonMenuIconType,
+    color: Color,
+    progress: Float,
+    modifier: Modifier
+) {
+    Canvas(modifier = modifier) {
+        val iconColor = color.copy(alpha = 0.86f + 0.14f * progress)
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val strokeWidth = size.minDimension * 0.075f
+        val stroke = Stroke(
+            width = strokeWidth,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round
+        )
+
+        when (type) {
+            HorizonMenuIconType.GAMES -> {
+                val scaleFactor = 0.84f + 0.16f * progress
+                scale(scaleFactor, pivot = center) {
+                    val screenSize = Size(size.width * 0.54f, size.height * 0.61f)
+                    val screenTopLeft = Offset(
+                        center.x - screenSize.width / 2f,
+                        size.height * 0.16f
+                    )
+                    drawRoundRect(
+                        color = iconColor,
+                        topLeft = screenTopLeft,
+                        size = screenSize,
+                        cornerRadius = CornerRadius(size.minDimension * 0.045f),
+                        style = stroke
+                    )
+                    drawLine(
+                        color = iconColor,
+                        start = Offset(
+                            center.x - screenSize.width * 0.28f,
+                            screenTopLeft.y + screenSize.height
+                        ),
+                        end = Offset(
+                            center.x,
+                            screenTopLeft.y + screenSize.height + size.height * 0.10f
+                        ),
+                        strokeWidth = strokeWidth
+                    )
+                    drawLine(
+                        color = iconColor,
+                        start = Offset(
+                            center.x,
+                            screenTopLeft.y + screenSize.height + size.height * 0.10f
+                        ),
+                        end = Offset(
+                            center.x + screenSize.width * 0.28f,
+                            screenTopLeft.y + screenSize.height
+                        ),
+                        strokeWidth = strokeWidth
+                    )
+                }
+            }
+
+            HorizonMenuIconType.FILES -> {
+                val folderPath = Path().apply {
+                    moveTo(size.width * 0.14f, size.height * 0.30f)
+                    lineTo(size.width * 0.36f, size.height * 0.30f)
+                    lineTo(size.width * 0.46f, size.height * 0.20f)
+                    lineTo(size.width * 0.84f, size.height * 0.20f)
+                    lineTo(size.width * 0.91f, size.height * 0.29f)
+                    lineTo(size.width * 0.91f, size.height * 0.78f)
+                    lineTo(size.width * 0.14f, size.height * 0.78f)
+                    close()
+                }
+                translate(
+                    left = -size.width * 0.10f * (1f - progress),
+                    top = size.height * 0.07f * (1f - progress)
+                ) {
+                    drawPath(folderPath, iconColor, style = stroke)
+                }
+            }
+
+            HorizonMenuIconType.GAMESIR -> {
+                val scaleFactor = 0.82f + 0.18f * progress
+                rotate(-18f * (1f - progress), pivot = center) {
+                    scale(scaleFactor, pivot = center) {
+                        val bodyTopLeft = Offset(
+                            size.width * 0.13f,
+                            size.height * 0.27f
+                        )
+                        val bodySize = Size(
+                            size.width * 0.74f,
+                            size.height * 0.46f
+                        )
+                        drawRoundRect(
+                            color = iconColor,
+                            topLeft = bodyTopLeft,
+                            size = bodySize,
+                            cornerRadius = CornerRadius(size.minDimension * 0.18f),
+                            style = stroke
+                        )
+                        drawLine(
+                            color = iconColor,
+                            start = Offset(size.width * 0.25f, size.height * 0.50f),
+                            end = Offset(size.width * 0.39f, size.height * 0.50f),
+                            strokeWidth = strokeWidth
+                        )
+                        drawLine(
+                            color = iconColor,
+                            start = Offset(size.width * 0.32f, size.height * 0.43f),
+                            end = Offset(size.width * 0.32f, size.height * 0.57f),
+                            strokeWidth = strokeWidth
+                        )
+                        drawCircle(
+                            color = iconColor,
+                            radius = size.minDimension * 0.055f,
+                            center = Offset(size.width * 0.68f, size.height * 0.44f),
+                            style = stroke
+                        )
+                        drawCircle(
+                            color = iconColor,
+                            radius = size.minDimension * 0.055f,
+                            center = Offset(size.width * 0.77f, size.height * 0.56f),
+                            style = stroke
+                        )
+                    }
+                }
+            }
+
+            HorizonMenuIconType.SETTINGS -> {
+                rotate(360f * progress, pivot = center) {
+                    scale(0.80f + 0.20f * progress, pivot = center) {
+                        val outerRadius = size.minDimension * 0.30f
+                        val spokeStart = size.minDimension * 0.34f
+                        val spokeEnd = size.minDimension * 0.46f
+                        drawCircle(
+                            color = iconColor,
+                            radius = outerRadius,
+                            center = center,
+                            style = stroke
+                        )
+                        repeat(8) { index ->
+                            val angle = index * PI / 4.0
+                            drawLine(
+                                color = iconColor,
+                                start = Offset(
+                                    center.x + cos(angle).toFloat() * spokeStart,
+                                    center.y + sin(angle).toFloat() * spokeStart
+                                ),
+                                end = Offset(
+                                    center.x + cos(angle).toFloat() * spokeEnd,
+                                    center.y + sin(angle).toFloat() * spokeEnd
+                                ),
+                                strokeWidth = strokeWidth
+                            )
+                        }
+                        drawCircle(
+                            color = iconColor,
+                            radius = size.minDimension * 0.105f,
+                            center = center,
+                            style = stroke
+                        )
+                    }
+                }
+            }
+
+            HorizonMenuIconType.POWER -> {
+                scale(0.80f + 0.20f * progress, pivot = center) {
+                    val ringRadius = size.minDimension * 0.34f
+                    drawArc(
+                        color = iconColor,
+                        topLeft = Offset(
+                            center.x - ringRadius,
+                            center.y - ringRadius
+                        ),
+                        size = Size(ringRadius * 2f, ringRadius * 2f),
+                        startAngle = -48f,
+                        sweepAngle = 276f,
+                        useCenter = false,
+                        style = stroke
+                    )
+                    drawLine(
+                        color = iconColor,
+                        start = Offset(center.x, size.height * 0.14f),
+                        end = Offset(center.x, center.y + size.height * 0.06f),
+                        strokeWidth = strokeWidth
+                    )
+                }
+            }
         }
     }
 }
