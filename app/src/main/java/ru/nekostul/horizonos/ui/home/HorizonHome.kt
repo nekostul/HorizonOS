@@ -50,6 +50,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import ru.nekostul.horizonos.R
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
@@ -118,7 +120,7 @@ private fun CurrentTime(): String {
         mutableStateOf(
             SimpleDateFormat(
                 "h:mm a",
-                Locale.US
+                Locale.getDefault()
             ).format(Date())
         )
     }
@@ -127,7 +129,7 @@ private fun CurrentTime(): String {
         while (true) {
             currentTime = SimpleDateFormat(
                 "h:mm a",
-                Locale.US
+                Locale.getDefault()
             ).format(Date())
 
             delay(1000)
@@ -138,7 +140,7 @@ private fun CurrentTime(): String {
 }
 
 @Composable
-fun HorizonHome() {
+fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
 
     val context = LocalContext.current
 
@@ -225,7 +227,8 @@ fun HorizonHome() {
         LauncherSettingsScreen(
             onBack = {
                 showLauncherSettings = false
-            }
+            },
+            onRequestPermissions = onRequestPermissions
         )
         return
     }
@@ -315,7 +318,7 @@ fun HorizonHome() {
                     )
 
                     Text(
-                        text = "Eden's Page",
+                        text = stringResource(R.string.home_profile_name),
                         color = HorizonBlue,
                         fontSize = (h.value * 0.036f).sp,
                         fontWeight = FontWeight.Normal
@@ -591,7 +594,7 @@ fun HorizonHome() {
                     )
 
                     Text(
-                        text = "OK",
+                        text = stringResource(R.string.action_ok),
                         color = HorizonWhite,
                         fontSize = (h.value * 0.032f).sp
                     )

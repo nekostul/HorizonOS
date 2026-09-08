@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -43,8 +44,26 @@ class LauncherSettingsRepository(
         val theme =
             stringPreferencesKey("theme")
 
+        val language =
+            stringPreferencesKey("language")
+
         val accentColor =
             stringPreferencesKey("accent_color")
+
+        val airplaneMode = booleanPreferencesKey("airplane_mode")
+        val airplaneWifiAllowed = booleanPreferencesKey("airplane_wifi_allowed")
+        val airplaneBluetoothAllowed = booleanPreferencesKey("airplane_bluetooth_allowed")
+        val autoBrightness = booleanPreferencesKey("auto_brightness")
+        val brightness = floatPreferencesKey("brightness")
+        val lockScreenEnabled = booleanPreferencesKey("lock_screen_enabled")
+        val lockScreenTimeoutMinutes = intPreferencesKey("lock_screen_timeout_minutes")
+        val wifiEnabled = booleanPreferencesKey("wifi_enabled")
+        val notificationsEnabled = booleanPreferencesKey("notifications_enabled")
+        val sleepEnabled = booleanPreferencesKey("sleep_enabled")
+        val sleepTimeoutMinutes = intPreferencesKey("sleep_timeout_minutes")
+        val vibrationEnabled = booleanPreferencesKey("vibration_enabled")
+        val controllerSensitivity = floatPreferencesKey("controller_sensitivity")
+        val controllerDeadZone = floatPreferencesKey("controller_dead_zone")
     }
 
     val settings: Flow<LauncherSettings> =
@@ -75,8 +94,25 @@ class LauncherSettingsRepository(
                 theme =
                     preferences[Keys.theme] ?: "dark",
 
+                language =
+                    preferences[Keys.language] ?: "system",
+
                 accentColor =
                     preferences[Keys.accentColor] ?: "cyan"
+                ,airplaneMode = preferences[Keys.airplaneMode] ?: false
+                ,airplaneWifiAllowed = preferences[Keys.airplaneWifiAllowed] ?: false
+                ,airplaneBluetoothAllowed = preferences[Keys.airplaneBluetoothAllowed] ?: false
+                ,autoBrightness = preferences[Keys.autoBrightness] ?: false
+                ,brightness = preferences[Keys.brightness] ?: 0.7f
+                ,lockScreenEnabled = preferences[Keys.lockScreenEnabled] ?: true
+                ,lockScreenTimeoutMinutes = preferences[Keys.lockScreenTimeoutMinutes] ?: 5
+                ,wifiEnabled = preferences[Keys.wifiEnabled] ?: true
+                ,notificationsEnabled = preferences[Keys.notificationsEnabled] ?: true
+                ,sleepEnabled = preferences[Keys.sleepEnabled] ?: true
+                ,sleepTimeoutMinutes = preferences[Keys.sleepTimeoutMinutes] ?: 10
+                ,vibrationEnabled = preferences[Keys.vibrationEnabled] ?: true
+                ,controllerSensitivity = preferences[Keys.controllerSensitivity] ?: 1.0f
+                ,controllerDeadZone = preferences[Keys.controllerDeadZone] ?: 0.15f
             )
         }
 
@@ -132,5 +168,30 @@ class LauncherSettingsRepository(
         context.launcherSettingsDataStore.edit {
             it[Keys.accentColor] = value
         }
+    }
+
+    suspend fun setLanguage(value: String) {
+        context.launcherSettingsDataStore.edit {
+            it[Keys.language] = value
+        }
+    }
+
+    suspend fun setAirplaneMode(value: Boolean) = update { it[Keys.airplaneMode] = value }
+    suspend fun setAirplaneWifiAllowed(value: Boolean) = update { it[Keys.airplaneWifiAllowed] = value }
+    suspend fun setAirplaneBluetoothAllowed(value: Boolean) = update { it[Keys.airplaneBluetoothAllowed] = value }
+    suspend fun setAutoBrightness(value: Boolean) = update { it[Keys.autoBrightness] = value }
+    suspend fun setBrightness(value: Float) = update { it[Keys.brightness] = value.coerceIn(0f, 1f) }
+    suspend fun setLockScreenEnabled(value: Boolean) = update { it[Keys.lockScreenEnabled] = value }
+    suspend fun setLockScreenTimeoutMinutes(value: Int) = update { it[Keys.lockScreenTimeoutMinutes] = value }
+    suspend fun setWifiEnabled(value: Boolean) = update { it[Keys.wifiEnabled] = value }
+    suspend fun setNotificationsEnabled(value: Boolean) = update { it[Keys.notificationsEnabled] = value }
+    suspend fun setSleepEnabled(value: Boolean) = update { it[Keys.sleepEnabled] = value }
+    suspend fun setSleepTimeoutMinutes(value: Int) = update { it[Keys.sleepTimeoutMinutes] = value }
+    suspend fun setVibrationEnabled(value: Boolean) = update { it[Keys.vibrationEnabled] = value }
+    suspend fun setControllerSensitivity(value: Float) = update { it[Keys.controllerSensitivity] = value.coerceIn(0.5f, 2f) }
+    suspend fun setControllerDeadZone(value: Float) = update { it[Keys.controllerDeadZone] = value.coerceIn(0f, 0.5f) }
+
+    private suspend fun update(block: suspend (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
+        context.launcherSettingsDataStore.edit(block)
     }
 }

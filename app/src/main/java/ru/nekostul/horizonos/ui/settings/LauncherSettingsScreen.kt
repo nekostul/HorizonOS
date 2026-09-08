@@ -1,17 +1,11 @@
 package ru.nekostul.horizonos.ui.settings
 
 import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.content.pm.PackageManager
 import android.content.Context
-import android.net.Uri
+import android.content.pm.PackageManager
 import android.os.Build
-import android.os.StatFs
-import android.view.InputDevice
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,17 +18,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,841 +43,172 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
-import ru.nekostul.horizonos.ui.settings.LauncherSettingsRepository
+import ru.nekostul.horizonos.R
+import ru.nekostul.horizonos.ui.settings.airplane.AirplaneModeScreen
+import ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothScreen
+import ru.nekostul.horizonos.ui.settings.brightness.BrightnessScreen
+import ru.nekostul.horizonos.ui.settings.controllers.ControllersScreen
+import ru.nekostul.horizonos.ui.settings.lockscreen.LockScreenScreen
+import ru.nekostul.horizonos.ui.settings.notifications.NotificationsScreen
+import ru.nekostul.horizonos.ui.settings.sleep.SleepScreen
+import ru.nekostul.horizonos.ui.settings.storage.StorageScreen
+import ru.nekostul.horizonos.ui.settings.system.SystemScreen
+import ru.nekostul.horizonos.ui.settings.themes.ThemesScreen
+import ru.nekostul.horizonos.ui.settings.wifi.WifiScreen
 
-private val SettingsBackground = Color(0xFF2B2B2B)
-private val SettingsPanel = Color(0xFF333333)
-private val SettingsSelected = Color(0xFF3A3A3A)
-private val SettingsWhite = Color(0xFFF2F2F2)
-private val SettingsGray = Color(0xFFAAAAAA)
-private val SettingsDarkGray = Color(0xFF444444)
-private val SettingsBlue = Color(0xFF00C8FF)
+private data class SettingsCategory(val titleRes: Int, val dividerAfter: Boolean = false)
 
-private data class SettingsCategory(
-    val title: String,
-    val dividerAfter: Boolean = false
-)
-
-private data class SettingsOption(
-    val title: String,
-    val value: String = "",
-    val description: String = ""
+private val settingsCategories = listOf(
+    SettingsCategory(R.string.settings_category_airplane), SettingsCategory(R.string.settings_category_brightness),
+    SettingsCategory(R.string.settings_category_bluetooth), SettingsCategory(R.string.settings_category_lock_screen, true),
+    SettingsCategory(R.string.settings_category_wifi), SettingsCategory(R.string.settings_category_storage, true),
+    SettingsCategory(R.string.settings_category_themes), SettingsCategory(R.string.settings_category_notifications),
+    SettingsCategory(R.string.settings_category_sleep, true), SettingsCategory(R.string.settings_category_controllers),
+    SettingsCategory(R.string.settings_category_system)
 )
 
 @Composable
 fun LauncherSettingsScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRequestPermissions: (Array<String>) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val view = LocalView.current
     val repository = remember { LauncherSettingsRepository(context) }
-    val settings by repository.settings.collectAsState(
-        initial = LauncherSettings()
-    )
+    val settings by repository.settings.collectAsState(initial = LauncherSettings())
     val scope = rememberCoroutineScope()
-
     var selectedCategory by remember { mutableIntStateOf(0) }
     var selectedOption by remember { mutableIntStateOf(0) }
     var rightFocus by remember { mutableStateOf(false) }
-    var airplaneMode by remember { mutableStateOf(false) }
-    var airplaneWifi by remember { mutableStateOf(false) }
-    var airplaneBluetooth by remember { mutableStateOf(false) }
-    // Эти два переключателя являются разрешениями HorizonOS внутри режима полета.
-    // Реальное включение/выключение системных радиомодулей добавим отдельно через Android API.
-    var autoBrightness by remember { mutableStateOf(false) }
-    var notificationsEnabled by remember { mutableStateOf(true) }
-
     val leftListState = rememberLazyListState()
-    val rightListState = rememberLazyListState()
 
-    val categories = remember {
-        listOf(
-            SettingsCategory("Режим полета"),
-            SettingsCategory("Яркость экрана"),
-            SettingsCategory("Bluetooth"),
-            SettingsCategory("Экран блокировки", true),
-            SettingsCategory("Wi-Fi"),
-            SettingsCategory("Хранилище", true),
-            SettingsCategory("Темы"),
-            SettingsCategory("Уведомления"),
-            SettingsCategory("Режим сна", true),
-            SettingsCategory("Контроллеры"),
-            SettingsCategory("Система")
-        )
+    fun optionCount(category: Int): Int = when (category) {
+        0 -> if (settings.airplaneMode) 3 else 1
+        1, 3 -> 2
+        2 -> 2
+        4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context).availableNetworkNames().size + 3
+        5 -> 10
+        6, 7 -> 2
+        8 -> 6
+        9 -> 5
+        else -> 8
     }
 
-    val brightnessState = remember {
-        mutableFloatStateOf(
-            context.resources.displayMetrics.run {
-                val window = view.context as? android.app.Activity
-                window?.window?.attributes?.screenBrightness
-                    ?.takeIf { it >= 0f }
-                    ?: 0.7f
+    fun requestRuntimePermissions(category: Int) {
+        val permissions = buildList {
+            if (category == 2 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) add(Manifest.permission.BLUETOOTH_CONNECT)
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) add(Manifest.permission.BLUETOOTH_SCAN)
             }
-        )
+            if (category == 4 && ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) add(Manifest.permission.ACCESS_FINE_LOCATION)
+            if (category == 7 && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (permissions.isNotEmpty()) onRequestPermissions(permissions.toTypedArray())
     }
 
-    val options = remember(
-        selectedCategory,
-        settings,
-        brightnessState.floatValue
-    ) {
-        when (selectedCategory) {
-            0 -> buildList {
-                add(
-                    SettingsOption(
-                        "Режим полета",
-                        if (airplaneMode) "ВКЛ." else "ВЫКЛ.",
-                        "Отключает беспроводные подключения. Wi-Fi и Bluetooth можно разрешить отдельно."
-                    )
-                )
-
-                if (airplaneMode) {
-                    add(
-                        SettingsOption(
-                            "Wi-Fi",
-                            if (airplaneWifi) "ВКЛ." else "ВЫКЛ.",
-                            "Разрешить Wi-Fi во время режима полета."
-                        )
-                    )
-                    add(
-                        SettingsOption(
-                            "Bluetooth",
-                            if (airplaneBluetooth) "ВКЛ." else "ВЫКЛ.",
-                            "Разрешить Bluetooth во время режима полета."
-                        )
-                    )
+    fun activateOption() {
+        scope.launch {
+            when (selectedCategory) {
+                0 -> when (selectedOption) {
+                    0 -> repository.setAirplaneMode(!settings.airplaneMode)
+                    1 -> repository.setAirplaneWifiAllowed(!settings.airplaneWifiAllowed)
+                    2 -> repository.setAirplaneBluetoothAllowed(!settings.airplaneBluetoothAllowed)
                 }
+                1 -> if (selectedOption == 0) repository.setAutoBrightness(!settings.autoBrightness)
+                3 -> if (selectedOption == 0) repository.setLockScreenEnabled(!settings.lockScreenEnabled)
+                6 -> repository.setTheme(if (selectedOption == 0) "dark" else "light")
+                7 -> if (selectedOption == 0) repository.setNotificationsEnabled(!settings.notificationsEnabled)
+                8 -> if (selectedOption == 0) repository.setSleepEnabled(!settings.sleepEnabled)
+                9 -> if (selectedOption == 1) repository.setVibrationEnabled(!settings.vibrationEnabled)
             }
-
-            1 -> listOf(
-                SettingsOption(
-                    "Автоматическая яркость",
-                    if (autoBrightness) "ВКЛ." else "ВЫКЛ.",
-                    "Автоматическая регулировка яркости экрана."
-                ),
-                SettingsOption(
-                    "Яркость",
-                    "${(brightnessState.floatValue * 100).toInt()}%",
-                    "Яркость экрана HorizonOS."
-                )
-            )
-
-            2 -> bluetoothOptions(context)
-
-            3 -> listOf(
-                SettingsOption(
-                    "Блокировка экрана",
-                    "ВЫКЛ.",
-                    "Блокировка после выхода консоли из режима ожидания."
-                ),
-                SettingsOption(
-                    "Таймер блокировки",
-                    "5 минут",
-                    "Через какое время экран должен блокироваться."
-                )
-            )
-
-            4 -> wifiOptions(context)
-
-            5 -> storageOptions(context)
-
-            6 -> listOf(
-                SettingsOption(
-                    "Светлая тема",
-                    if (settings.theme == "light") "ВЫБРАНО" else ""
-                ),
-                SettingsOption(
-                    "Темная тема",
-                    if (settings.theme == "dark") "ВЫБРАНО" else ""
-                )
-            )
-
-            7 -> listOf(
-                SettingsOption(
-                    "Уведомления",
-                    if (notificationsEnabled) "ВКЛ." else "ВЫКЛ.",
-                    "Разрешить HorizonOS показывать уведомления."
-                ),
-                SettingsOption(
-                    "Уведомления приложений",
-                    "",
-                    "Настройка уведомлений отдельных приложений Android."
-                )
-            )
-
-            8 -> listOf(
-                SettingsOption(
-                    "Автоматический режим сна",
-                    "ВКЛ.",
-                    "Автоматически переводить консоль в режим ожидания."
-                ),
-                SettingsOption("Через 1 минуту"),
-                SettingsOption("Через 3 минуты"),
-                SettingsOption("Через 5 минут"),
-                SettingsOption("Через 10 минут"),
-                SettingsOption("Через 30 минут"),
-                SettingsOption("Никогда")
-            )
-
-            9 -> controllerOptions()
-
-            else -> systemOptions(context)
         }
     }
 
     LaunchedEffect(selectedCategory) {
         selectedOption = 0
-        rightListState.scrollToItem(0)
+        rightFocus = false
         leftListState.animateScrollToItem(selectedCategory)
+        requestRuntimePermissions(selectedCategory)
+    }
+    LaunchedEffect(settings.airplaneMode) {
+        if (selectedCategory == 0) selectedOption = selectedOption.coerceIn(0, optionCount(0) - 1)
     }
 
-    LaunchedEffect(selectedOption, rightFocus) {
-        if (rightFocus && options.isNotEmpty()) {
-            rightListState.animateScrollToItem(
-                selectedOption.coerceIn(0, options.lastIndex)
-            )
+    Box(Modifier.fillMaxSize().background(SettingsBackground).onPreviewKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        when (event.key) {
+            Key.DirectionUp -> { if (rightFocus) selectedOption = (selectedOption - 1).coerceAtLeast(0) else selectedCategory = (selectedCategory - 1).coerceAtLeast(0); true }
+            Key.DirectionDown -> { if (rightFocus) selectedOption = (selectedOption + 1).coerceAtMost(optionCount(selectedCategory) - 1) else selectedCategory = (selectedCategory + 1).coerceAtMost(settingsCategories.lastIndex); true }
+            Key.DirectionRight -> { rightFocus = true; true }
+            Key.DirectionLeft -> { rightFocus = false; true }
+            Key.Enter, Key.NumPadEnter -> { if (rightFocus) activateOption() else rightFocus = true; true }
+            Key.Escape, Key.Back -> { onBack(); true }
+            else -> false
         }
-    }
-
-    fun activateOption() {
-        if (options.isEmpty()) return
-
-        when (selectedCategory) {
-            0 -> {
-                when (selectedOption) {
-                    0 -> {
-                        airplaneMode = !airplaneMode
-                    }
-                    1 -> {
-                        if (airplaneMode) airplaneWifi = !airplaneWifi
-                    }
-                    2 -> {
-                        if (airplaneMode) airplaneBluetooth = !airplaneBluetooth
-                    }
-                }
-            }
-
-            1 -> {
-                if (selectedOption == 0) {
-                    autoBrightness = !autoBrightness
-                } else {
-                    val activity = view.context as? android.app.Activity
-                    activity?.window?.attributes =
-                        activity.window.attributes.apply {
-                            screenBrightness = brightnessState.floatValue
-                        }
-                }
-            }
-
-            2 -> {
-                // Bluetooth полностью отображается внутри HorizonOS.
-                // Подключение/поиск устройств подключим через Bluetooth API,
-                // без открытия системных настроек.
-            }
-
-            3 -> {
-                // Экран блокировки — внутренний экран HorizonOS.
-            }
-
-            4 -> {
-                // Wi-Fi — внутренний экран HorizonOS.
-                // Сети и подключение будут работать через Android Wi-Fi API.
-            }
-
-            5 -> {
-                // Хранилище — уже показывает реальные данные памяти.
-            }
-
-            6 -> {
-                val nextTheme =
-                    if (selectedOption == 0) "light" else "dark"
-
-                scope.launch {
-                    repository.setTheme(nextTheme)
-                }
-            }
-
-            7 -> {
-                if (selectedOption == 0) {
-                    notificationsEnabled = !notificationsEnabled
-                }
-            }
-
-            8 -> {
-                // Режим сна настраивается внутри HorizonOS.
-            }
-
-            9 -> {
-                // Контроллеры и их параметры — внутри HorizonOS.
-            }
-
-            10 -> {
-                // Системные параметры — собственные экраны HorizonOS.
-                // Никаких переходов в системное приложение Настройки.
-            }
-        }
-    }
-
-    fun moveCategory(delta: Int) {
-        selectedCategory =
-            (selectedCategory + delta).coerceIn(0, categories.lastIndex)
-    }
-
-    fun moveOption(delta: Int) {
-        selectedOption =
-            (selectedOption + delta).coerceIn(
-                0,
-                options.lastIndex.coerceAtLeast(0)
-            )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SettingsBackground)
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) {
-                    return@onPreviewKeyEvent false
-                }
-
-                when (event.key) {
-                    Key.DirectionUp -> {
-                        if (rightFocus) moveOption(-1)
-                        else moveCategory(-1)
-                        true
-                    }
-
-                    Key.DirectionDown -> {
-                        if (rightFocus) moveOption(1)
-                        else moveCategory(1)
-                        true
-                    }
-
-                    Key.DirectionRight -> {
-                        rightFocus = true
-                        true
-                    }
-
-                    Key.DirectionLeft -> {
-                        rightFocus = false
-                        true
-                    }
-
-                    Key.Enter,
-                    Key.NumPadEnter -> {
-                        if (rightFocus) activateOption()
-                        else rightFocus = true
-                        true
-                    }
-
-                    Key.Escape,
-                    Key.Back -> {
-                        onBack()
-                        true
-                    }
-
-                    else -> false
-                }
-            }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    horizontal = 30.dp,
-                    vertical = 18.dp
-                )
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "⚙",
-                    color = SettingsWhite,
-                    fontSize = 30.sp
-                )
-
+    }) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("⚙", color = SettingsWhite, fontSize = 30.sp)
                 Spacer(Modifier.width(15.dp))
-
-                Text(
-                    text = "Настройки HorizonOS",
-                    color = SettingsWhite,
-                    fontSize = 25.sp
-                )
+                Text(stringResource(R.string.horizon_settings_title), color = SettingsWhite, fontSize = 25.sp)
             }
-
             Spacer(Modifier.height(11.dp))
-
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(SettingsGray)
-            )
-
+            Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsGray))
             Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                LazyColumn(
-                    state = leftListState,
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(0.43f)
-                        .background(SettingsPanel),
-                    contentPadding = PaddingValues(vertical = 6.dp)
-                ) {
-                    itemsIndexed(categories) { index, category ->
-                        SettingsCategoryRow(
-                            text = category.title,
-                            selected = selectedCategory == index,
-                            focused = selectedCategory == index && !rightFocus,
-                            onClick = {
-                                selectedCategory = index
-                                selectedOption = 0
-                                rightFocus = false
-                            }
-                        )
-
-                        if (category.dividerAfter) {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(10.dp)
-                                    .background(SettingsBackground)
-                            )
+            Row(Modifier.fillMaxWidth().weight(1f)) {
+                LazyColumn(state = leftListState, modifier = Modifier.fillMaxHeight().weight(0.43f).background(SettingsPanel), contentPadding = PaddingValues(vertical = 6.dp)) {
+                    itemsIndexed(settingsCategories) { index, category ->
+                        SettingsCategoryRow(stringResource(category.titleRes), selectedCategory == index, selectedCategory == index && !rightFocus) {
+                            selectedCategory = index
+                            rightFocus = false
                         }
+                        if (category.dividerAfter) Box(Modifier.fillMaxWidth().height(10.dp).background(SettingsBackground))
                     }
                 }
-
                 Spacer(Modifier.width(24.dp))
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(0.57f)
-                ) {
-                    LazyColumn(
-                        state = rightListState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 12.dp)
-                    ) {
-                        itemsIndexed(options) { index, option ->
-                            SettingsOptionRow(
-                                title = option.title,
-                                value = option.value,
-                                description = option.description,
-                                selected = rightFocus && selectedOption == index,
-                                onClick = {
-                                    selectedOption = index
-                                    rightFocus = true
-                                    activateOption()
-                                },
-                                slider =
-                                    selectedCategory == 1 &&
-                                            selectedOption == 1 &&
-                                            index == 1,
-                                sliderValue = brightnessState.floatValue,
-                                onSliderChange = {
-                                    brightnessState.floatValue = it
-                                    val activity =
-                                        view.context as? android.app.Activity
-                                    activity?.window?.attributes =
-                                        activity.window.attributes.apply {
-                                            screenBrightness = it
-                                        }
-                                }
-                            )
-                        }
-                    }
+                Column(Modifier.fillMaxHeight().weight(0.57f).verticalScroll(rememberScrollState())) {
+                    SettingsContent(context, selectedCategory, settings, selectedOption, repository, scope, { selectedOption = it; rightFocus = true; activateOption() }, { scope.launch { repository.setBrightness(it) } }, { scope.launch { repository.setTheme(it) } })
                 }
             }
-
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(SettingsGray)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "B",
-                    color = SettingsWhite,
-                    fontSize = 18.sp
-                )
-
-                Spacer(Modifier.width(7.dp))
-
-                Text(
-                    text = "Назад",
-                    color = SettingsWhite,
-                    fontSize = 16.sp
-                )
-
-                Spacer(Modifier.width(25.dp))
-
-                Text(
-                    text = "A",
-                    color = SettingsWhite,
-                    fontSize = 18.sp
-                )
-
-                Spacer(Modifier.width(7.dp))
-
-                Text(
-                    text = "Выбрать",
-                    color = SettingsWhite,
-                    fontSize = 16.sp
-                )
+            Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsGray))
+            Row(Modifier.fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                Text("B", color = SettingsWhite, fontSize = 18.sp); Spacer(Modifier.width(7.dp)); Text(stringResource(R.string.settings_action_back), color = SettingsWhite, fontSize = 16.sp); Spacer(Modifier.width(25.dp)); Text("A", color = SettingsWhite, fontSize = 18.sp); Spacer(Modifier.width(7.dp)); Text(stringResource(R.string.settings_action_select), color = SettingsWhite, fontSize = 16.sp)
             }
         }
     }
 }
 
-private fun bluetoothOptions(context: Context): List<SettingsOption> {
-    val adapter = BluetoothAdapter.getDefaultAdapter()
-
-    if (adapter == null) {
-        return listOf(
-            SettingsOption(
-                "Bluetooth",
-                "НЕДОСТУПЕН",
-                "Это устройство не поддерживает Bluetooth."
-            )
-        )
-    }
-
-    // Android 12+ требует BLUETOOTH_CONNECT для isEnabled/bondedDevices.
-    // Не обращаемся к Bluetooth API без разрешения, чтобы экран настроек не падал.
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.BLUETOOTH_CONNECT
-        ) != PackageManager.PERMISSION_GRANTED
-    ) {
-        return listOf(
-            SettingsOption(
-                "Bluetooth",
-                "ТРЕБУЕТСЯ ДОСТУП",
-                "HorizonOS нужен доступ к Bluetooth для отображения подключенных устройств."
-            ),
-            SettingsOption(
-                "Подключенные устройства",
-                "",
-                "После выдачи разрешения здесь появятся сопряженные устройства."
-            )
-        )
-    }
-
-    val result = mutableListOf<SettingsOption>()
-
-    result += SettingsOption(
-        "Bluetooth",
-        if (adapter.isEnabled) "ВКЛ." else "ВЫКЛ.",
-        "Беспроводные контроллеры, наушники и другие устройства."
-    )
-
-    result += SettingsOption(
-        "Подключить устройство",
-        "",
-        "Поиск и подключение устройств будет работать внутри HorizonOS."
-    )
-
-    @Suppress("DEPRECATION")
-    adapter.bondedDevices
-        .sortedBy { it.name ?: "" }
-        .forEach { device ->
-            result += SettingsOption(
-                device.name ?: "Неизвестное устройство",
-                "СОПРЯЖЕНО",
-                device.address
-            )
-        }
-
-    return result
-}
-
-private fun wifiOptions(context: Context): List<SettingsOption> {
-    return listOf(
-        SettingsOption(
-            "Wi-Fi",
-            "НАСТРОЙКИ",
-            "Подключение к Интернету и локальным сетям."
-        ),
-        SettingsOption(
-            "Доступные сети",
-            "",
-            "Список сетей доступен в системном меню Wi-Fi."
-        )
-    )
-}
-
-private fun storageOptions(context: Context): List<SettingsOption> {
-    val stat = StatFs(context.filesDir.absolutePath)
-    val total = stat.totalBytes
-    val free = stat.availableBytes
-    val used = total - free
-
-    fun gb(value: Long): String =
-        String.format(
-            java.util.Locale.US,
-            "%.1f ГБ",
-            value / 1024.0 / 1024.0 / 1024.0
-        )
-
-    return listOf(
-        SettingsOption(
-            "Внутренняя память",
-            "${gb(used)} / ${gb(total)}",
-            "Используется хранилищем устройства."
-        ),
-        SettingsOption(
-            "Свободно",
-            gb(free),
-            "Свободное место для игр, приложений и данных."
-        ),
-        SettingsOption(
-            "Данные HorizonOS",
-            "",
-            "Настройки, кэш и данные лаунчера."
-        )
-    )
-}
-
-private fun controllerOptions(): List<SettingsOption> {
-    val ids = InputDevice.getDeviceIds()
-    val controllers = ids.toList().mapNotNull { id ->
-        val device = InputDevice.getDevice(id)
-        if (
-            device != null &&
-            (device.sources and InputDevice.SOURCE_GAMEPAD != 0 ||
-                    device.sources and InputDevice.SOURCE_JOYSTICK != 0)
-        ) {
-            device.name
-        } else {
-            null
-        }
-    }
-
-    val result = mutableListOf<SettingsOption>()
-
-    result += SettingsOption(
-        "Подключенные контроллеры",
-        if (controllers.isEmpty()) "НЕТ" else controllers.size.toString(),
-        "Контроллеры, которые сейчас видит Android."
-    )
-
-    controllers.forEach {
-        result += SettingsOption(
-            it,
-            "ПОДКЛЮЧЕН",
-            "Игровой контроллер."
-        )
-    }
-
-    result += SettingsOption(
-        "Настройка кнопок",
-        "",
-        "Переназначение кнопок контроллера."
-    )
-
-    result += SettingsOption(
-        "Стики и чувствительность",
-        "",
-        "Чувствительность и мёртвые зоны."
-    )
-
-    result += SettingsOption(
-        "Вибрация",
-        "ВКЛ.",
-        "Вибрация совместимых контроллеров."
-    )
-
-    return result
-}
-
-private fun systemOptions(context: Context): List<SettingsOption> {
-    return listOf(
-        SettingsOption(
-            "Дата и время",
-            "",
-            "Дата, время и часовой пояс Android."
-        ),
-        SettingsOption(
-            "Язык",
-            "",
-            "Язык системы Android."
-        ),
-        SettingsOption(
-            "Экран",
-            "",
-            "Дисплей, частота обновления и другие параметры экрана."
-        ),
-        SettingsOption(
-            "Звук",
-            "",
-            "Громкость, звуки и вибрация."
-        ),
-        SettingsOption(
-            "Специальные возможности",
-            "",
-            "Системные функции доступности Android."
-        ),
-        SettingsOption(
-            "Приложения",
-            "",
-            "Установленные приложения и разрешения."
-        ),
-        SettingsOption(
-            "Уведомления Android",
-            "",
-            "Системные настройки уведомлений."
-        ),
-        SettingsOption(
-            "Батарея",
-            "",
-            "Энергопотребление и режимы экономии."
-        ),
-        SettingsOption(
-            "Все настройки Android",
-            "",
-            "Открыть полный системный экран настроек Android."
-        )
-    )
-}
-
 @Composable
-private fun SettingsCategoryRow(
-    text: String,
-    selected: Boolean,
-    focused: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(46.dp)
-            .background(
-                if (selected) SettingsSelected
-                else Color.Transparent
-            )
-            .clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .width(if (selected) 4.dp else 0.dp)
-                .height(38.dp)
-                .background(
-                    if (selected) SettingsBlue
-                    else Color.Transparent
-                )
-        )
-
-        Spacer(
-            Modifier.width(
-                if (selected) 13.dp else 17.dp
-            )
-        )
-
-        Text(
-            text = text,
-            color =
-                if (focused) SettingsBlue
-                else SettingsWhite,
-            fontSize = 18.sp
-        )
+private fun SettingsContent(context: Context, category: Int, settings: LauncherSettings, selectedOption: Int, repository: LauncherSettingsRepository, scope: kotlinx.coroutines.CoroutineScope, onOptionSelected: (Int) -> Unit, onBrightnessChange: (Float) -> Unit, onThemeSelected: (String) -> Unit) {
+    when (category) {
+        0 -> AirplaneModeScreen(context, settings, selectedOption, { onOptionSelected(0) }, { onOptionSelected(1) }, { onOptionSelected(2) })
+        1 -> BrightnessScreen(settings, selectedOption, { onOptionSelected(0) }, onBrightnessChange)
+        2 -> ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothScreen(selectedOption, onOptionSelected) {
+            val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
+            controller.setEnabled(controller.enabled() != true)
+        }
+        3 -> LockScreenScreen(context, settings, selectedOption, { onOptionSelected(0) }, { timeout -> scope.launch { repository.setLockScreenTimeoutMinutes(timeout) } })
+        4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiScreen(selectedOption, onOptionSelected) {
+            val controller = ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context)
+            controller.setEnabled(controller.enabled() != true)
+        }
+        5 -> StorageScreen(context, selectedOption, onOptionSelected)
+        6 -> ThemesScreen(settings, selectedOption, onThemeSelected)
+        7 -> NotificationsScreen(settings, selectedOption) { onOptionSelected(0) }
+        8 -> SleepScreen(context, settings, selectedOption, { onOptionSelected(0) }, { timeout -> scope.launch { repository.setSleepTimeoutMinutes(timeout) } })
+        9 -> ControllersScreen(settings, selectedOption, { scope.launch { repository.setVibrationEnabled(!settings.vibrationEnabled) } }, { value -> scope.launch { repository.setControllerSensitivity(value) } }, { value -> scope.launch { repository.setControllerDeadZone(value) } })
+        else -> SystemScreen(settings.language, selectedOption, onOptionSelected, { language -> scope.launch { repository.setLanguage(language) } })
     }
 }
 
 @Composable
-private fun SettingsOptionRow(
-    title: String,
-    value: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    slider: Boolean = false,
-    sliderValue: Float = 0f,
-    onSliderChange: (Float) -> Unit = {}
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                if (selected) SettingsSelected
-                else Color.Transparent
-            )
-            .border(
-                width = if (selected) 1.dp else 0.dp,
-                color =
-                    if (selected) SettingsBlue
-                    else Color.Transparent,
-                shape = RoundedCornerShape(0.dp)
-            )
-            .clickable { onClick() }
-            .padding(
-                horizontal = 13.dp,
-                vertical = 10.dp
-            )
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                color = SettingsWhite,
-                fontSize = 18.sp
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            if (value.isNotEmpty()) {
-                Text(
-                    text = value,
-                    color =
-                        if (selected) SettingsBlue
-                        else SettingsGray,
-                    fontSize = 17.sp
-                )
-            }
-        }
-
-        if (description.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text = description,
-                color = SettingsGray,
-                fontSize = 14.sp
-            )
-        }
-
-        if (slider) {
-            Spacer(Modifier.height(5.dp))
-
-            Slider(
-                value = sliderValue,
-                onValueChange = onSliderChange,
-                valueRange = 0f..1f
-            )
-        }
+private fun SettingsCategoryRow(text: String, selected: Boolean, focused: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().height(46.dp).background(if (selected) SettingsSelected else Color.Transparent).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(if (selected) 4.dp else 0.dp).height(38.dp).background(if (selected) SettingsBlue else Color.Transparent))
+        Spacer(Modifier.width(if (selected) 13.dp else 17.dp))
+        Text(text, color = if (focused) SettingsBlue else SettingsWhite, fontSize = 18.sp)
     }
 }
