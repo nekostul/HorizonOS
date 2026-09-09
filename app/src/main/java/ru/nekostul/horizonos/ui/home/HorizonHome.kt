@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -124,6 +125,17 @@ private data class HorizonGame(
     val title: String,
     val color: Color
 )
+
+private fun launchStaggerProgress(
+    totalProgress: Float,
+    index: Int,
+    firstDelay: Float,
+    stagger: Float,
+    duration: Float
+): Float {
+    return ((totalProgress - firstDelay - index * stagger) / duration)
+        .coerceIn(0f, 1f)
+}
 
 
 @Composable
@@ -249,6 +261,19 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
     val currentTime = CurrentTime()
     val battery = BatteryLevel()
     val externalGamepadConnected = ExternalGamepadConnected()
+    var homeEntryTarget by remember { mutableFloatStateOf(0f) }
+    val homeEntryProgress by animateFloatAsState(
+        targetValue = homeEntryTarget,
+        animationSpec = tween(920, delayMillis = 35, easing = FastOutSlowInEasing),
+        label = "homeEntryProgress"
+    )
+
+    LaunchedEffect("home-entry") {
+        // Keep the first home frame hidden, then animate every layer from its
+        // actual starting position instead of composing directly at the end.
+        withFrameNanos { }
+        homeEntryTarget = 1f
+    }
 
     // The Home library is intentionally a fixed strip of 12 empty slots for
     // now. Game discovery and card contents will be added separately later.
@@ -520,7 +545,18 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .height(h * 0.083f),
+                    .height(h * 0.083f)
+                    .graphicsLayer {
+                        val entry = launchStaggerProgress(
+                            homeEntryProgress,
+                            index = 0,
+                            firstDelay = 0.02f,
+                            stagger = 0f,
+                            duration = 0.20f
+                        )
+                        alpha = entry
+                        translationY = -18.dp.toPx() * (1f - entry)
+                    },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -579,6 +615,7 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     cardSize = cardSize,
                     cardGap = cardGap,
                     startOffset = cardStartOffset,
+                    entryProgress = homeEntryProgress,
                     onCardTap = ::selectGame,
                     onSelectedIndexChange = {
                         selectedGame = it
@@ -606,6 +643,8 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     icon = HorizonMenuIconType.GAMES,
                     iconColor = Color(0xFFFF0033),
                     size = h * 0.105f,
+                    entryProgress = homeEntryProgress,
+                    entryIndex = 0,
                     selected = menuSelectionArmed && selectedMenu == 0 || menuOpeningIndex == 0,
                     showLabel = menuSelectionArmed && selectedMenu == 0 || menuOpeningIndex == 0,
                     label = stringResource(R.string.home_menu_games),
@@ -615,6 +654,8 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     icon = HorizonMenuIconType.FILES,
                     iconColor = Color(0xFF35D060),
                     size = h * 0.105f,
+                    entryProgress = homeEntryProgress,
+                    entryIndex = 1,
                     selected = menuSelectionArmed && selectedMenu == 1 || menuOpeningIndex == 1,
                     showLabel = menuSelectionArmed && selectedMenu == 1 || menuOpeningIndex == 1,
                     label = stringResource(R.string.home_menu_files),
@@ -624,6 +665,8 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     icon = HorizonMenuIconType.GAMESIR,
                     iconColor = Color(0xFF20BFFF),
                     size = h * 0.105f,
+                    entryProgress = homeEntryProgress,
+                    entryIndex = 2,
                     selected = menuSelectionArmed && selectedMenu == 2 || menuOpeningIndex == 2,
                     showLabel = menuSelectionArmed && selectedMenu == 2 || menuOpeningIndex == 2,
                     label = stringResource(R.string.home_menu_gamesir),
@@ -633,6 +676,8 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     icon = HorizonMenuIconType.SETTINGS,
                     iconColor = HorizonWhite,
                     size = h * 0.105f,
+                    entryProgress = homeEntryProgress,
+                    entryIndex = 3,
                     selected = menuSelectionArmed && selectedMenu == 3 || menuOpeningIndex == 3,
                     showLabel = menuSelectionArmed && selectedMenu == 3 || menuOpeningIndex == 3,
                     label = stringResource(R.string.home_menu_settings),
@@ -642,6 +687,8 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     icon = HorizonMenuIconType.POWER,
                     iconColor = HorizonWhite,
                     size = h * 0.105f,
+                    entryProgress = homeEntryProgress,
+                    entryIndex = 4,
                     selected = menuSelectionArmed && selectedMenu == 4 || menuOpeningIndex == 4,
                     showLabel = menuSelectionArmed && selectedMenu == 4 || menuOpeningIndex == 4,
                     label = stringResource(R.string.home_menu_power),
@@ -662,7 +709,18 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(h * 0.096f)
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 24.dp)
+                    .graphicsLayer {
+                        val entry = launchStaggerProgress(
+                            homeEntryProgress,
+                            index = 0,
+                            firstDelay = 0.48f,
+                            stagger = 0f,
+                            duration = 0.22f
+                        )
+                        alpha = entry
+                        translationY = 22.dp.toPx() * (1f - entry)
+                    },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -728,6 +786,7 @@ private fun HorizonGameCarousel(
     cardSize: Dp,
     cardGap: Dp,
     startOffset: Dp,
+    entryProgress: Float,
     onCardTap: (Int) -> Unit,
     onSelectedIndexChange: (Int) -> Unit,
     scrollPositionPx: Float,
@@ -911,7 +970,21 @@ private fun HorizonGameCarousel(
             repeat(slotCount) { index ->
                 val cardSelected = selectionActive && index == selectedIndex
                 Box(
-                    modifier = Modifier.requiredSize(cardSize),
+                    modifier = Modifier
+                        .requiredSize(cardSize)
+                        .graphicsLayer {
+                            val entry = launchStaggerProgress(
+                                entryProgress,
+                                index = index,
+                                firstDelay = 0.08f,
+                                stagger = 0.035f,
+                                duration = 0.34f
+                            )
+                            alpha = entry
+                            translationX = (1f - entry) * (150.dp.toPx() + index * 5.dp.toPx())
+                            scaleX = 0.90f + entry * 0.10f
+                            scaleY = 0.90f + entry * 0.10f
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     val game = games.getOrNull(index)
@@ -1182,6 +1255,8 @@ private fun HorizonMenuButton(
     icon: HorizonMenuIconType,
     iconColor: Color,
     size: Dp,
+    entryProgress: Float = 1f,
+    entryIndex: Int = 0,
     selected: Boolean = false,
     showLabel: Boolean = false,
     label: String = "",
@@ -1204,11 +1279,24 @@ private fun HorizonMenuButton(
         label = "menuIconReveal"
     )
     val iconProgress = if (opening) iconReveal else 1f
+    val entrance = launchStaggerProgress(
+        entryProgress,
+        index = entryIndex,
+        firstDelay = 0.34f,
+        stagger = 0.045f,
+        duration = 0.28f
+    )
 
     Box(
         modifier = Modifier
             .width(size)
             .height(if (showLabel) size + 30.dp else size)
+            .graphicsLayer {
+                alpha = entrance
+                translationY = 36.dp.toPx() * (1f - entrance)
+                scaleX = 0.76f + entrance * 0.24f
+                scaleY = 0.76f + entrance * 0.24f
+            }
     ) {
         Box(
             modifier = Modifier

@@ -17,9 +17,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import ru.nekostul.horizonos.ui.settings.LauncherSettings
 import ru.nekostul.horizonos.ui.settings.LauncherSettingsRepository
 import ru.nekostul.horizonos.ui.settings.LanguageManager
+import ru.nekostul.horizonos.ui.home.HorizonStartupAnimation
+import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -65,6 +75,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val repository = remember { LauncherSettingsRepository(this@MainActivity) }
             val settings by repository.settings.collectAsState(initial = LauncherSettings())
+            var showStartupAnimation by remember { mutableStateOf(true) }
             val localizedContext = remember(settings.language) {
                 LanguageManager.localizedContext(this@MainActivity, settings.language)
             }
@@ -72,13 +83,28 @@ class MainActivity : ComponentActivity() {
                 LocalContext provides localizedContext,
             ) {
                 HorizonOSTheme(darkTheme = settings.theme != "light") {
-                    HorizonHome(
-                        onRequestPermissions = { permissions ->
-                            if (permissions.isNotEmpty()) {
-                                runtimePermissionLauncher.launch(permissions)
-                            }
+                    LaunchedEffect(Unit) {
+                        delay(1_320)
+                        showStartupAnimation = false
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(LocalHorizonColors.current.background)
+                    ) {
+                        if (showStartupAnimation) {
+                            HorizonStartupAnimation()
+                        } else {
+                            HorizonHome(
+                                onRequestPermissions = { permissions ->
+                                    if (permissions.isNotEmpty()) {
+                                        runtimePermissionLauncher.launch(permissions)
+                                    }
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }
