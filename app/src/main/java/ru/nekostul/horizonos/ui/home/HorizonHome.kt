@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -64,6 +65,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
@@ -101,6 +104,7 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.animation.core.animateFloat
 import ru.nekostul.horizonos.ui.settings.LauncherSettingsScreen
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
+import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 import kotlin.math.roundToInt
 import kotlin.math.abs
@@ -257,6 +261,7 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val homeFocusRequester = remember { FocusRequester() }
 
     val currentTime = CurrentTime()
     val battery = BatteryLevel()
@@ -477,10 +482,19 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
         modifier = Modifier
             .fillMaxSize()
             .background(HorizonBackground)
+            .focusRequester(homeFocusRequester)
+            .focusable()
             .onPreviewKeyEvent { event ->
 
                 if (event.type != KeyEventType.KeyDown) {
                     return@onPreviewKeyEvent false
+                }
+
+                if (isHorizonConfirmKey(event)) {
+                    if (menuSelectionArmed && selectedMenu >= 0) {
+                        activateMenu(selectedMenu)
+                    }
+                    return@onPreviewKeyEvent true
                 }
 
                 when (event.key) {
@@ -511,13 +525,6 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     Key.DirectionUp -> {
                         if (menuSelectionArmed) {
                             moveUpToGames()
-                        }
-                        true
-                    }
-
-                    Key.Enter, Key.NumPadEnter -> {
-                        if (menuSelectionArmed && selectedMenu >= 0) {
-                            activateMenu(selectedMenu)
                         }
                         true
                     }
@@ -766,6 +773,8 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
             selectedGame = 0
             homeScrollPositionPx = 0f
             tappedGameIndex = 0
+            withFrameNanos { }
+            homeFocusRequester.requestFocus()
         }
     }
 }

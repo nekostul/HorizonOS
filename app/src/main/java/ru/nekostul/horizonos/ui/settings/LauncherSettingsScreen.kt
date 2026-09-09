@@ -69,6 +69,7 @@ import ru.nekostul.horizonos.ui.settings.system.SystemScreen
 import ru.nekostul.horizonos.ui.settings.themes.ThemesScreen
 import ru.nekostul.horizonos.ui.settings.wifi.WifiScreen
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
+import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 
 private data class SettingsCategory(val titleRes: Int, val dividerAfter: Boolean = false)
 
@@ -198,12 +199,16 @@ fun LauncherSettingsScreen(
         .focusable()
         .onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        if (isHorizonConfirmKey(event)) {
+            if (rightFocus) activateOption() else rightFocus = true
+            return@onPreviewKeyEvent true
+        }
+
         when (event.key) {
             Key.DirectionUp -> { if (rightFocus) selectedOption = (selectedOption - 1).coerceAtLeast(0) else selectedCategory = (selectedCategory - 1).coerceAtLeast(0); true }
             Key.DirectionDown -> { if (rightFocus) selectedOption = (selectedOption + 1).coerceAtMost(optionCount(selectedCategory) - 1) else selectedCategory = (selectedCategory + 1).coerceAtMost(settingsCategories.lastIndex); true }
             Key.DirectionRight -> { rightFocus = true; true }
             Key.DirectionLeft -> { rightFocus = false; true }
-            Key.Enter, Key.NumPadEnter -> { if (rightFocus) activateOption() else rightFocus = true; true }
             Key.ButtonB -> { handleControllerBack(); true }
             else -> false
         }

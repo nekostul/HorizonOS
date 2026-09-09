@@ -78,6 +78,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
+import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 
 internal val LocalSettingsOverlayVisible =
     androidx.compose.runtime.compositionLocalOf<androidx.compose.runtime.MutableState<Boolean>?> { null }
@@ -331,7 +332,7 @@ private fun HorizonOverlayFooter(onBack: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-                            .height(35.dp)
+            .height(64.dp)
             .padding(horizontal = 24.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -419,14 +420,11 @@ internal fun HorizonOverlayChoice(
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = onClick)
             .onKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown &&
-                    (event.key == Key.Enter || event.key == Key.NumPadEnter)
-                ) {
+                if (enabled && isHorizonConfirmKey(event)) {
                     onClick()
                     true
                 } else false
             }
-            .focusable(enabled)
             .focusable(enabled)
     ) {
         Row(
