@@ -47,8 +47,6 @@ fun AppsSettingsScreen() {
     }
     var selectedApp by remember { mutableStateOf<InstalledApp?>(null) }
     Column {
-        Text(stringResource(R.string.settings_system_apps), color = SettingsWhite, fontSize = 25.sp)
-        Spacer(Modifier.height(10.dp))
         apps.take(40).forEach { app ->
             HorizonSettingRow(
                 SettingRow(app.label, app.version, app.packageName),

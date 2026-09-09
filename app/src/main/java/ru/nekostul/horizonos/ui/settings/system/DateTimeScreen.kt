@@ -46,8 +46,6 @@ fun DateTimeScreen() {
     }
 
     Column {
-        Text(stringResource(R.string.settings_system_date_time), color = SettingsWhite, fontSize = 25.sp)
-        Spacer(Modifier.height(10.dp))
         SettingsToggleRow(
             title = stringResource(R.string.settings_automatic_date_time),
             checked = automatic,

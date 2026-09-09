@@ -1,31 +1,40 @@
 package ru.nekostul.horizonos.ui.settings
 
 import android.graphics.drawable.ColorDrawable
+import android.content.Context
+import android.hardware.input.InputManager
+import android.os.Handler
+import android.os.Looper
+import android.view.InputDevice
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,7 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -52,8 +61,12 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -63,6 +76,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
+import ru.nekostul.horizonos.R
+import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 
 internal val LocalSettingsOverlayVisible =
     androidx.compose.runtime.compositionLocalOf<androidx.compose.runtime.MutableState<Boolean>?> { null }
@@ -99,16 +114,6 @@ internal fun HorizonOverlay(
 ) {
     var visible by remember { mutableStateOf(false) }
     var dismissing by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (visible && !dismissing) 1f else 0.96f,
-        animationSpec = tween(150),
-        label = "horizon_overlay_scale"
-    )
-    val alpha by animateFloatAsState(
-        targetValue = if (visible && !dismissing) 1f else 0f,
-        animationSpec = tween(150),
-        label = "horizon_overlay_alpha"
-    )
     val overlayFocusRequester = remember { FocusRequester() }
     val overlayVisibility = LocalSettingsOverlayVisible.current
     val overlayBackHandlers = LocalSettingsOverlayBackHandlers.current
@@ -204,7 +209,7 @@ internal fun HorizonOverlay(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.42f))
+                .background(Color.Black.copy(alpha = 0.58f))
                 .clickable(onClick = { dismissAnimated() })
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown &&
@@ -216,39 +221,188 @@ internal fun HorizonOverlay(
                 }
                 .focusRequester(overlayFocusRequester)
                 .focusable(),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.BottomCenter
         ) {
-            AnimatedVisibility(
-                visible = alpha > 0f,
-                enter = fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.96f),
-                exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.96f)
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.825f)
             ) {
-                Column(
-                    Modifier
-                        .graphicsLayer {
-                            this.alpha = alpha
-                            scaleX = scale
-                            scaleY = scale
-                        }
-                        .fillMaxWidth(0.72f)
-                        .widthIn(min = 360.dp, max = 760.dp)
-                        .heightIn(max = 760.dp)
-                        .verticalScroll(rememberScrollState())
-                        .background(SettingsPanel, RoundedCornerShape(12.dp))
-                        .border(1.dp, SettingsBlue, RoundedCornerShape(12.dp))
-                        // Consume taps inside the panel so only the scrim
-                        // closes the overlay.
-                        .clickable(onClick = {})
-                        .padding(24.dp)
-                        .focusGroup(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                AnimatedVisibility(
+                    visible = visible && !dismissing,
+                    modifier = Modifier.fillMaxSize(),
+                    enter = fadeIn(tween(180)) + slideInVertically(
+                        animationSpec = tween(180),
+                        initialOffsetY = { it }
+                    ),
+                    exit = fadeOut(tween(150)) + slideOutVertically(
+                        animationSpec = tween(150),
+                        targetOffsetY = { it }
+                    )
                 ) {
-                    Text(title, color = SettingsWhite, fontSize = 24.sp)
-                    Spacer(Modifier.height(18.dp))
-                    content()
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .background(SettingsOverlayPanel)
+                            // Consume taps inside the panel so only the scrim
+                            // closes the overlay.
+                            .clickable(onClick = {})
+                            .focusGroup(),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(35.dp)
+                                .padding(horizontal = 62.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Text(title, color = SettingsWhite, fontSize = 22.sp)
+                        }
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp)
+                                .height(1.dp)
+                                .background(SettingsDivider)
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth(0.58f)
+                                    .align(Alignment.TopCenter)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(top = 8.dp, bottom = 16.dp)
+                            ) {
+                                content()
+                            }
+                        }
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp)
+                                .height(1.dp)
+                                .background(SettingsDivider)
+                        )
+                        HorizonOverlayFooter(onBack = { dismissAnimated() })
+                    }
                 }
             }
         }
+    }
+}
+
+private fun isExternalGamepadConnected(): Boolean {
+    return InputDevice.getDeviceIds().any { deviceId ->
+        val device = InputDevice.getDevice(deviceId) ?: return@any false
+        val sources = device.sources
+        device.isExternal &&
+            !device.isVirtual &&
+            (sources and InputDevice.SOURCE_GAMEPAD != 0 ||
+                sources and InputDevice.SOURCE_JOYSTICK != 0)
+    }
+}
+
+@Composable
+private fun HorizonOverlayFooter(onBack: () -> Unit) {
+    val context = LocalContext.current
+    var gamepadConnected by remember { mutableStateOf(isExternalGamepadConnected()) }
+
+    DisposableEffect(context) {
+        val inputManager = context.getSystemService(Context.INPUT_SERVICE) as InputManager
+        val listener = object : InputManager.InputDeviceListener {
+            private fun refresh() {
+                gamepadConnected = isExternalGamepadConnected()
+            }
+
+            override fun onInputDeviceAdded(deviceId: Int) = refresh()
+            override fun onInputDeviceRemoved(deviceId: Int) = refresh()
+            override fun onInputDeviceChanged(deviceId: Int) = refresh()
+        }
+        inputManager.registerInputDeviceListener(listener, Handler(Looper.getMainLooper()))
+        gamepadConnected = isExternalGamepadConnected()
+        onDispose { inputManager.unregisterInputDeviceListener(listener) }
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+                            .height(35.dp)
+            .padding(horizontal = 24.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .padding(start = 28.dp)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (gamepadConnected) {
+                Column(
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        repeat(4) { index ->
+                            Box(
+                                Modifier
+                                    .size(width = 7.dp, height = 6.dp)
+                                    .background(if (index == 0) Color(0xFFB6E800) else Color(0xFF777777))
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Image(
+                        painter = painterResource(R.drawable.game),
+                        contentDescription = null,
+                        modifier = Modifier.size(46.dp).padding(2.dp),
+                        contentScale = ContentScale.Fit,
+                        colorFilter = ColorFilter.tint(SettingsWhite)
+                    )
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            HorizonOverlayFooterButton(
+                glyph = "B",
+                label = stringResource(R.string.settings_action_back),
+                onClick = onBack
+            )
+            Spacer(Modifier.width(25.dp))
+            HorizonOverlayFooterButton(
+                glyph = "A",
+                label = stringResource(R.string.action_ok),
+                onClick = {}
+            )
+        }
+    }
+}
+
+@Composable
+private fun HorizonOverlayFooterButton(
+    glyph: String,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier
+            .height(44.dp)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HorizonButtonGlyph(
+            label = glyph,
+            size = 18.dp,
+            fill = SettingsWhite,
+            contentColor = SettingsOverlayPanel
+        )
+        Spacer(Modifier.width(7.dp))
+        Text(label, color = SettingsWhite, fontSize = 16.sp)
     }
 }
 
@@ -260,10 +414,9 @@ internal fun HorizonOverlayChoice(
     enabled: Boolean = true,
     value: String = ""
 ) {
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
-            .background(if (selected) SettingsSelected else Color.Transparent, RoundedCornerShape(6.dp))
             .clickable(enabled = enabled, onClick = onClick)
             .onKeyEvent { event ->
                 if (enabled && event.type == KeyEventType.KeyDown &&
@@ -274,12 +427,29 @@ internal fun HorizonOverlayChoice(
                 } else false
             }
             .focusable(enabled)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .focusable(enabled)
     ) {
-        Text(title, color = if (enabled) SettingsWhite else SettingsGray, fontSize = 17.sp)
-        Spacer(Modifier.weight(1f))
-        if (value.isNotEmpty()) Text(value, color = if (selected) SettingsBlue else SettingsGray, fontSize = 16.sp)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, color = if (enabled) SettingsWhite else SettingsGray, fontSize = 16.sp)
+            Spacer(Modifier.weight(1f))
+            if (value.isNotEmpty()) Text(value, color = if (selected) SettingsBlue else SettingsGray, fontSize = 16.sp)
+            if (selected) {
+                Box(
+                    Modifier
+                        .size(26.dp)
+                        .background(SettingsBlue, androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✓", color = SettingsBackground, fontSize = 18.sp)
+                }
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsDivider.copy(alpha = 0.38f)))
     }
 }
 

@@ -100,6 +100,7 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.animation.core.animateFloat
 import ru.nekostul.horizonos.ui.settings.LauncherSettingsScreen
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
+import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlin.math.exp
@@ -109,10 +110,14 @@ import kotlin.math.PI
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.Job
 
-private val HorizonBackground = Color(0xFF2B2B2B)
-private val HorizonBlue = Color(0xFF00C8FF)
-private val HorizonWhite = Color(0xFFF2F2F2)
-private val HorizonGray = Color(0xFF686868)
+private val HorizonBackground: Color
+    @Composable get() = LocalHorizonColors.current.background
+private val HorizonBlue: Color
+    @Composable get() = LocalHorizonColors.current.accent
+private val HorizonWhite: Color
+    @Composable get() = LocalHorizonColors.current.text
+private val HorizonGray: Color
+    @Composable get() = LocalHorizonColors.current.mutedText
 private const val HomeCardSlotCount = 12
 
 private data class HorizonGame(
@@ -650,7 +655,7 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color(0xFFAAAAAA))
+                    .background(LocalHorizonColors.current.divider)
             )
 
             Row(
@@ -676,13 +681,13 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                     HorizonButtonGlyph(
                         label = "A",
                         size = 20.dp,
-                        fill = Color(0xFF777777),
+                        fill = HorizonGray,
                         contentColor = HorizonBackground
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = stringResource(R.string.action_ok),
-                        color = Color(0xFF777777),
+                        color = HorizonGray,
                         fontSize = 18.sp
                     )
                 }
@@ -948,10 +953,11 @@ private fun HorizonEmptyGameCard(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val palette = LocalHorizonColors.current
     val frameColor = if (selected) {
         lerp(HorizonBlue, Color(0xFF9EEFFF), selectionPulse)
     } else {
-        Color(0xFF333333)
+        LocalHorizonColors.current.card
     }
 
     Box(
@@ -973,7 +979,7 @@ private fun HorizonEmptyGameCard(
             .clip(RoundedCornerShape(1.dp))
             .drawBehind {
                 val strokeWidth = (if (selected) 4.dp else 2.dp).toPx()
-                drawRect(color = Color(0xFF303030))
+                drawRect(color = palette.card)
                 if (selected) {
                     val glowWidth = strokeWidth + 10.dp.toPx()
                     val glowOffset = (strokeWidth - glowWidth) / 2f
@@ -1021,10 +1027,11 @@ private fun HorizonGameCard(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val palette = LocalHorizonColors.current
     val frameColor = if (selected) {
         lerp(HorizonBlue, Color(0xFF9EEFFF), selectionPulse)
     } else {
-        Color(0xFF333333)
+        LocalHorizonColors.current.card
     }
 
     Box(
@@ -1104,10 +1111,10 @@ private fun ProfileIcon(
         modifier = Modifier
             .requiredSize(size)
             .clip(CircleShape)
-            .background(Color(0xFF444444))
+            .background(LocalHorizonColors.current.panel)
             .border(
                 width = 2.dp,
-                color = Color(0xFF686868),
+                color = LocalHorizonColors.current.divider,
                 shape = CircleShape
             ),
         contentAlignment = Alignment.Center
@@ -1208,13 +1215,13 @@ private fun HorizonMenuButton(
                 .align(Alignment.TopCenter)
                 .requiredSize(size)
                 .clip(CircleShape)
-                .background(Color(0xFF444444))
+                .background(LocalHorizonColors.current.panel)
                 .border(
                     width = 2.dp,
                     color = if (selected) {
                         HorizonBlue.copy(alpha = selectionAlpha)
                     } else {
-                        Color(0xFF686868)
+                        LocalHorizonColors.current.divider
                     },
 
                     shape = CircleShape

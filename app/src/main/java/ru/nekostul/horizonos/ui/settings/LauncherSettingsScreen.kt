@@ -229,7 +229,7 @@ fun LauncherSettingsScreen(
             Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsGray))
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth().weight(1f)) {
-                LazyColumn(state = leftListState, modifier = Modifier.fillMaxHeight().weight(0.43f).background(SettingsPanel), contentPadding = PaddingValues(vertical = 6.dp)) {
+                LazyColumn(state = leftListState, modifier = Modifier.fillMaxHeight().weight(0.34f).background(SettingsPanel), contentPadding = PaddingValues(vertical = 6.dp)) {
                     itemsIndexed(settingsCategories) { index, category ->
                         SettingsCategoryRow(stringResource(category.titleRes), selectedCategory == index, selectedCategory == index && !rightFocus) {
                             selectedCategory = index
@@ -239,7 +239,7 @@ fun LauncherSettingsScreen(
                     }
                 }
                 Spacer(Modifier.width(24.dp))
-                Column(Modifier.fillMaxHeight().weight(0.57f).verticalScroll(rememberScrollState())) {
+                Column(Modifier.fillMaxHeight().weight(0.66f).verticalScroll(rememberScrollState())) {
                     SettingsContent(
                         context,
                         selectedCategory,
@@ -262,7 +262,7 @@ fun LauncherSettingsScreen(
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsGray))
-            Row(Modifier.fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(42.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 SettingsFooterButton(
                     glyph = "B",
                     label = stringResource(R.string.settings_action_back),
@@ -321,7 +321,7 @@ private fun SettingsContent(context: Context, category: Int, settings: LauncherS
 
 @Composable
 private fun SettingsCategoryRow(text: String, selected: Boolean, focused: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(46.dp).background(if (selected) SettingsSelected else Color.Transparent).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(54.dp).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(if (selected) 4.dp else 0.dp).height(38.dp).background(if (selected) SettingsBlue else Color.Transparent))
         Spacer(Modifier.width(if (selected) 13.dp else 17.dp))
         Text(text, color = if (focused) SettingsBlue else SettingsWhite, fontSize = 18.sp)

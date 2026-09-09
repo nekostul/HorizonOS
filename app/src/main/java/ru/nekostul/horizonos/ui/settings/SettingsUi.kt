@@ -2,7 +2,9 @@ package ru.nekostul.horizonos.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,26 +12,48 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import ru.nekostul.horizonos.R
+import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 
-internal val SettingsBackground = Color(0xFF2B2B2B)
-internal val SettingsPanel = Color(0xFF333333)
-internal val SettingsSelected = Color(0xFF3A3A3A)
-internal val SettingsWhite = Color(0xFFF2F2F2)
-internal val SettingsGray = Color(0xFFAAAAAA)
-internal val SettingsBlue = Color(0xFF00C8FF)
+internal val SettingsBackground: Color
+    @Composable get() = LocalHorizonColors.current.background
+internal val SettingsPanel: Color
+    @Composable get() = LocalHorizonColors.current.panel
+internal val SettingsOverlayPanel: Color
+    @Composable get() = LocalHorizonColors.current.overlayPanel
+internal val SettingsSelected: Color
+    @Composable get() = LocalHorizonColors.current.selected
+internal val SettingsWhite: Color
+    @Composable get() = LocalHorizonColors.current.text
+internal val SettingsGray: Color
+    @Composable get() = LocalHorizonColors.current.mutedText
+internal val SettingsBlue: Color
+    @Composable get() = LocalHorizonColors.current.accent
+internal val SettingsDivider: Color
+    @Composable get() = LocalHorizonColors.current.divider
+internal val SettingsTrack: Color
+    @Composable get() = SettingsGray.copy(alpha = 0.30f)
+internal val SettingsThumb: Color
+    @Composable get() = SettingsGray
 
 internal data class SettingRow(
     val title: String,
@@ -48,17 +72,14 @@ internal fun HorizonSettingRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) SettingsSelected else Color.Transparent)
-            .border(
-                width = if (selected) 1.dp else 0.dp,
-                color = if (selected) SettingsBlue else Color.Transparent,
-                shape = RoundedCornerShape(0.dp)
-            )
             .clickable(enabled = row.enabled, onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 9.dp)
+            .padding(horizontal = 14.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 44.dp)
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -71,15 +92,20 @@ internal fun HorizonSettingRow(
             if (row.value.isNotEmpty()) {
                 Text(
                     text = row.value,
-                    color = if (selected) SettingsBlue else SettingsGray,
+                    color = SettingsGray,
                     fontSize = 17.sp
                 )
             }
         }
         if (row.description.isNotEmpty()) {
-            Spacer(Modifier.height(3.dp))
-            Text(row.description, color = SettingsGray, fontSize = 14.sp)
+            Text(
+                row.description,
+                color = SettingsGray,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 9.dp)
+            )
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsDivider.copy(alpha = 0.38f)))
     }
 }
 
@@ -105,6 +131,7 @@ internal fun SettingsToggleRow(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun SettingsSliderRow(
     title: String,
     value: Float,
@@ -112,22 +139,94 @@ internal fun SettingsSliderRow(
     enabled: Boolean = true,
     description: String = "",
     valueLabel: String = "${(value * 100).toInt()}%",
+    leadingIcon: (@Composable () -> Unit)? = null,
     onValueChange: (Float) -> Unit
 ) {
-    HorizonSettingRow(
-        row = SettingRow(title, valueLabel, description, enabled),
-        selected = selected,
-        onClick = {},
-        trailing = {
+    val activeTrackColor = SettingsBlue
+    val inactiveTrackColor = SettingsTrack
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = {})
+            .padding(horizontal = 14.dp)
+    ) {
+        if (title.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, color = if (enabled) SettingsWhite else SettingsGray, fontSize = 18.sp)
+                Spacer(Modifier.weight(1f))
+                Text(valueLabel, color = SettingsGray, fontSize = 17.sp)
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            leadingIcon?.invoke()
+            if (leadingIcon != null) Spacer(Modifier.width(18.dp))
             Slider(
                 value = value,
                 onValueChange = onValueChange,
                 enabled = enabled,
                 valueRange = 0f..1f,
-                modifier = Modifier.width(190.dp)
+                modifier = Modifier.weight(1f),
+                colors = SliderDefaults.colors(
+                    thumbColor = Color.Transparent,
+                    activeTrackColor = activeTrackColor,
+                    inactiveTrackColor = inactiveTrackColor,
+                    activeTickColor = Color.Transparent,
+                    inactiveTickColor = Color.Transparent,
+                    disabledThumbColor = SettingsThumb.copy(alpha = 0.45f),
+                    disabledActiveTrackColor = inactiveTrackColor,
+                    disabledInactiveTrackColor = inactiveTrackColor
+                ),
+                track = { sliderState ->
+                    Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                        val centerY = size.height / 2f
+                        val endX = size.width * sliderState.coercedValueAsFraction
+                        drawLine(
+                            color = inactiveTrackColor,
+                            start = androidx.compose.ui.geometry.Offset(0f, centerY),
+                            end = androidx.compose.ui.geometry.Offset(size.width, centerY),
+                            strokeWidth = 4.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                        drawLine(
+                            color = if (enabled) activeTrackColor else inactiveTrackColor,
+                            start = androidx.compose.ui.geometry.Offset(0f, centerY),
+                            end = androidx.compose.ui.geometry.Offset(endX, centerY),
+                            strokeWidth = 4.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+                },
+                thumb = {
+                    Box(
+                        Modifier
+                            .size(20.dp)
+                            .background(SettingsThumb, CircleShape)
+                            .border(1.dp, SettingsDivider, CircleShape)
+                    )
+                }
             )
         }
-    )
+        if (description.isNotEmpty()) {
+            Text(
+                description,
+                color = SettingsGray,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 9.dp)
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsDivider.copy(alpha = 0.38f)))
+    }
 }
 
 @Composable
@@ -174,6 +273,6 @@ internal fun minutesLabel(minutes: Int): String = when (minutes) {
 
 @Composable
 internal fun SettingsCapabilitiesNote(text: String) {
-    Spacer(Modifier.height(10.dp))
-    Text(text, color = SettingsGray, fontSize = 14.sp)
+    Spacer(Modifier.height(4.dp))
+    Text(text, color = SettingsGray, fontSize = 12.sp, lineHeight = 16.sp)
 }

@@ -31,8 +31,6 @@ import ru.nekostul.horizonos.ui.settings.HorizonSettingRow
     }
     val powerManager = context.getSystemService(PowerManager::class.java)
     Column {
-        Text(stringResource(R.string.settings_system_battery), color = SettingsWhite, fontSize = 25.sp)
-        Spacer(Modifier.height(10.dp))
         HorizonSettingRow(SettingRow(stringResource(R.string.settings_battery_level), if (level >= 0) "$level%" else stringResource(R.string.settings_status_unavailable_short)), false, {})
         HorizonSettingRow(SettingRow(stringResource(R.string.settings_battery_status), status), false, {})
         HorizonSettingRow(SettingRow(stringResource(R.string.settings_battery_temperature), temperature ?: stringResource(R.string.settings_status_unavailable_short)), false, {})

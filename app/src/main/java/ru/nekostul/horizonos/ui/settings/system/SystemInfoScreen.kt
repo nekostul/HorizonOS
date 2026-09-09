@@ -26,8 +26,7 @@ fun SystemInfoScreen() {
         "${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}".trim()
     } else stringResource(R.string.settings_status_unavailable_short)
     Text(
-        stringResource(R.string.settings_system_info) + "\n" +
-            stringResource(R.string.horizon_version, "1.0") + "\n" +
+        stringResource(R.string.horizon_version, "1.0") + "\n" +
             stringResource(R.string.settings_info_device, Build.MANUFACTURER, Build.MODEL) + "\n" +
             stringResource(R.string.android_version, Build.VERSION.RELEASE) + "\n" +
             stringResource(R.string.settings_info_api, Build.VERSION.SDK_INT) + "\n" +
@@ -35,6 +34,7 @@ fun SystemInfoScreen() {
             stringResource(R.string.settings_info_storage, totalStorage) + "\n" +
             stringResource(R.string.settings_info_soc, soc),
         color = SettingsWhite,
-        fontSize = 22.sp
+        fontSize = 16.sp,
+        lineHeight = 23.sp
     )
 }

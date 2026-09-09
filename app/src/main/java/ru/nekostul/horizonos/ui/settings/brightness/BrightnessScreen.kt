@@ -1,16 +1,17 @@
 package ru.nekostul.horizonos.ui.settings.brightness
 
 import android.app.Activity
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.res.stringResource
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.settings.LauncherSettings
@@ -18,6 +19,8 @@ import ru.nekostul.horizonos.ui.settings.SettingsCapabilitiesNote
 import ru.nekostul.horizonos.ui.settings.SettingsSliderRow
 import ru.nekostul.horizonos.ui.settings.SettingsToggleRow
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun BrightnessScreen(
@@ -33,18 +36,15 @@ fun BrightnessScreen(
     val automaticBrightness = controller.isAutomaticBrightnessEnabled() ?: settings.autoBrightness
 
     Column {
-        Text(stringResource(R.string.settings_brightness_title), color = SettingsWhite, fontSize = 25.sp)
-        Spacer(Modifier.height(12.dp))
         SettingsToggleRow(
             title = stringResource(R.string.settings_auto_brightness),
             checked = automaticBrightness,
             selected = selectedIndex == 0,
-            description = stringResource(R.string.settings_auto_brightness_description),
             enabled = controller.canChangeSystemBrightness,
             onClick = onToggleAuto
         )
         SettingsSliderRow(
-            title = stringResource(R.string.settings_brightness),
+            title = "",
             value = settings.brightness,
             selected = selectedIndex == 1,
             enabled = !automaticBrightness,
@@ -58,10 +58,40 @@ fun BrightnessScreen(
                 activity?.let { currentActivity ->
                     controller.setWindowBrightness(currentActivity.window, it)
                 }
-            }
+            },
+            leadingIcon = { BrightnessGlyph() }
         )
         if (!controller.canChangeSystemBrightness) {
             SettingsCapabilitiesNote(stringResource(R.string.settings_brightness_capability))
+        }
+    }
+}
+
+@Composable
+private fun BrightnessGlyph() {
+    val textColor = SettingsWhite
+    Canvas(Modifier.size(34.dp)) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = size.minDimension * 0.22f
+        val rayStart = size.minDimension * 0.34f
+        val rayEnd = size.minDimension * 0.47f
+        val stroke = Stroke(width = size.minDimension * 0.075f, cap = StrokeCap.Round)
+        drawCircle(color = textColor, radius = radius, center = center, style = stroke)
+        repeat(8) { index ->
+            val angle = Math.PI * index / 4.0
+            drawLine(
+                color = textColor,
+                start = Offset(
+                    center.x + cos(angle).toFloat() * rayStart,
+                    center.y + sin(angle).toFloat() * rayStart
+                ),
+                end = Offset(
+                    center.x + cos(angle).toFloat() * rayEnd,
+                    center.y + sin(angle).toFloat() * rayEnd
+                ),
+                strokeWidth = stroke.width,
+                cap = StrokeCap.Round
+            )
         }
     }
 }
