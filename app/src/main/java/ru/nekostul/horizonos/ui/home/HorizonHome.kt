@@ -81,7 +81,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.collectAsState
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.Context
@@ -91,6 +91,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.format.DateFormat
 import android.view.InputDevice
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
@@ -106,6 +107,11 @@ import ru.nekostul.horizonos.ui.settings.LauncherSettingsScreen
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
+import ru.nekostul.horizonos.ui.games.Game
+import ru.nekostul.horizonos.ui.games.GameLaunchResult
+import ru.nekostul.horizonos.ui.games.GameLauncher
+import ru.nekostul.horizonos.ui.games.GameLibrary
+import ru.nekostul.horizonos.ui.games.GamesScreen
 import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlin.math.exp
@@ -124,11 +130,6 @@ private val HorizonWhite: Color
 private val HorizonGray: Color
     @Composable get() = LocalHorizonColors.current.mutedText
 private const val HomeCardSlotCount = 12
-
-private data class HorizonGame(
-    val title: String,
-    val color: Color
-)
 
 private fun launchStaggerProgress(
     totalProgress: Float,
@@ -257,7 +258,10 @@ private fun ExternalGamepadConnected(): Boolean {
 }
 
 @Composable
-fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
+fun HorizonHome(
+    onRequestPermissions: (Array<String>) -> Unit = {},
+    onOpenGameFolder: (((android.net.Uri?) -> Unit) -> Unit) = {}
+) {
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -280,13 +284,14 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
         homeEntryTarget = 1f
     }
 
-    // The Home library is intentionally a fixed strip of 12 empty slots for
-    // now. Game discovery and card contents will be added separately later.
-    val games = remember {
-        mutableStateListOf<HorizonGame>()
-    }
+    val gameLibrary = remember { GameLibrary(context) }
+    val games by gameLibrary.games.collectAsState(initial = emptyList())
+    val visibleGames = games.filterNot { it.hidden }
+    val gameLauncher = remember { GameLauncher() }
 
-    val slotCount = HomeCardSlotCount
+    // Keep twelve empty slots as the minimum and extend the strip only when
+    // the saved library grows beyond that initial Home layout.
+    val slotCount = maxOf(HomeCardSlotCount, visibleGames.size)
 
     var selectedGame by remember {
         mutableIntStateOf(0)
@@ -329,6 +334,10 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
     }
 
     var showLauncherSettings by remember {
+        mutableStateOf(false)
+    }
+
+    var showGames by remember {
         mutableStateOf(false)
     }
 
@@ -400,7 +409,7 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
 
                 // Игры
                 0 -> {
-                    // Уже главный экран
+                    showGames = true
                 }
 
                 // Файлы
@@ -444,6 +453,17 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
         }
     }
 
+    fun launchGame(game: Game) {
+        when (val result = gameLauncher.launch(context, game)) {
+            GameLaunchResult.Launched -> Unit
+            is GameLaunchResult.Failed -> Toast.makeText(
+                context,
+                result.message,
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     fun selectGame(index: Int) {
         val wasSelected = selectedGame == index && tappedGameIndex == index
         selectedGame = index
@@ -452,9 +472,7 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
         tappedGameIndex = index
 
         if (wasSelected) {
-            // The second tap is reserved for opening the game. There are no
-            // game entries yet, so empty slots intentionally remain inert.
-            games.getOrNull(index)?.let { /* Game launch will be wired to the library. */ }
+            visibleGames.getOrNull(index)?.let { launchGame(it) }
         }
     }
 
@@ -465,6 +483,17 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
         selectedGame = 0
         homeScrollPositionPx = 0f
         tappedGameIndex = 0
+    }
+
+    if (showGames) {
+        GamesScreen(
+            onOpenFolder = onOpenGameFolder,
+            onDismiss = {
+                showGames = false
+                clearHomeSelection()
+            }
+        )
+        return
     }
 
     if (showLauncherSettings) {
@@ -493,6 +522,8 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                 if (isHorizonConfirmKey(event)) {
                     if (menuSelectionArmed && selectedMenu >= 0) {
                         activateMenu(selectedMenu)
+                    } else {
+                        visibleGames.getOrNull(selectedGame)?.let { launchGame(it) }
                     }
                     return@onPreviewKeyEvent true
                 }
@@ -613,10 +644,10 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
                 contentAlignment = Alignment.CenterStart
             ) {
                 HorizonGameCarousel(
-                    games = games,
+                    games = visibleGames,
                     slotCount = slotCount,
                     selectedIndex = selectedGame,
-                    selectedTitle = games.getOrNull(selectedGame)?.title,
+                    selectedTitle = visibleGames.getOrNull(selectedGame)?.title,
                     selectionActive = tappedGameIndex == selectedGame && tappedGameIndex >= 0,
                     showSelectedTitle = tappedGameIndex == selectedGame && tappedGameIndex >= 0,
                     cardSize = cardSize,
@@ -777,6 +808,16 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
             homeFocusRequester.requestFocus()
         }
     }
+
+    LaunchedEffect(showGames) {
+        if (!showGames) {
+            selectedGame = 0
+            homeScrollPositionPx = 0f
+            tappedGameIndex = 0
+            withFrameNanos { }
+            homeFocusRequester.requestFocus()
+        }
+    }
 }
 
 
@@ -786,7 +827,7 @@ fun HorizonHome(onRequestPermissions: (Array<String>) -> Unit = {}) {
 
 @Composable
 private fun HorizonGameCarousel(
-    games: List<HorizonGame>,
+    games: List<Game>,
     slotCount: Int,
     selectedIndex: Int,
     selectedTitle: String?,
@@ -1102,7 +1143,7 @@ private fun HorizonEmptyGameCard(
 
 @Composable
 private fun HorizonGameCard(
-    game: HorizonGame,
+    game: Game,
     selected: Boolean,
     size: Dp,
     selectionPulse: Float,
@@ -1137,7 +1178,7 @@ private fun HorizonGameCard(
             )
             .drawBehind {
                 val strokeWidth = (if (selected) 4.dp else 2.dp).toPx()
-                drawRect(color = game.color)
+                drawRect(color = palette.card)
                 if (selected) {
                     val glowWidth = strokeWidth + 10.dp.toPx()
                     val glowOffset = (strokeWidth - glowWidth) / 2f

@@ -54,6 +54,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import ru.nekostul.horizonos.R
@@ -326,7 +333,42 @@ private fun SettingsContent(context: Context, category: Int, settings: LauncherS
 
 @Composable
 private fun SettingsCategoryRow(text: String, selected: Boolean, focused: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(54.dp).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+    var touchArmed by remember { mutableStateOf(false) }
+    val pulse = rememberInfiniteTransition(label = "settingsCategorySelectionPulse")
+    val pulseValue by pulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1050, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "settingsCategorySelectionPulseValue"
+    )
+    val accent = SettingsBlue
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .then(
+                if (focused || touchArmed) {
+                    Modifier.drawBehind {
+                        drawRect(
+                            color = accent.copy(alpha = if (focused) 0.95f else 0.20f + pulseValue * 0.16f),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                        )
+                    }
+                } else Modifier
+            )
+            .clickable {
+                if (touchArmed) {
+                    touchArmed = false
+                    onClick()
+                } else {
+                    touchArmed = true
+                }
+            },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(Modifier.width(if (selected) 4.dp else 0.dp).height(38.dp).background(if (selected) SettingsBlue else Color.Transparent))
         Spacer(Modifier.width(if (selected) 13.dp else 17.dp))
         Text(text, color = if (focused) SettingsBlue else SettingsWhite, fontSize = 18.sp)

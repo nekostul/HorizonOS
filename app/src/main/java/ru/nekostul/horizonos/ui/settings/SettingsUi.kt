@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,8 +22,20 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -69,10 +82,44 @@ internal fun HorizonSettingRow(
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null
 ) {
+    var touchArmed by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
+    val pulse = rememberInfiniteTransition(label = "settingsRowSelectionPulse")
+    val pulseValue by pulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1050, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "settingsRowSelectionPulseValue"
+    )
+    val active = selected || touchArmed || hasFocus
+    val accent = SettingsBlue
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = row.enabled, onClick = onClick)
+            .background(if (active) SettingsDivider.copy(alpha = 0.24f) else Color.Transparent)
+            .then(
+                if (selected || touchArmed || hasFocus) {
+                    Modifier.drawBehind {
+                        drawRect(
+                            color = accent.copy(alpha = if (selected || hasFocus) 0.95f else 0.20f + pulseValue * 0.16f),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                        )
+                    }
+                } else Modifier
+            )
+            .clickable(enabled = row.enabled) {
+                if (touchArmed) {
+                    touchArmed = false
+                    onClick()
+                } else {
+                    touchArmed = true
+                }
+            }
+            .onFocusChanged { hasFocus = it.hasFocus }
+            .focusable(row.enabled)
             .padding(horizontal = 14.dp)
     ) {
         Row(
@@ -84,7 +131,7 @@ internal fun HorizonSettingRow(
         ) {
             Text(
                 text = row.title,
-                color = if (row.enabled) SettingsWhite else SettingsGray,
+                color = if (active && row.enabled) accent else if (row.enabled) SettingsWhite else SettingsGray,
                 fontSize = 18.sp
             )
             Spacer(Modifier.weight(1f))
@@ -147,7 +194,16 @@ internal fun SettingsSliderRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = {})
+            .then(
+                if (selected) {
+                    Modifier.drawBehind {
+                        drawRect(
+                            color = activeTrackColor.copy(alpha = 0.95f),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                        )
+                    }
+                } else Modifier
+            )
             .padding(horizontal = 14.dp)
     ) {
         if (title.isNotEmpty()) {

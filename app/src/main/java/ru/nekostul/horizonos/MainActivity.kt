@@ -2,6 +2,7 @@ package ru.nekostul.horizonos
 
 import android.os.Bundle
 import android.os.Build
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
@@ -34,25 +35,21 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
 
     private lateinit var runtimePermissionLauncher: ActivityResultLauncher<Array<String>>
-
-    private var nativeBackCallback: android.window.OnBackInvokedCallback? = null
+    private lateinit var gameFolderLauncher: ActivityResultLauncher<Uri?>
+    private var pendingGameFolderResult: ((Uri?) -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // HorizonOS uses the controller B button for navigation. Consume the
-        // platform Back gesture/button so it can never finish the launcher.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            nativeBackCallback = android.window.OnBackInvokedCallback { }
-            onBackInvokedDispatcher.registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY,
-                nativeBackCallback!!
-            )
-        }
-
         runtimePermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { }
+        gameFolderLauncher = registerForActivityResult(
+            ActivityResultContracts.OpenDocumentTree()
+        ) { uri ->
+            pendingGameFolderResult?.invoke(uri)
+            pendingGameFolderResult = null
+        }
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
@@ -101,6 +98,10 @@ class MainActivity : ComponentActivity() {
                                     if (permissions.isNotEmpty()) {
                                         runtimePermissionLauncher.launch(permissions)
                                     }
+                                },
+                                onOpenGameFolder = { callback ->
+                                    pendingGameFolderResult = callback
+                                    gameFolderLauncher.launch(null)
                                 }
                             )
                         }
@@ -112,13 +113,10 @@ class MainActivity : ComponentActivity() {
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
-        // Intentionally disabled. Navigation is controller-first.
+        // Launcher navigation is handled by the visible overlay or controller.
     }
 
     override fun onDestroy() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            nativeBackCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
-        }
         super.onDestroy()
     }
 }

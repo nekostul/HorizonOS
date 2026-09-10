@@ -275,4 +275,48 @@ HorizonOS accessibility settings.</string>
 Installed apps are displayed inside HorizonOS.</string>
     <string name="android_version">Android %1$s</string>
 
+    <!-- Game library -->
+    <string name="games_window_title">Games</string>
+    <string name="games_empty">No games added yet.</string>
+    <string name="games_add">Add game</string>
+    <string name="games_add_description">Choose a platform, emulator and game folder.</string>
+    <string name="games_delete">Remove selected game</string>
+    <string name="games_delete_description">The game files will stay on the device.</string>
+    <string name="games_removed">Game removed from HorizonOS.</string>
+    <string name="games_already_added">This game is already in the library.</string>
+    <string name="games_added_count">Added games: %1$d</string>
+    <string name="games_unsupported_rom">This ROM extension is not supported for the selected platform.</string>
+    <string name="games_selected_folder">Selected folder</string>
+    <string name="games_platform_ps1">PlayStation 1</string>
+    <string name="games_platform_psp">PSP</string>
+    <string name="games_platform_ps2">PlayStation 2</string>
+    <string name="games_platform_gamecube_wii">GameCube / Wii</string>
+    <string name="games_selection_summary">%1$s · %2$s</string>
+    <string name="games_choose_file">Choose ROM file</string>
+    <string name="games_choose_file_description">Select one supported ROM through Android Files.</string>
+    <string name="games_choose_folder">Scan game folder</string>
+    <string name="games_choose_folder_description">Find supported ROMs in this folder and its subfolders.</string>
+    <string name="games_confirm_file">A single ROM will be added.</string>
+    <string name="games_confirm_folder">Supported games in the folder will be added.</string>
+    <string name="games_confirm_folder_title">Add games from folder</string>
+    <string name="games_confirm_folder_description">All supported games from the selected folder and its subfolders will be added to the library.</string>
+    <string name="games_scanning">Scanning…</string>
+    <string name="games_confirm">Add games from folder to library</string>
+    <string name="games_confirm_description">Access to the selected folder will be saved for launching games.</string>
+    <string name="games_cancel">Choose another folder</string>
+    <string name="games_choose_another_folder">Choose another folder</string>
+    <string name="games_choose_another_folder_description">If this is not the right folder, go back and choose another one.</string>
+    <string name="games_details_title">Game settings</string>
+    <string name="games_hide">Hide</string>
+    <string name="games_show">Show</string>
+    <string name="games_hide_description">Hide this game on the Home screen only.</string>
+    <string name="games_show_description">Show this game on the Home screen again.</string>
+    <string name="games_refresh_cover">Refresh cover</string>
+    <string name="games_add_screenshot">Add screenshot</string>
+    <string name="games_action_coming_soon">Available later.</string>
+    <string name="games_bios_warning_title">BIOS required</string>
+    <string name="games_bios_warning_description">%1$s needs a BIOS file. The game will not start until a BIOS is added in the emulator settings.</string>
+    <string name="games_bios_warning_continue">Understood, continue</string>
+    <string name="games_bios_warning_continue_description">Do not show this warning again for this emulator.</string>
+
 </resources>

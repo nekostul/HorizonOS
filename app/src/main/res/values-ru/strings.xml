@@ -275,4 +275,48 @@
 Список приложений будет отображаться внутри HorizonOS.</string>
     <string name="android_version">Android %1$s</string>
 
+    <!-- Библиотека игр -->
+    <string name="games_window_title">Игры</string>
+    <string name="games_empty">Игр пока нет.</string>
+    <string name="games_add">Добавить игру</string>
+    <string name="games_add_description">Выберите платформу, эмулятор и папку с играми.</string>
+    <string name="games_delete">Удалить выбранную игру</string>
+    <string name="games_delete_description">Файлы игры останутся на устройстве.</string>
+    <string name="games_removed">Игра удалена из HorizonOS.</string>
+    <string name="games_already_added">Эта игра уже есть в библиотеке.</string>
+    <string name="games_added_count">Добавлено игр: %1$d</string>
+    <string name="games_unsupported_rom">Это расширение ROM не поддерживается выбранной платформой.</string>
+    <string name="games_selected_folder">Выбранная папка</string>
+    <string name="games_platform_ps1">PlayStation 1</string>
+    <string name="games_platform_psp">PSP</string>
+    <string name="games_platform_ps2">PlayStation 2</string>
+    <string name="games_platform_gamecube_wii">GameCube / Wii</string>
+    <string name="games_selection_summary">%1$s · %2$s</string>
+    <string name="games_choose_file">Выбрать ROM-файл</string>
+    <string name="games_choose_file_description">Выберите один поддерживаемый ROM через Файлы Android.</string>
+    <string name="games_choose_folder">Сканировать папку с играми</string>
+    <string name="games_choose_folder_description">Найти поддерживаемые ROM в этой папке и подпапках.</string>
+    <string name="games_confirm_file">Будет добавлен один ROM.</string>
+    <string name="games_confirm_folder">Будут добавлены поддерживаемые игры из папки.</string>
+    <string name="games_confirm_folder_title">Добавление игр из папки</string>
+    <string name="games_confirm_folder_description">Все поддерживаемые игры из выбранной папки и её подпапок будут добавлены в библиотеку.</string>
+    <string name="games_scanning">Сканирование…</string>
+    <string name="games_confirm">Добавить игры из папки в библиотеку</string>
+    <string name="games_confirm_description">Доступ к выбранной папке сохранится для запуска игр.</string>
+    <string name="games_cancel">Выбрать другую папку</string>
+    <string name="games_choose_another_folder">Выбрать другую папку</string>
+    <string name="games_choose_another_folder_description">Если выбрана не та папка, вернитесь и укажите другую.</string>
+    <string name="games_details_title">Настройки игры</string>
+    <string name="games_hide">Скрыть</string>
+    <string name="games_show">Показать</string>
+    <string name="games_hide_description">Скрывает игру только на главном экране.</string>
+    <string name="games_show_description">Возвращает игру на главный экран.</string>
+    <string name="games_refresh_cover">Обновить обложку</string>
+    <string name="games_add_screenshot">Добавить скриншот</string>
+    <string name="games_action_coming_soon">Будет доступно позже.</string>
+    <string name="games_bios_warning_title">Нужен BIOS</string>
+    <string name="games_bios_warning_description">Для %1$s нужен файл BIOS. Если BIOS не добавлен в настройки эмулятора, игра не запустится.</string>
+    <string name="games_bios_warning_continue">Понятно, продолжить</string>
+    <string name="games_bios_warning_continue_description">Больше не показывать это предупреждение для выбранного эмулятора.</string>
+
 </resources>
