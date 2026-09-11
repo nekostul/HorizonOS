@@ -17,14 +17,14 @@ interface EmulatorGameLauncher {
     fun launch(context: Context, game: Game): GameLaunchResult
 }
 
+@Suppress("DEPRECATION")
 internal fun launchRomIntent(
     context: Context,
     game: Game,
     packageName: String,
     activityName: String,
     intent: Intent
-): GameLaunchResult {
-    val uri = Uri.parse(game.romUri)
+): GameLaunchResult {    val uri = Uri.parse(game.romUri)
     val readable = runCatching {
         context.contentResolver.openFileDescriptor(uri, "r")?.use { } != null
     }.getOrDefault(false)
@@ -46,6 +46,7 @@ internal fun launchRomIntent(
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
         .apply {
             if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             // Keeping the URI in data gives the target process a temporary
@@ -67,6 +68,8 @@ internal fun launchRomIntent(
             Intent.FLAG_GRANT_READ_URI_PERMISSION
         )
         context.startActivity(explicitIntent)
+        // Suppress the native activity-open animation.
+        (context as? Activity)?.overridePendingTransition(0, 0)
     }.onFailure { error ->
         return GameLaunchResult.Failed(
             if (error is ActivityNotFoundException) {

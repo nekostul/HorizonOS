@@ -86,7 +86,8 @@ private val settingsCategories = listOf(
     SettingsCategory(R.string.settings_category_wifi), SettingsCategory(R.string.settings_category_storage, true),
     SettingsCategory(R.string.settings_category_themes), SettingsCategory(R.string.settings_category_notifications),
     SettingsCategory(R.string.settings_category_sleep, true), SettingsCategory(R.string.settings_category_controllers),
-    SettingsCategory(R.string.settings_category_system)
+    SettingsCategory(R.string.settings_category_system),
+    SettingsCategory(R.string.settings_category_launcher)
 )
 
 @Composable
@@ -102,6 +103,7 @@ fun LauncherSettingsScreen(
     var selectedOption by remember { mutableIntStateOf(0) }
     var rightFocus by remember { mutableStateOf(false) }
     var systemOverlayRequest by remember { mutableStateOf<Int?>(null) }
+    var launcherOverlayRequest by remember { mutableStateOf<Int?>(null) }
     val overlayVisible = remember { mutableStateOf(false) }
     val overlayBackHandlers = remember { mutableStateListOf<() -> Unit>() }
     val settingsFocusRequester = remember { FocusRequester() }
@@ -123,6 +125,8 @@ fun LauncherSettingsScreen(
         7 -> NotificationController(context).installedApps().size + 2
         8 -> 2
         9 -> ControllerManager.connectedControllers().size + 4
+        10 -> 4
+        11 -> 1
         else -> 8
     }
 
@@ -190,6 +194,7 @@ fun LauncherSettingsScreen(
                 }
                 9 -> if (selectedOption == 1) repository.setVibrationEnabled(!settings.vibrationEnabled)
                 10 -> systemOverlayRequest = selectedOption
+                11 -> launcherOverlayRequest = selectedOption
             }
         }
     }
@@ -300,6 +305,8 @@ fun LauncherSettingsScreen(
                             { scope.launch { repository.setTheme(it) } }
                             ,systemOverlayRequest,
                             { systemOverlayRequest = null },
+                            launcherOverlayRequest,
+                            { launcherOverlayRequest = null },
                             wifiActivationRequest,
                             sleepActivationRequest,
                             { count ->
@@ -347,6 +354,8 @@ private fun SettingsContent(
     onThemeSelected: (String) -> Unit,
     systemOverlayRequest: Int?,
     onSystemOverlayConsumed: () -> Unit,
+    launcherOverlayRequest: Int?,
+    onLauncherOverlayConsumed: () -> Unit,
     wifiActivationRequest: Int,
     sleepActivationRequest: Int,
     onBluetoothItemCountChange: (Int) -> Unit
@@ -383,7 +392,7 @@ private fun SettingsContent(
             onMediaToggle = { scope.launch { repository.setSleepMediaEnabled(!settings.sleepMediaEnabled) } }
         )
         9 -> ControllersScreen(settings, selectedOption, { scope.launch { repository.setVibrationEnabled(!settings.vibrationEnabled) } }, { value -> scope.launch { repository.setControllerSensitivity(value) } }, { value -> scope.launch { repository.setControllerDeadZone(value) } })
-        else -> SystemScreen(
+        10 -> SystemScreen(
             settings = settings,
             language = settings.language,
             selectedIndex = selectedOption,
@@ -392,6 +401,13 @@ private fun SettingsContent(
             openOverlayIndex = systemOverlayRequest,
             onOverlayRequestConsumed = onSystemOverlayConsumed
         )
+        11 -> ru.nekostul.horizonos.ui.settings.launcher.LauncherSettingsHubScreen(
+            selectedIndex = selectedOption,
+            onSelect = onOptionSelected,
+            openOverlayIndex = launcherOverlayRequest,
+            onOverlayRequestConsumed = onLauncherOverlayConsumed
+        )
+        else -> Unit
     }
 }
 

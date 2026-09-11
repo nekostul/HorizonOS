@@ -9,10 +9,23 @@ data class Game(
     val emulator: Emulator,
     val romUri: String,
     val romName: String,
-    val hidden: Boolean = false
+    val hidden: Boolean = false,
+    val fullTitle: String? = null,
+    val coverPath: String? = null,
+    val screenshotPath: String? = null,
+    val isTitleManuallySet: Boolean = false,
+    val isCoverManuallySet: Boolean = false,
+    val isScreenshotManuallySet: Boolean = false,
+    val packageName: String? = null,
+    val launchActivity: String? = null,
+    val iconPath: String? = null
 ) {
     val identityKey: String
         get() = "${emulator.name}|$romUri"
+
+    /** The title to show in UI and use for scraping: manual/scraped name wins. */
+    val displayTitle: String
+        get() = fullTitle?.takeIf { it.isNotBlank() } ?: title
 
     companion object {
         fun fromRom(
@@ -26,6 +39,29 @@ data class Game(
                 "${emulator.name}|$romUri".toByteArray(Charsets.UTF_8)
             ).toString()
             return Game(stableId, title, platform, emulator, romUri, romName)
+        }
+
+        /** Builds a Game entry for an installed Android application. */
+        fun fromAndroidApp(
+            label: String,
+            packageName: String,
+            launchActivity: String?,
+            iconPath: String?
+        ): Game {
+            val stableId = UUID.nameUUIDFromBytes(
+                "ANDROID|$packageName".toByteArray(Charsets.UTF_8)
+            ).toString()
+            return Game(
+                id = stableId,
+                title = label,
+                platform = Platform.ANDROID,
+                emulator = Emulator.ANDROID,
+                romUri = "package:$packageName",
+                romName = label,
+                packageName = packageName,
+                launchActivity = launchActivity,
+                iconPath = iconPath
+            )
         }
     }
 }

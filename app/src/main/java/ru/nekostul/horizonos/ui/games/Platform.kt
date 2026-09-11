@@ -25,6 +25,10 @@ enum class Platform(
     GAMECUBE_WII(
         titleRes = R.string.games_platform_gamecube_wii,
         romExtensions = setOf("iso", "gcm", "rvz", "gcz", "ciso", "wbfs", "wad")
+    ),
+    ANDROID(
+        titleRes = R.string.games_platform_android,
+        romExtensions = emptySet()
     );
 
     fun supportsFileName(name: String?): Boolean {

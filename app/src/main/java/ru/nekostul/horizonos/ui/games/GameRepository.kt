@@ -75,6 +75,15 @@ class GameRepository(context: Context) {
                     put("romUri", game.romUri)
                     put("romName", game.romName)
                     put("hidden", game.hidden)
+                    game.fullTitle?.let { put("fullTitle", it) }
+                    game.coverPath?.let { put("coverPath", it) }
+                    game.screenshotPath?.let { put("screenshotPath", it) }
+                    put("isTitleManuallySet", game.isTitleManuallySet)
+                    put("isCoverManuallySet", game.isCoverManuallySet)
+                    put("isScreenshotManuallySet", game.isScreenshotManuallySet)
+                    game.packageName?.let { put("packageName", it) }
+                    game.launchActivity?.let { put("launchActivity", it) }
+                    game.iconPath?.let { put("iconPath", it) }
                 }
             )
         }
@@ -112,7 +121,16 @@ class GameRepository(context: Context) {
                             emulator = emulator,
                             romUri = uri,
                             romName = item.optString("romName").ifBlank { uri },
-                            hidden = item.optBoolean("hidden", false)
+                            hidden = item.optBoolean("hidden", false),
+                            fullTitle = item.optString("fullTitle").takeIf { it.isNotBlank() },
+                            coverPath = item.optString("coverPath").takeIf { it.isNotBlank() },
+                            screenshotPath = item.optString("screenshotPath").takeIf { it.isNotBlank() },
+                            isTitleManuallySet = item.optBoolean("isTitleManuallySet", false),
+                            isCoverManuallySet = item.optBoolean("isCoverManuallySet", false),
+                            isScreenshotManuallySet = item.optBoolean("isScreenshotManuallySet", false),
+                            packageName = item.optString("packageName").takeIf { it.isNotBlank() },
+                            launchActivity = item.optString("launchActivity").takeIf { it.isNotBlank() },
+                            iconPath = item.optString("iconPath").takeIf { it.isNotBlank() }
                         )
                     )
                 }

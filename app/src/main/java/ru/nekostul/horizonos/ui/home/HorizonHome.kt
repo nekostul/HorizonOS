@@ -14,6 +14,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -46,10 +48,13 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -97,6 +102,7 @@ import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
 import android.text.format.DateFormat
+import android.graphics.BitmapFactory
 import android.view.InputDevice
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
@@ -104,6 +110,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import ru.nekostul.horizonos.R
 import androidx.compose.foundation.layout.requiredSize
@@ -119,6 +127,16 @@ import ru.nekostul.horizonos.ui.games.GameLaunchResult
 import ru.nekostul.horizonos.ui.games.GameLauncher
 import ru.nekostul.horizonos.ui.games.GameLibrary
 import ru.nekostul.horizonos.ui.games.GamesScreen
+import ru.nekostul.horizonos.ui.settings.HorizonOverlay
+import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
+import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
+import ru.nekostul.horizonos.ui.settings.SettingsInputMode
+import ru.nekostul.horizonos.ui.settings.SettingsGray
+import ru.nekostul.horizonos.ui.settings.SettingsWhite
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.GameMetadataScraper
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperProgress
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperRepository
+import kotlinx.coroutines.flow.first
 import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlin.math.exp
@@ -127,6 +145,9 @@ import kotlin.math.sin
 import kotlin.math.PI
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 private val HorizonBackground: Color
     @Composable get() = LocalHorizonColors.current.background
@@ -352,6 +373,26 @@ fun HorizonHome(
         mutableStateOf(false)
     }
 
+    // Ghost launch animation layer (null when inactive).
+    var launchGhost by remember {
+        mutableStateOf<LaunchGhostData?>(null)
+    }
+
+    // Automatic metadata scan started right after games are added.
+    var scanning by remember { mutableStateOf(false) }
+    var scanProgress by remember { mutableStateOf<ScraperProgress?>(null) }
+    var scanQueue by remember { mutableStateOf<List<Game>>(emptyList()) }
+    var scanHintGames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showScanHint by remember { mutableStateOf(false) }
+
+    // While the launch sequence runs, the Home content zooms toward the
+    // player and dims, mirroring the console's fade into the loading screen.
+    val homeLaunchZoom by animateFloatAsState(
+        targetValue = if (launchGhost == null) 0f else 1f,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "homeLaunchZoom"
+    )
+
     fun cancelMenuOpening() {
         menuOpeningJob?.cancel()
         menuOpeningJob = null
@@ -465,7 +506,7 @@ fun HorizonHome(
         }
     }
 
-    fun launchGame(game: Game) {
+fun launchGame(game: Game) {
         when (val result = gameLauncher.launch(context, game)) {
             GameLaunchResult.Launched -> Unit
             is GameLaunchResult.Failed -> Toast.makeText(
@@ -473,6 +514,75 @@ fun HorizonHome(
                 result.message,
                 Toast.LENGTH_LONG
             ).show()
+        }
+    }
+
+    /**
+     * Plays the Switch-style launch transition before the real launch. Games
+     * with artwork show their tile on the loading screen; the rest fall back
+     * to a plain title tile so every launch feels the same.
+     */
+    fun launchGameWithAnimation(game: Game) {
+        if (launchGhost != null) return
+        coroutineScope.launch {
+            val image = withContext(Dispatchers.IO) {
+                val path = game.coverPath ?: game.iconPath
+                if (path.isNullOrBlank()) {
+                    null
+                } else {
+                    val file = File(path)
+                    if (file.exists()) {
+                        BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                    } else null
+                }
+            }
+            launchGhost = LaunchGhostData(
+                id = System.nanoTime(),
+                image = image,
+                game = game
+            )
+        }
+    }
+
+    /**
+     * Queues newly added games for automatic metadata/covers scanning. A single
+     * worker drains the queue; games added while a scan is already running are
+     * appended and scanned next, without stopping the current batch.
+     */
+    fun enqueueAutoScan(added: List<Game>) {
+        if (added.isEmpty()) return
+        scanQueue = scanQueue + added
+        if (scanning) return
+        scanning = true
+        scanProgress = null
+        coroutineScope.launch {
+            val library = GameLibrary(context)
+            val settings = ScraperRepository(context).load()
+            val scraper = GameMetadataScraper(library, context.filesDir)
+            val scannedIds = mutableSetOf<String>()
+            while (true) {
+                val batch = scanQueue
+                if (batch.isEmpty()) break
+                scanQueue = emptyList()
+                // Resolve the freshest copy of each game (respects manual edits)
+                // and keep only distinct ids.
+                val current = library.games.first().associateBy { it.id }
+                val targets = batch.map { current[it.id] ?: it }.distinctBy { it.id }
+                scannedIds += targets.map { it.id }
+                withContext(Dispatchers.IO) {
+                    scraper.scrape(settings, targets) { progress ->
+                        coroutineScope.launch { scanProgress = progress }
+                    }
+                }
+            }
+            val after = library.games.first()
+            val missing = after.filter { it.id in scannedIds && it.coverPath == null }
+            scanning = false
+            scanProgress = null
+            if (missing.isNotEmpty()) {
+                scanHintGames = missing.map { it.displayTitle }
+                showScanHint = true
+            }
         }
     }
 
@@ -486,8 +596,7 @@ fun HorizonHome(
             gameSelectionRevision++
         }
 
-        if (wasSelected) {
-            visibleGames.getOrNull(index)?.let { launchGame(it) }
+        if (wasSelected) {            visibleGames.getOrNull(index)?.let { launchGameWithAnimation(it) }
         }
     }
 
@@ -506,7 +615,8 @@ fun HorizonHome(
             onDismiss = {
                 showGames = false
                 clearHomeSelection()
-            }
+            },
+            onGamesAdded = { added -> enqueueAutoScan(added) }
         )
         return
     }
@@ -526,6 +636,12 @@ fun HorizonHome(
         modifier = Modifier
             .fillMaxSize()
             .background(HorizonBackground)
+            .graphicsLayer {
+                val zoom = FastOutSlowInEasing.transform(homeLaunchZoom)
+                scaleX = 1f + 0.085f * zoom
+                scaleY = 1f + 0.085f * zoom
+                alpha = 1f - 0.45f * zoom
+            }
             .focusRequester(homeFocusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
@@ -534,11 +650,11 @@ fun HorizonHome(
                     return@onPreviewKeyEvent false
                 }
 
-                if (isHorizonConfirmKey(event)) {
+if (isHorizonConfirmKey(event)) {
                     if (menuSelectionArmed && selectedMenu >= 0) {
                         activateMenu(selectedMenu)
                     } else {
-                        visibleGames.getOrNull(selectedGame)?.let { launchGame(it) }
+                        visibleGames.getOrNull(selectedGame)?.let { launchGameWithAnimation(it) }
                     }
                     return@onPreviewKeyEvent true
                 }
@@ -594,11 +710,16 @@ fun HorizonHome(
         ) {
             Spacer(Modifier.height(h * 0.042f))
 
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .height(h * 0.083f)
+                    .height(h * 0.083f),
+                contentAlignment = Alignment.Center
+            ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
                     .graphicsLayer {
                         val entry = launchStaggerProgress(
                             homeEntryProgress,
@@ -649,6 +770,23 @@ fun HorizonHome(
                     )
                 }
             }
+            if (scanning) {
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SwitchLoaderSpinner(diameter = 20.dp, alpha = 1f)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = scanProgress?.let {
+                            stringResource(R.string.scanning_covers_progress, it.index, it.total)
+                        } ?: stringResource(R.string.scanning_covers),
+                        color = HorizonWhite,
+                        fontSize = (h.value * 0.026f).sp
+                    )
+                }
+            }
+            }
 
             Spacer(Modifier.height(h * 0.141f))
 
@@ -662,7 +800,7 @@ fun HorizonHome(
                     games = visibleGames,
                     slotCount = slotCount,
                     selectedIndex = selectedGame,
-                    selectedTitle = visibleGames.getOrNull(selectedGame)?.title,
+                    selectedTitle = visibleGames.getOrNull(selectedGame)?.displayTitle,
                     selectionActive = tappedGameIndex == selectedGame && tappedGameIndex >= 0,
                     showSelectedTitle = tappedGameIndex == selectedGame && tappedGameIndex >= 0,
                     cardSize = cardSize,
@@ -789,7 +927,7 @@ fun HorizonHome(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+Row(verticalAlignment = Alignment.CenterVertically) {
                     HorizonButtonGlyph(
                         label = "A",
                         size = 20.dp,
@@ -805,6 +943,22 @@ fun HorizonHome(
                 }
             }
         }
+    }
+
+    // Ghost launch animation overlays the whole Home when a game is launched.
+    launchGhost?.let { ghost ->
+        LaunchGhostOverlay(
+            ghost = ghost,
+            onLaunch = { launchGame(ghost.game) },
+            onFinished = { if (launchGhost?.id == ghost.id) launchGhost = null }
+        )
+    }
+
+    if (showScanHint) {
+        ScanHintOverlay(
+            games = scanHintGames,
+            onDismiss = { showScanHint = false }
+        )
     }
 
     LaunchedEffect(slotCount) {
@@ -825,13 +979,231 @@ fun HorizonHome(
         }
     }
 
-    LaunchedEffect(showGames) {
+LaunchedEffect(showGames) {
         if (!showGames) {
             selectedGame = 0
             homeScrollPositionPx = 0f
             tappedGameIndex = 0
             withFrameNanos { }
             homeFocusRequester.requestFocus()
+        }
+    }
+}
+
+private data class LaunchGhostData(
+    val id: Long,
+    val image: ImageBitmap?,
+    val game: Game
+)
+
+/**
+ * Shown after an automatic scan when no cover could be found for the newly
+ * added games. Explains how to scan manually and how to fix the title.
+ */
+@Composable
+private fun ScanHintOverlay(
+    games: List<String>,
+    onDismiss: () -> Unit
+) {
+    val inputMode = remember { mutableStateOf(SettingsInputMode.GAMEPAD) }
+    CompositionLocalProvider(LocalSettingsInputMode provides inputMode) {
+        HorizonOverlay(
+            title = stringResource(R.string.scan_hint_title),
+            onDismiss = onDismiss
+        ) {
+            Text(
+                text = stringResource(R.string.scan_hint_intro),
+                color = SettingsWhite,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+            )
+            games.take(8).forEach { name ->
+                Text(
+                    text = "•  $name",
+                    color = SettingsGray,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.scan_hint_manual),
+                color = SettingsGray,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.scan_hint_rename),
+                color = SettingsGray,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+            )
+            Spacer(Modifier.height(12.dp))
+            HorizonOverlayChoice(
+                title = stringResource(R.string.action_ok),
+                selected = true,
+                onClick = onDismiss
+            )
+        }
+    }
+}
+
+/**
+ * The console-style launch sequence: Home zooms away under a black fade, the
+ * game tile then holds centre screen above a spinning loader until the
+ * emulator/application window takes over.
+ */
+@Composable
+private fun LaunchGhostOverlay(
+    ghost: LaunchGhostData,
+    onLaunch: () -> Unit,
+    onFinished: () -> Unit
+) {
+    val progress = remember(ghost.id) { Animatable(0f) }
+
+    LaunchedEffect(ghost.id) {
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 1400, easing = LinearEasing)
+        )
+    }
+
+    // Hand control to the emulator once the cover has fully approached the
+    // screen, while the layer is still mostly opaque.
+    LaunchedEffect(ghost.id) {
+        delay(1000)
+        onLaunch()
+    }
+    LaunchedEffect(ghost.id) {
+        delay(1400)
+        onFinished()
+    }
+
+    val t = progress.value
+    val scrimAlpha = FastOutSlowInEasing.transform((t / 0.20f).coerceIn(0f, 1f))
+    val iconProgress = FastOutSlowInEasing.transform(((t - 0.05f) / 0.16f).coerceIn(0f, 1f))
+    // Loading holds for ~0.3s; the cover then zooms in and blurs.
+    val loadEnd = 0.30f / 1.4f
+    val zoomEnd = 1.00f / 1.4f
+    val zoomRaw = ((t - loadEnd) / (zoomEnd - loadEnd)).coerceIn(0f, 1f)
+    // Non-linear approach: smoothstep accelerates, then settles at full size.
+    val zoom = zoomRaw * zoomRaw * (3f - 2f * zoomRaw)
+    val spinnerAlpha = ((t - 0.20f) / 0.14f).coerceIn(0f, 1f) * (1f - zoomRaw)
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = scrimAlpha))
+            .pointerInput(ghost.id) {
+                detectTapGestures(onTap = {})
+            }
+            .onPreviewKeyEvent { true }
+    ) {
+        val tile = minOf(maxWidth * 0.16f, maxHeight * 0.27f)
+        // Uniform scale that makes the tile cover the whole screen.
+        val fillScale = maxOf(maxWidth.value, maxHeight.value) / tile.value
+        val iconScale = 0.93f + 0.07f * iconProgress
+        val coverScale = iconScale * (1f + zoom * (fillScale - 1f))
+        val coverBlur = zoom * 46f
+        val fadeOut = ((t - zoomEnd) / (1f - zoomEnd)).coerceIn(0f, 1f)
+        val coverAlpha = iconProgress * (1f - fadeOut)
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = -maxHeight * 0.058f * (1f - zoom))
+                .requiredSize(tile)
+                .graphicsLayer {
+                    scaleX = coverScale
+                    scaleY = coverScale
+                    alpha = coverAlpha
+                }
+                .blur(coverBlur.dp, BlurredEdgeTreatment.Unbounded)
+        ) {
+            val image = ghost.image
+            if (image != null) {
+                Image(
+                    bitmap = image,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // Games without artwork still receive the full transition on
+                // a plain tile carrying their title.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF101E28))
+                        .border(
+                            width = 1.dp,
+                            color = HorizonWhite.copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(4.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = ghost.game.displayTitle,
+                        color = HorizonWhite,
+                        fontSize = 15.sp,
+                        maxLines = 3,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            }
+        }
+
+        SwitchLoaderSpinner(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = maxHeight * 0.05f),
+            diameter = maxOf(28.dp, maxHeight * 0.045f),
+            alpha = spinnerAlpha
+        )
+    }
+}
+
+/** The console loader: a white ring of dashes rotating at a steady pace. */
+@Composable
+private fun SwitchLoaderSpinner(
+    modifier: Modifier = Modifier,
+    diameter: Dp,
+    alpha: Float
+) {
+    val rotation = rememberInfiniteTransition(label = "launchLoaderRotation")
+    val sweep by rotation.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1300, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "launchLoaderSweep"
+    )
+    Canvas(modifier = modifier.size(diameter)) {
+        val stroke = 2.5.dp.toPx()
+        val radius = (size.minDimension - stroke) / 2f
+        val ticks = 10
+        val circumference = 2f * PI.toFloat() * radius
+        val dash = circumference / (ticks * 2f)
+        rotate(degrees = sweep * 360f) {
+            drawArc(
+                color = Color.White.copy(alpha = alpha),
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                style = Stroke(
+                    width = stroke,
+                    cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))
+                )
+            )
         }
     }
 }
@@ -1319,13 +1691,41 @@ private fun HorizonGameCard(
         contentAlignment = Alignment.Center
     ) {
 
-        Text(
-            text = game.title,
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // The card shows the scraped cover image, or the app icon for Android
+        // applications. The game title is displayed as a separate heading
+        // above the card, not inside it.
+        val cover = rememberCoverBitmap(game.coverPath ?: game.iconPath)
+        if (cover != null) {
+            Image(
+                bitmap = cover,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(2.dp),
+                contentScale = ContentScale.Crop
+            )
+        }
     }
+}
+
+/** Loads the square cover image from the local cache path, if present. */
+@Composable
+private fun rememberCoverBitmap(coverPath: String?): ImageBitmap? {
+    var bitmap by remember(coverPath) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(coverPath) {
+        bitmap = if (coverPath.isNullOrBlank()) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                val file = File(coverPath)
+                if (file.exists()) {
+                    val bmp = BitmapFactory.decodeFile(file.absolutePath)
+                    bmp?.asImageBitmap()
+                } else null
+            }
+        }
+    }
+    return bitmap
 }
 
 

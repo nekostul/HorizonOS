@@ -47,6 +47,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.core.graphics.drawable.toBitmap
+import android.graphics.drawable.Drawable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -82,6 +90,10 @@ import ru.nekostul.horizonos.ui.settings.SettingsWhite
 import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.hideDialogSystemBars
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.GameMetadataEditor
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.MediaType
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperRepository
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperSettings
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.window.Dialog
@@ -94,6 +106,7 @@ private const val EmulatorPage = 2
 private const val SourcePage = 3
 private const val ConfirmPage = 4
 private const val BiosWarningPage = 5
+private const val AndroidAppPage = 6
 private const val BiosWarningPreferences = "game_bios_warnings"
 
 private enum class RomSource {
@@ -103,7 +116,8 @@ private enum class RomSource {
 @Composable
 fun GamesScreen(
     onDismiss: () -> Unit,
-    onOpenFolder: (((Uri?) -> Unit) -> Unit)
+    onOpenFolder: (((Uri?) -> Unit) -> Unit),
+    onGamesAdded: (List<Game>) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -123,9 +137,22 @@ fun GamesScreen(
     var message by remember { mutableStateOf<String?>(null) }
     var isWorking by remember { mutableStateOf(false) }
     var detailsGame by remember { mutableStateOf<Game?>(null) }
+    var titleEditorGame by remember { mutableStateOf<Game?>(null) }
+    var coverPickerGame by remember { mutableStateOf<Game?>(null) }
+    var screenshotPickerGame by remember { mutableStateOf<Game?>(null) }
+    val metadataEditor = remember { GameMetadataEditor(context.filesDir) }
+    val androidApps = remember { AndroidAppRepository(context) }
+    var installedApps by remember { mutableStateOf<List<InstalledAppInfo>>(emptyList()) }
+    var selectedApps by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var appsLoading by remember { mutableStateOf(false) }
     val inputMode = remember { mutableStateOf(SettingsInputMode.TOUCH) }
     val gamesScrollState = rememberScrollState()
     val density = LocalDensity.current
+
+    fun applyGameUpdate(updated: Game) {
+        scope.launch { library.update(updated) }
+        if (detailsGame?.id == updated.id) detailsGame = updated
+    }
 
     fun persistPermission(uri: Uri, flags: Int) {
         val persistableFlags = flags and
@@ -165,21 +192,74 @@ fun GamesScreen(
         isWorking = true
         message = null
         scope.launch {
-            val added = withContext(Dispatchers.IO) {
-                val scan = scanner.scanWithDetails(uri.toString(), selectedPlatform, selectedEmulator)
+            val scan = withContext(Dispatchers.IO) {
+                val result = scanner.scanWithDetails(uri.toString(), selectedPlatform, selectedEmulator)
                 // Older builds stored every disc referenced by an M3U as a
                 // separate game. Remove those stale entries before adding the
                 // playlist-backed game so rescanning repairs existing data.
-                library.removeByRomUris(scan.playlistMemberUris)
-                library.addAll(scan.games)
+                library.removeByRomUris(result.playlistMemberUris)
+                result
             }
+            val added = withContext(Dispatchers.IO) { library.addAll(scan.games) }
             isWorking = false
             message = if (added == 0) {
                 context.getString(R.string.games_already_added)
             } else {
                 context.getString(R.string.games_added_count, added)
             }
-            resetToLibrary()
+            if (added > 0) onGamesAdded(scan.games)
+            // Close the Games window and return to the launcher Home screen.
+            onDismiss()
+        }
+    }
+
+    fun loadInstalledApps() {
+        appsLoading = true
+        installedApps = emptyList()
+        // Pre-check applications that are already in the HorizonOS library.
+        selectedApps = games.mapNotNull { it.packageName }.toSet()
+        scope.launch {
+            val apps = withContext(Dispatchers.IO) { androidApps.installedApps() }
+            installedApps = apps
+            appsLoading = false
+        }
+    }
+
+    fun toggleAppSelection(packageName: String) {
+        selectedApps = if (packageName in selectedApps) {
+            selectedApps - packageName
+        } else {
+            selectedApps + packageName
+        }
+    }
+
+    fun addSelectedAndroidApps() {
+        if (selectedApps.isEmpty() || isWorking) return
+        isWorking = true
+        message = null
+        scope.launch {
+            val games = withContext(Dispatchers.IO) {
+                installedApps
+                    .filter { it.packageName in selectedApps }
+                    .map { app ->
+                        Game.fromAndroidApp(
+                            label = app.label,
+                            packageName = app.packageName,
+                            launchActivity = app.activityName,
+                            iconPath = androidApps.persistIcon(app)
+                        )
+                    }
+            }
+            val added = withContext(Dispatchers.IO) { library.addAll(games) }
+            isWorking = false
+            message = if (added == 0) {
+                context.getString(R.string.games_already_added)
+            } else {
+                context.getString(R.string.games_added_count, added)
+            }
+            if (added > 0) onGamesAdded(games)
+            // Close the Games window and return to the launcher Home screen.
+            onDismiss()
         }
     }
 
@@ -208,6 +288,7 @@ fun GamesScreen(
         SourcePage -> 1
         ConfirmPage -> 2
         BiosWarningPage -> 2
+        AndroidAppPage -> installedApps.size + 1
         else -> 1
     }
 
@@ -244,6 +325,12 @@ fun GamesScreen(
             PlatformPage -> {
                 Platform.values().getOrNull(focusIndex)?.let { platform ->
                     selectedPlatform = platform
+                    if (platform == Platform.ANDROID) {
+                        loadInstalledApps()
+                        page = AndroidAppPage
+                        focusIndex = 0
+                        return@let
+                    }
                     selectedEmulator = Emulator.values().firstOrNull { it.platform == platform }
                         ?: return@let
                     page = EmulatorPage
@@ -282,6 +369,16 @@ fun GamesScreen(
                 pendingUri = null
                 pendingName = ""
             }
+
+            AndroidAppPage -> {
+                if (focusIndex < installedApps.size) {
+                    installedApps.getOrNull(focusIndex)?.let { app ->
+                        toggleAppSelection(app.packageName)
+                    }
+                } else {
+                    addSelectedAndroidApps()
+                }
+            }
         }
     }
 
@@ -312,6 +409,10 @@ fun GamesScreen(
                 pendingUri = null
                 pendingName = ""
             }
+            AndroidAppPage -> {
+                page = PlatformPage
+                focusIndex = selectedPlatform.ordinal
+            }
         }
         return true
     }
@@ -332,8 +433,13 @@ fun GamesScreen(
 
     LaunchedEffect(page, games.size, focusIndex) {
         focusIndex = focusIndex.coerceIn(0, (currentItemCount() - 1).coerceAtLeast(0))
-        val target = with(density) { (focusIndex * 78).dp.roundToPx() }
-        gamesScrollState.animateScrollTo(target)
+        // The Android app list scrolls only when the focused row is actually
+        // outside the viewport (handled per-row via BringIntoViewRequester),
+        // so it must not use the fixed offset scrolling below.
+        if (page != AndroidAppPage) {
+            val target = with(density) { (focusIndex * 78).dp.roundToPx() }
+            gamesScrollState.animateScrollTo(target)
+        }
         // HorizonOverlay creates a separate Dialog window. Request focus
         // after that window has attached so controller events reach this
         // screen instead of the scrim host.
@@ -392,10 +498,26 @@ fun GamesScreen(
                     selected = selectedPlatform,
                     onSelect = {
                         selectedPlatform = it
-                        selectedEmulator = Emulator.values().first { emulator -> emulator.platform == it }
-                        page = EmulatorPage
-                        focusIndex = 0
+                        if (it == Platform.ANDROID) {
+                            loadInstalledApps()
+                            page = AndroidAppPage
+                            focusIndex = 0
+                        } else {
+                            selectedEmulator = Emulator.values().first { emulator -> emulator.platform == it }
+                            page = EmulatorPage
+                            focusIndex = 0
+                        }
                     }
+                )
+
+                AndroidAppPage -> AndroidAppsContent(
+                    apps = installedApps,
+                    selected = selectedApps,
+                    loading = appsLoading,
+                    working = isWorking,
+                    focusIndex = focusIndex,
+                    onToggle = ::toggleAppSelection,
+                    onConfirm = ::addSelectedAndroidApps
                 )
 
                 EmulatorPage -> EmulatorContent(
@@ -449,6 +571,9 @@ fun GamesScreen(
                 detailsGame = updated
                 scope.launch { library.update(updated) }
             },
+            onEditTitle = { titleEditorGame = game },
+            onEditCover = { coverPickerGame = game },
+            onEditScreenshot = { screenshotPickerGame = game },
             onDelete = {
                 detailsGame = null
                 scope.launch {
@@ -457,6 +582,55 @@ fun GamesScreen(
                 }
             },
             onDismiss = { detailsGame = null }
+        )
+    }
+
+    titleEditorGame?.let { game ->
+        GameTitleEditorOverlay(
+            game = game,
+            onSave = { title ->
+                applyGameUpdate(metadataEditor.setTitle(game, title))
+                titleEditorGame = null
+            },
+            onDismiss = { titleEditorGame = null }
+        )
+    }
+
+    coverPickerGame?.let { game ->
+        val scraperSettings = remember { ScraperRepository(context).load() }
+        GameMediaPickerOverlay(
+            game = game,
+            type = MediaType.COVER,
+            editor = metadataEditor,
+            settings = scraperSettings,
+            onSelect = { variant ->
+                coverPickerGame = null
+                scope.launch {
+                    val updated = withContext(Dispatchers.IO) { metadataEditor.applyCover(game, variant) }
+                    if (updated != null) applyGameUpdate(updated)
+                    else message = context.getString(R.string.games_media_apply_failed)
+                }
+            },
+            onDismiss = { coverPickerGame = null }
+        )
+    }
+
+    screenshotPickerGame?.let { game ->
+        val scraperSettings = remember { ScraperRepository(context).load() }
+        GameMediaPickerOverlay(
+            game = game,
+            type = MediaType.SCREENSHOT,
+            editor = metadataEditor,
+            settings = scraperSettings,
+            onSelect = { variant ->
+                screenshotPickerGame = null
+                scope.launch {
+                    val updated = withContext(Dispatchers.IO) { metadataEditor.applyScreenshot(game, variant) }
+                    if (updated != null) applyGameUpdate(updated)
+                    else message = context.getString(R.string.games_media_apply_failed)
+                }
+            },
+            onDismiss = { screenshotPickerGame = null }
         )
     }
     }
@@ -472,7 +646,7 @@ private fun LibraryContent(
 ) {
     games.forEachIndexed { index, game ->
         GameOptionRow(
-            title = game.title,
+title = game.displayTitle,
             subtitle = stringResource(
                 R.string.games_selection_summary,
                 platformLabel(game.platform),
@@ -515,7 +689,11 @@ private fun PlatformContent(
     Platform.values().forEachIndexed { index, platform ->
         GameOptionRow(
             title = platformLabel(platform),
-            subtitle = platform.romExtensions.sorted().joinToString(", ") { ".${it.uppercase()}" },
+            subtitle = if (platform == Platform.ANDROID) {
+                stringResource(R.string.games_android_apps_description)
+            } else {
+                platform.romExtensions.sorted().joinToString(", ") { ".${it.uppercase()}" }
+            },
             selected = selected == platform,
             focused = focusIndex == index,
             onClick = { onSelect(platform) }
@@ -565,8 +743,174 @@ private fun SourceContent(
 }
 
 @Composable
-private fun BiosWarningContent(
-    emulator: Emulator,
+private fun AndroidAppsContent(
+    apps: List<InstalledAppInfo>,
+    selected: Set<String>,
+    loading: Boolean,
+    working: Boolean,
+    focusIndex: Int,
+    onToggle: (String) -> Unit,
+    onConfirm: () -> Unit
+) {
+    Text(
+        text = stringResource(R.string.games_android_apps_title),
+        color = SettingsBlue,
+        fontSize = 19.sp,
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+    )
+    Text(
+        text = stringResource(R.string.games_android_apps_description),
+        color = SettingsGray,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+    )
+    if (loading) {
+        Text(
+            text = stringResource(R.string.games_android_apps_loading),
+            color = SettingsGray,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+        )
+    } else if (apps.isEmpty()) {
+        Text(
+            text = stringResource(R.string.games_android_apps_empty),
+            color = SettingsGray,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+        )
+    }
+    apps.forEachIndexed { index, app ->
+        AndroidAppRow(
+            app = app,
+            checked = app.packageName in selected,
+            focused = focusIndex == index,
+            onClick = { onToggle(app.packageName) }
+        )
+    }
+    GameOptionRow(
+        title = if (working) stringResource(R.string.games_scanning)
+        else stringResource(R.string.action_ok),
+        subtitle = stringResource(R.string.games_android_apps_selected, selected.size),
+        selected = false,
+        focused = focusIndex == apps.size,
+        accent = true,
+        bringIntoViewWhenFocused = true,
+        onClick = onConfirm
+    )
+}
+
+@Composable
+private fun AndroidAppRow(
+    app: InstalledAppInfo,
+    checked: Boolean,
+    focused: Boolean,
+    onClick: () -> Unit
+) {
+    val inputMode = LocalSettingsInputMode.current
+    val pulse = rememberInfiniteTransition(label = "androidAppSelectionPulse")
+    val pulseValue by pulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "androidAppSelectionPulseValue"
+    )
+    val active = inputMode?.value == SettingsInputMode.GAMEPAD && focused
+    val icon = rememberAppIcon(app.icon)
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    // Scroll minimally only when the focused row is not fully visible.
+    LaunchedEffect(focused) {
+        if (focused) bringIntoViewRequester.bringIntoView()
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (active) SettingsDivider.copy(alpha = 0.32f) else Color.Transparent)
+            .then(
+                if (active) {
+                    Modifier.border(
+                        width = 3.dp,
+                        color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                    )
+                } else Modifier
+            )
+            .clickable {
+                inputMode?.value = SettingsInputMode.TOUCH
+                onClick()
+            }
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CheckboxGlyph(checked = checked)
+        Spacer(Modifier.size(10.dp))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(6.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (icon != null) {
+                Image(
+                    bitmap = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
+        Spacer(Modifier.size(12.dp))
+        Text(
+            text = app.label,
+            color = SettingsWhite,
+            fontSize = 16.sp,
+            modifier = Modifier.weight(1f)
+        )
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsDivider.copy(alpha = 0.38f)))
+}
+
+@Composable
+private fun CheckboxGlyph(checked: Boolean) {
+    val color = if (checked) SettingsBlue else SettingsGray
+    Canvas(Modifier.size(20.dp)) {
+        val stroke = 2.dp.toPx()
+        drawRect(
+            color = color,
+            topLeft = androidx.compose.ui.geometry.Offset(stroke / 2f, stroke / 2f),
+            size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+            style = Stroke(width = stroke)
+        )
+        if (checked) {
+            drawLine(
+                color = color,
+                start = androidx.compose.ui.geometry.Offset(size.width * 0.24f, size.height * 0.52f),
+                end = androidx.compose.ui.geometry.Offset(size.width * 0.44f, size.height * 0.72f),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = color,
+                start = androidx.compose.ui.geometry.Offset(size.width * 0.44f, size.height * 0.72f),
+                end = androidx.compose.ui.geometry.Offset(size.width * 0.78f, size.height * 0.28f),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberAppIcon(drawable: Drawable?): ImageBitmap? {
+    return remember(drawable) {
+        drawable?.let { runCatching { it.toBitmap(96, 96).asImageBitmap() }.getOrNull() }
+    }
+}
+
+@Composable
+private fun BiosWarningContent(    emulator: Emulator,
     focusIndex: Int,
     onContinue: () -> Unit,
     onCancel: () -> Unit
@@ -646,6 +990,7 @@ private fun GameOptionRow(
     focused: Boolean,
     accent: Boolean = false,
     hidden: Boolean = false,
+    bringIntoViewWhenFocused: Boolean = false,
     onClick: () -> Unit
 ) {
     val inputMode = LocalSettingsInputMode.current
@@ -659,6 +1004,10 @@ private fun GameOptionRow(
         ),
         label = "gameOptionSelectionPulseValue"
     )
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(focused) {
+        if (focused && bringIntoViewWhenFocused) bringIntoViewRequester.bringIntoView()
+    }
     val active = inputMode?.value == SettingsInputMode.GAMEPAD && focused
     Column(
         modifier = Modifier
@@ -676,6 +1025,7 @@ private fun GameOptionRow(
                 inputMode?.value = SettingsInputMode.TOUCH
                 onClick()
             }
+            .bringIntoViewRequester(bringIntoViewRequester)
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -728,6 +1078,7 @@ private fun platformLabel(platform: Platform): String = when (platform) {
     Platform.PSP -> stringResource(R.string.games_platform_psp)
     Platform.PLAYSTATION_2 -> stringResource(R.string.games_platform_ps2)
     Platform.GAMECUBE_WII -> stringResource(R.string.games_platform_gamecube_wii)
+    Platform.ANDROID -> stringResource(R.string.games_platform_android)
 }
 
 @Composable
@@ -738,6 +1089,9 @@ private fun emulatorLabel(emulator: Emulator): String = stringResource(emulator.
 private fun GameDetailsOverlay(
     game: Game,
     onToggleHidden: () -> Unit,
+    onEditTitle: () -> Unit,
+    onEditCover: () -> Unit,
+    onEditScreenshot: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -749,26 +1103,23 @@ private fun GameDetailsOverlay(
     // Compose Dialog uses a separate window context. Preserve the localized
     // parent context so the title and all action rows use the same language.
     val localizedContext = LocalContext.current
+    val rowCount = 5
 
     LaunchedEffect(focusIndex) {
-        val target = when (focusIndex) {
-            0, 1 -> 0.dp
-            2 -> 66.dp
-            else -> 132.dp
-        }
-        detailScrollState.animateScrollTo(with(density) { target.roundToPx() })
+        detailScrollState.animateScrollTo(with(density) { (focusIndex * 58).dp.roundToPx() })
     }
 
     fun moveFocus(direction: Int) {
-        focusIndex = (focusIndex + direction + 4) % 4
+        focusIndex = (focusIndex + direction + rowCount) % rowCount
     }
 
     fun activate(index: Int) {
         when (index) {
             0 -> onToggleHidden()
-            1 -> Unit
-            2 -> Unit
-            3 -> onDelete()
+            1 -> onEditTitle()
+            2 -> onEditCover()
+            3 -> onEditScreenshot()
+            4 -> onDelete()
         }
     }
 
@@ -911,7 +1262,7 @@ private fun GameDetailsOverlay(
                             .background(SettingsDivider)
                     )
                     Text(
-                        text = game.title,
+                        text = game.displayTitle,
                         color = SettingsWhite,
                         fontSize = 18.sp,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
@@ -942,21 +1293,29 @@ private fun GameDetailsOverlay(
                             onClick = onToggleHidden
                         )
                         GameDetailsActionRow(
-                            title = stringResource(R.string.games_refresh_cover),
-                            subtitle = stringResource(R.string.games_action_coming_soon),
+                            title = stringResource(R.string.games_edit_title),
+                            subtitle = game.displayTitle,
                             selected = focusIndex == 1,
-                            onClick = {}
+                            onClick = onEditTitle
+                        )
+                        GameDetailsActionRow(
+                            title = stringResource(R.string.games_refresh_cover),
+                            subtitle = if (game.coverPath != null) stringResource(R.string.games_cover_added)
+                            else stringResource(R.string.games_cover_not_added),
+                            selected = focusIndex == 2,
+                            onClick = onEditCover
                         )
                         GameDetailsActionRow(
                             title = stringResource(R.string.games_add_screenshot),
-                            subtitle = stringResource(R.string.games_action_coming_soon),
-                            selected = focusIndex == 2,
-                            onClick = {}
+                            subtitle = if (game.screenshotPath != null) stringResource(R.string.games_screenshot_added)
+                            else stringResource(R.string.games_screenshot_not_added),
+                            selected = focusIndex == 3,
+                            onClick = onEditScreenshot
                         )
                         GameDetailsActionRow(
                             title = stringResource(R.string.games_delete),
                             subtitle = stringResource(R.string.games_delete_description),
-                            selected = focusIndex == 3,
+                            selected = focusIndex == 4,
                             destructive = true,
                             onClick = onDelete
                         )

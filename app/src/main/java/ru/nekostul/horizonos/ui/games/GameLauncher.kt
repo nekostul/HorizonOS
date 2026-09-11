@@ -2,6 +2,7 @@ package ru.nekostul.horizonos.ui.games
 
 import android.content.Context
 import ru.nekostul.horizonos.R
+import ru.nekostul.horizonos.ui.games.emulators.AndroidAppLauncher
 import ru.nekostul.horizonos.ui.games.emulators.DolphinLauncher
 import ru.nekostul.horizonos.ui.games.emulators.DuckStationLauncher
 import ru.nekostul.horizonos.ui.games.emulators.EmulatorGameLauncher
@@ -13,7 +14,8 @@ class GameLauncher(
         DuckStationLauncher(),
         PpssppLauncher(),
         NetherSx2Launcher(),
-        DolphinLauncher()
+        DolphinLauncher(),
+        AndroidAppLauncher()
     )
 ) {
     private val launchersByEmulator = launchers.associateBy { it.emulator }
