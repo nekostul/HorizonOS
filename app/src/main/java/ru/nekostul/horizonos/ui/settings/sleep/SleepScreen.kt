@@ -104,11 +104,10 @@ fun SleepScreen(
             }
         ) {
             standbyTimeouts.forEachIndexed { index, timeout ->
-                val highlighted = timeoutIndex == index
                 HorizonOverlayChoice(
                     title = minutesLabel(timeout),
-                    selected = highlighted,
-                    titleColor = if (highlighted) SettingsAccentTeal else null,
+                    selected = timeoutIndex == index,
+                    titleColor = if (timeout == settings.sleepTimeoutMinutes) SettingsAccentTeal else null,
                     onClick = {
                         onTimeoutSelected(timeout)
                         showTimeoutPicker = false

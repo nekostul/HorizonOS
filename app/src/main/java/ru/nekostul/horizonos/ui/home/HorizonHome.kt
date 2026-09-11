@@ -1,11 +1,13 @@
 package ru.nekostul.horizonos.ui.home
 
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
@@ -40,9 +42,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -71,6 +75,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
@@ -313,6 +320,10 @@ fun HorizonHome(
         mutableIntStateOf(0)
     }
 
+    var gameSelectionRevision by remember {
+        mutableIntStateOf(0)
+    }
+
     var selectedMenu by remember {
         mutableIntStateOf(0)
     }
@@ -361,6 +372,7 @@ fun HorizonHome(
         menuSelectionArmed = false
         tappedGameIndex = selectedGame
         gamepadNavigationRequest++
+        gameSelectionRevision++
     }
 
     fun moveMenuSelection(direction: Int) {
@@ -470,6 +482,9 @@ fun HorizonHome(
         selectedMenu = -1
         menuSelectionArmed = false
         tappedGameIndex = index
+        if (!wasSelected) {
+            gameSelectionRevision++
+        }
 
         if (wasSelected) {
             visibleGames.getOrNull(index)?.let { launchGame(it) }
@@ -661,6 +676,7 @@ fun HorizonHome(
                     scrollPositionPx = homeScrollPositionPx,
                     onScrollPositionChange = { homeScrollPositionPx = it },
                     gamepadNavigationRequest = gamepadNavigationRequest,
+                    gameSelectionRevision = gameSelectionRevision,
                     onSwipe = {
                         clearHomeSelection()
                     }
@@ -842,6 +858,7 @@ private fun HorizonGameCarousel(
     scrollPositionPx: Float,
     onScrollPositionChange: (Float) -> Unit,
     gamepadNavigationRequest: Int,
+    gameSelectionRevision: Int,
     onSwipe: () -> Unit
 ) {
     val density = LocalDensity.current
@@ -987,17 +1004,6 @@ private fun HorizonGameCarousel(
                 )
             }
     ) {
-        if (showSelectedTitle && selectedTitle != null) {
-            Text(
-                text = selectedTitle,
-                color = HorizonBlue,
-                fontSize = 23.sp,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-34).dp)
-            )
-        }
-
         Row(
             modifier = Modifier
                 .requiredWidth(contentWidth)
@@ -1037,6 +1043,18 @@ private fun HorizonGameCarousel(
                         },
                     contentAlignment = Alignment.Center
                 ) {
+                    if (showSelectedTitle && selectedTitle != null && index == selectedIndex) {
+                        key(gameSelectionRevision, selectedIndex, selectedTitle) {
+                            HorizonSelectedGameTitle(
+                                title = selectedTitle,
+                                cardWidth = cardSize,
+                                selectionKey = gameSelectionRevision,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .offset(y = (-36).dp)
+                            )
+                        }
+                    }
                     val game = games.getOrNull(index)
                     if (game != null) {
                         HorizonGameCard(
@@ -1065,6 +1083,95 @@ private fun HorizonGameCarousel(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HorizonSelectedGameTitle(
+    title: String,
+    cardWidth: Dp,
+    selectionKey: Int,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val titleColor = HorizonBlue
+    val titleStyle = remember(titleColor) {
+        TextStyle(
+            color = titleColor,
+            fontSize = 23.sp
+        )
+    }
+    val textMeasurer = rememberTextMeasurer()
+    val textWidthPx = remember(title, titleStyle, density) {
+        textMeasurer.measure(
+            text = AnnotatedString(title),
+            style = titleStyle,
+            maxLines = 1,
+            softWrap = false
+        ).size.width
+    }
+    val cardWidthPx = with(density) { cardWidth.toPx() }
+    val overflowPx = (textWidthPx - cardWidthPx).coerceAtLeast(0f)
+    val textWidth = with(density) { textWidthPx.toDp() }
+    // requiredWidth reports an oversized child as centered when its parent
+    // cannot accommodate it. Move it by half the overflow so the initial
+    // frame starts at the real beginning of the measured line.
+    val initialTextOffsetPx = overflowPx / 2f
+    val textOffset = remember(selectionKey, title, cardWidthPx) { Animatable(0f) }
+    var marqueeStarted by remember(selectionKey, title, cardWidthPx) {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(selectionKey, title, cardWidthPx, overflowPx) {
+        marqueeStarted = false
+        textOffset.stop()
+        textOffset.snapTo(0f)
+        if (overflowPx <= 0f) return@LaunchedEffect
+
+        val marqueePauseMillis = 2000L
+        delay(marqueePauseMillis)
+        marqueeStarted = true
+        while (true) {
+            textOffset.animateTo(
+                targetValue = -overflowPx,
+                animationSpec = tween(1900, easing = LinearEasing)
+            )
+            delay(marqueePauseMillis)
+            textOffset.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(1900, easing = LinearEasing)
+            )
+            delay(marqueePauseMillis)
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .requiredWidth(cardWidth)
+            .height(30.dp)
+            .clipToBounds(),
+        contentAlignment = if (overflowPx <= 0f) Alignment.Center else Alignment.CenterStart
+    ) {
+        Text(
+            text = title,
+            style = titleStyle,
+            maxLines = 1,
+            softWrap = false,
+            modifier = if (overflowPx > 0f) {
+                Modifier
+                    // Keep the full measured line wider than the viewport;
+                    // only the outer card-width window clips it during marquee.
+                    .align(Alignment.CenterStart)
+                    .requiredWidth(textWidth)
+                    .offset {
+                        val visibleOffset = initialTextOffsetPx +
+                                if (marqueeStarted) textOffset.value else 0f
+                        IntOffset(visibleOffset.roundToInt(), 0)
+                    }
+            } else {
+                Modifier
+            }
+        )
     }
 }
 
@@ -1353,16 +1460,17 @@ private fun HorizonMenuButton(
                 .align(Alignment.TopCenter)
                 .requiredSize(size)
                 .clip(CircleShape)
-                .background(LocalHorizonColors.current.panel)
-                .border(
-                    width = 2.dp,
-                    color = if (selected) {
-                        HorizonBlue.copy(alpha = selectionAlpha)
+                .background(Color(0xFF555555))
+                .then(
+                    if (selected) {
+                        Modifier.border(
+                            width = 2.dp,
+                            color = HorizonBlue.copy(alpha = selectionAlpha),
+                            shape = CircleShape
+                        )
                     } else {
-                        LocalHorizonColors.current.divider
-                    },
-
-                    shape = CircleShape
+                        Modifier
+                    }
                 )
                 .clickable {
                     onClick()
