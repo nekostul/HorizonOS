@@ -1,6 +1,7 @@
 package ru.nekostul.horizonos.ui.home
 
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.infiniteRepeatable
@@ -59,6 +60,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -702,6 +705,11 @@ if (isHorizonConfirmKey(event)) {
         // Match the reference strip: slot 0 begins inside the left margin and
         // the remaining slots continue beyond the viewport to the right.
         val cardStartOffset = h * 0.114f
+
+        // Blurred screenshot of the selected game as a living backdrop.
+        GameScreenshotBackground(
+            screenshotPath = visibleGames.getOrNull(selectedGame)?.screenshotPath
+        )
 
         Column(
             modifier = Modifier
@@ -1726,6 +1734,89 @@ private fun rememberCoverBitmap(coverPath: String?): ImageBitmap? {
         }
     }
     return bitmap
+}
+
+/**
+ * Blurred screenshot of the selected game used as the Home backdrop:
+ * very light blur, a very slow Ken-Burns drift, a crossfade between games and
+ * a soft vignette. In the dark theme it is darkened; in the light theme it is
+ * shown plain. When a game has no screenshot the grey Home background remains.
+ */
+@Composable
+private fun GameScreenshotBackground(screenshotPath: String?) {
+    var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(screenshotPath) {
+        bitmap = if (screenshotPath.isNullOrBlank()) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                val file = File(screenshotPath)
+                if (file.exists()) {
+                    BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                } else null
+            }
+        }
+    }
+
+    val darkTheme = LocalHorizonColors.current.background.luminance() < 0.5f
+
+    // Extremely slow, smooth drift so the backdrop feels alive.
+    val drift = rememberInfiniteTransition(label = "homeBackdropDrift")
+    val scale by drift.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.075f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 18000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "homeBackdropScale"
+    )
+
+    Crossfade(
+        targetState = bitmap,
+        animationSpec = tween(durationMillis = 750, easing = FastOutSlowInEasing),
+        label = "homeBackdropCrossfade"
+    ) { frame ->
+        if (frame != null) {
+            Box(Modifier.fillMaxSize()) {
+                Image(
+                    bitmap = frame,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .blur(7.dp, BlurredEdgeTreatment.Unbounded),
+                    contentScale = ContentScale.Crop
+                )
+                if (darkTheme) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.46f))
+                    )
+                }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .drawBehind {
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = if (darkTheme) 0.66f else 0.32f)
+                                    ),
+                                    center = center,
+                                    radius = size.maxDimension * 0.72f
+                                )
+                            )
+                        }
+                )
+            }
+        }
+    }
 }
 
 
