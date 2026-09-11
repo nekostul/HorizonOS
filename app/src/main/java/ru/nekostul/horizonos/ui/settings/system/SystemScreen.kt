@@ -31,7 +31,7 @@ fun SystemScreen(
     onInterfaceSoundsToggle: () -> Unit,
     openOverlayIndex: Int? = null,
     onOverlayRequestConsumed: () -> Unit = {}
-) {
+    ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val languageName = when (LanguageManager.effectiveLanguage(context, language)) {
         LanguageManager.RUSSIAN -> stringResource(R.string.language_russian)
@@ -48,10 +48,16 @@ fun SystemScreen(
         SettingRow(stringResource(R.string.settings_system_info), "", stringResource(R.string.settings_system_info_description))
     )
     var overlayIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    var languageChoice by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
     LaunchedEffect(openOverlayIndex) {
         openOverlayIndex?.let {
             overlayIndex = it.coerceIn(0, rows.lastIndex)
             onOverlayRequestConsumed()
+        }
+    }
+    LaunchedEffect(overlayIndex, language) {
+        if (overlayIndex == 1) {
+            languageChoice = if (LanguageManager.effectiveLanguage(context, language) == LanguageManager.RUSSIAN) 0 else 1
         }
     }
     Column {
@@ -68,11 +74,28 @@ fun SystemScreen(
     overlayIndex?.let { index ->
         HorizonOverlay(
             title = rows[index].title,
-            onDismiss = { overlayIndex = null }
+            onDismiss = { overlayIndex = null },
+            onDirectionalKey = if (index == 1) {
+                { key ->
+                    when (key) {
+                        androidx.compose.ui.input.key.Key.DirectionDown,
+                        androidx.compose.ui.input.key.Key.DirectionRight -> {
+                            languageChoice = (languageChoice + 1).coerceAtMost(1)
+                            true
+                        }
+                        androidx.compose.ui.input.key.Key.DirectionUp,
+                        androidx.compose.ui.input.key.Key.DirectionLeft -> {
+                            languageChoice = (languageChoice - 1).coerceAtLeast(0)
+                            true
+                        }
+                        else -> false
+                    }
+                }
+            } else null
         ) {
             when (index) {
                 0 -> DateTimeScreen()
-                1 -> LanguageSettingsScreen(language, onLanguageSelected)
+                1 -> LanguageSettingsScreen(language, onLanguageSelected, languageChoice)
                 2 -> DisplaySettingsScreen(settings, onInterfaceScaleChange, onAnimationsToggle)
                 3 -> SoundSettingsScreen(settings, onInterfaceSoundsToggle)
                 4 -> AccessibilityScreen(settings, onAnimationsToggle, onInterfaceScaleChange)

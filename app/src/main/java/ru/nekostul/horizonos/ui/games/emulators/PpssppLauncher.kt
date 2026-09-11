@@ -5,6 +5,7 @@ import android.content.Intent
 import ru.nekostul.horizonos.ui.games.Emulator
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLaunchResult
+import ru.nekostul.horizonos.R
 
 class PpssppLauncher : EmulatorGameLauncher {
     override val emulator = Emulator.PPSSPP
@@ -12,7 +13,7 @@ class PpssppLauncher : EmulatorGameLauncher {
     override fun launch(context: Context, game: Game): GameLaunchResult {
         val packageName = PACKAGES.firstOrNull {
             context.packageManager.getLaunchIntentForPackage(it) != null
-        } ?: return GameLaunchResult.Failed("Эмулятор PPSSPP не установлен.")
+        } ?: return GameLaunchResult.Failed(context.getString(R.string.games_error_ppsspp_not_installed))
 
         return launchRomIntent(
             context = context,

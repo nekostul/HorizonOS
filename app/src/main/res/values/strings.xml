@@ -291,6 +291,10 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_platform_psp">PSP</string>
     <string name="games_platform_ps2">PlayStation 2</string>
     <string name="games_platform_gamecube_wii">GameCube / Wii</string>
+    <string name="games_emulator_duckstation">DuckStation</string>
+    <string name="games_emulator_ppsspp">PPSSPP</string>
+    <string name="games_emulator_nethersx2">NetherSX2</string>
+    <string name="games_emulator_dolphin">Dolphin</string>
     <string name="games_selection_summary">%1$s · %2$s</string>
     <string name="games_choose_file">Choose ROM file</string>
     <string name="games_choose_file_description">Select one supported ROM through Android Files.</string>
@@ -318,5 +322,13 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_bios_warning_description">%1$s needs a BIOS file. The game will not start until a BIOS is added in the emulator settings.</string>
     <string name="games_bios_warning_continue">Understood, continue</string>
     <string name="games_bios_warning_continue_description">Do not show this warning again for this emulator.</string>
+    <string name="games_error_unsupported_emulator">There is no supported emulator for this game.</string>
+    <string name="games_error_file_unavailable">The game file is unavailable. Check permission to access the ROM.</string>
+    <string name="games_error_emulator_not_installed">Emulator is not installed: %1$s</string>
+    <string name="games_error_emulator_activity_unavailable">The emulator is installed, but its game launch screen is unavailable.</string>
+    <string name="games_error_open_failed">Could not open the game through %1$s.</string>
+    <string name="games_error_launch_failed">Could not launch the game.</string>
+    <string name="games_error_ppsspp_not_installed">PPSSPP emulator is not installed.</string>
+    <string name="games_error_nethersx2_not_installed">NetherSX2 emulator is not installed.</string>
 
 </resources>

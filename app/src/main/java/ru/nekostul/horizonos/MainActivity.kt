@@ -2,6 +2,10 @@ package ru.nekostul.horizonos
 
 import android.os.Bundle
 import android.os.Build
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -33,6 +37,55 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
+
+    private var lastStickHorizontal = 0
+    private var lastStickVertical = 0
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        val source = event.source
+        val isController =
+            (source and InputDevice.SOURCE_JOYSTICK) != 0 ||
+                (source and InputDevice.SOURCE_GAMEPAD) != 0
+        if (!isController || event.action != MotionEvent.ACTION_MOVE) {
+            return super.onGenericMotionEvent(event)
+        }
+
+        val horizontal = controllerAxisDirection(
+            event.getAxisValue(MotionEvent.AXIS_HAT_X)
+                .takeUnless { kotlin.math.abs(it) < 0.01f }
+                ?: event.getAxisValue(MotionEvent.AXIS_X)
+        )
+        val vertical = controllerAxisDirection(
+            event.getAxisValue(MotionEvent.AXIS_HAT_Y)
+                .takeUnless { kotlin.math.abs(it) < 0.01f }
+                ?: event.getAxisValue(MotionEvent.AXIS_Y)
+        )
+
+        val wasActive = lastStickHorizontal != 0 || lastStickVertical != 0
+        dispatchAxisKey(lastStickHorizontal, horizontal, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT)
+        dispatchAxisKey(lastStickVertical, vertical, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN)
+        lastStickHorizontal = horizontal
+        lastStickVertical = vertical
+        return horizontal != 0 || vertical != 0 || wasActive
+    }
+
+    private fun dispatchAxisKey(previous: Int, current: Int, negativeKey: Int, positiveKey: Int) {
+        if (previous == current) return
+        val now = SystemClock.uptimeMillis()
+        fun send(action: Int, keyCode: Int) {
+            dispatchKeyEvent(KeyEvent(now, now, action, keyCode, 0))
+        }
+        if (previous < 0) send(KeyEvent.ACTION_UP, negativeKey)
+        if (previous > 0) send(KeyEvent.ACTION_UP, positiveKey)
+        if (current < 0) send(KeyEvent.ACTION_DOWN, negativeKey)
+        if (current > 0) send(KeyEvent.ACTION_DOWN, positiveKey)
+    }
+
+    private fun controllerAxisDirection(value: Float): Int = when {
+        value <= -0.55f -> -1
+        value >= 0.55f -> 1
+        else -> 0
+    }
 
     private lateinit var runtimePermissionLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var gameFolderLauncher: ActivityResultLauncher<Uri?>

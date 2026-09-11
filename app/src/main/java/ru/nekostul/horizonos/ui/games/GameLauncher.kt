@@ -1,6 +1,7 @@
 package ru.nekostul.horizonos.ui.games
 
 import android.content.Context
+import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.games.emulators.DolphinLauncher
 import ru.nekostul.horizonos.ui.games.emulators.DuckStationLauncher
 import ru.nekostul.horizonos.ui.games.emulators.EmulatorGameLauncher
@@ -19,6 +20,6 @@ class GameLauncher(
 
     fun launch(context: Context, game: Game): GameLaunchResult {
         return launchersByEmulator[game.emulator]?.launch(context, game)
-            ?: GameLaunchResult.Failed("Для этой игры нет поддерживаемого эмулятора.")
+            ?: GameLaunchResult.Failed(context.getString(R.string.games_error_unsupported_emulator))
     }
 }

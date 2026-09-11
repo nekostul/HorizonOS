@@ -1,12 +1,14 @@
 package ru.nekostul.horizonos.ui.games
 
+import ru.nekostul.horizonos.R
+
 enum class Emulator(
-    val title: String,
+    val titleRes: Int,
     val platform: Platform,
     val requiresBios: Boolean = false
 ) {
-    DUCKSTATION("DuckStation", Platform.PLAYSTATION_1, requiresBios = true),
-    PPSSPP("PPSSPP", Platform.PSP),
-    NETHERSX2("NetherSX2", Platform.PLAYSTATION_2, requiresBios = true),
-    DOLPHIN("Dolphin", Platform.GAMECUBE_WII)
+    DUCKSTATION(R.string.games_emulator_duckstation, Platform.PLAYSTATION_1, requiresBios = true),
+    PPSSPP(R.string.games_emulator_ppsspp, Platform.PSP),
+    NETHERSX2(R.string.games_emulator_nethersx2, Platform.PLAYSTATION_2, requiresBios = true),
+    DOLPHIN(R.string.games_emulator_dolphin, Platform.GAMECUBE_WII)
 }

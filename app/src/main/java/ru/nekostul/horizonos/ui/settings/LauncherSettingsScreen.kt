@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Image
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -54,7 +54,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -62,19 +61,20 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.settings.airplane.AirplaneModeScreen
-import ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothScreen
 import ru.nekostul.horizonos.ui.settings.brightness.BrightnessScreen
 import ru.nekostul.horizonos.ui.settings.controllers.ControllersScreen
+import ru.nekostul.horizonos.ui.settings.controllers.ControllerManager
+import ru.nekostul.horizonos.ui.settings.notifications.NotificationController
 import ru.nekostul.horizonos.ui.settings.lockscreen.LockScreenScreen
 import ru.nekostul.horizonos.ui.settings.notifications.NotificationsScreen
 import ru.nekostul.horizonos.ui.settings.sleep.SleepScreen
 import ru.nekostul.horizonos.ui.settings.storage.StorageScreen
 import ru.nekostul.horizonos.ui.settings.system.SystemScreen
 import ru.nekostul.horizonos.ui.settings.themes.ThemesScreen
-import ru.nekostul.horizonos.ui.settings.wifi.WifiScreen
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 
@@ -106,17 +106,28 @@ fun LauncherSettingsScreen(
     val overlayBackHandlers = remember { mutableStateListOf<() -> Unit>() }
     val settingsFocusRequester = remember { FocusRequester() }
     val leftListState = rememberLazyListState()
+    val rightScrollState = rememberScrollState()
+    val inputMode = remember { mutableStateOf(SettingsInputMode.TOUCH) }
+    var wifiActivationRequest by remember { mutableIntStateOf(0) }
+    var bluetoothItemCount by remember { mutableIntStateOf(2) }
 
     fun optionCount(category: Int): Int = when (category) {
         0 -> if (settings.airplaneMode) 3 else 1
-        1, 3 -> 2
-        2 -> 2
+        1 -> 2
+        2 -> bluetoothItemCount
+        3 -> 6
         4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context).availableNetworkNames().size + 3
         5 -> 10
-        6, 7 -> 2
+        6 -> 2
+        7 -> NotificationController(context).installedApps().size + 2
         8 -> 6
-        9 -> 5
+        9 -> ControllerManager.connectedControllers().size + 4
         else -> 8
+    }
+
+    LaunchedEffect(selectedCategory) {
+        selectedOption = 0
+        rightFocus = false
     }
 
     fun requestRuntimePermissions(category: Int) {
@@ -148,6 +159,10 @@ fun LauncherSettingsScreen(
                     val controller = ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
                     if (controller.setAutomaticBrightnessEnabled(enabled)) repository.setAutoBrightness(enabled)
                 }
+                2 -> if (selectedOption == 0) {
+                    val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
+                    controller.setEnabled(controller.enabled() != true)
+                }
                 3 -> when (selectedOption) {
                     0 -> repository.setLockScreenEnabled(!settings.lockScreenEnabled)
                     in 1..5 -> {
@@ -156,6 +171,15 @@ fun LauncherSettingsScreen(
                         ru.nekostul.horizonos.ui.settings.lockscreen.LockScreenController(context)
                             .setSystemTimeout(timeout * 60 * 1000)
                     }
+                }
+                4 -> when (selectedOption) {
+                    0 -> {
+                        val controller = ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context)
+                        val next = controller.enabled() != true
+                        if (controller.setEnabled(next)) repository.setWifiEnabled(next)
+                    }
+                    2 -> ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context).scan()
+                    in 3..Int.MAX_VALUE -> wifiActivationRequest++
                 }
                 6 -> repository.setTheme(if (selectedOption == 0) "dark" else "light")
                 7 -> if (selectedOption == 0) repository.setNotificationsEnabled(!settings.notificationsEnabled)
@@ -182,7 +206,10 @@ fun LauncherSettingsScreen(
         if (selectedCategory == 0) selectedOption = selectedOption.coerceIn(0, optionCount(0) - 1)
     }
 
-    CompositionLocalProvider(LocalSettingsOverlayVisible provides overlayVisible) {
+    CompositionLocalProvider(
+        LocalSettingsOverlayVisible provides overlayVisible,
+        LocalSettingsInputMode provides inputMode
+    ) {
     // Only the controller B button navigates back. Native Android Back is
     // consumed by MainActivity and never reaches this screen.
     fun handleControllerBack() {
@@ -206,6 +233,7 @@ fun LauncherSettingsScreen(
         .focusable()
         .onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        inputMode.value = SettingsInputMode.GAMEPAD
         if (isHorizonConfirmKey(event)) {
             if (rightFocus) activateOption() else rightFocus = true
             return@onPreviewKeyEvent true
@@ -251,26 +279,33 @@ fun LauncherSettingsScreen(
                     }
                 }
                 Spacer(Modifier.width(24.dp))
-                Column(Modifier.fillMaxHeight().weight(0.66f).verticalScroll(rememberScrollState())) {
-                    SettingsContent(
-                        context,
-                        selectedCategory,
-                        settings,
-                        selectedOption,
-                        repository,
-                        scope,
-                        { selectedOption = it; rightFocus = true; activateOption() },
-                        { value ->
-                            scope.launch {
-                                repository.setBrightness(value)
-                                ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
-                                    .setGlobalBrightness(value)
+                Column(Modifier.fillMaxHeight().weight(0.66f).verticalScroll(rightScrollState)) {
+                    CompositionLocalProvider(LocalSettingsRightMenuFocused provides rightFocus) {
+                        SettingsContent(
+                            context,
+                            selectedCategory,
+                            settings,
+                            selectedOption,
+                            repository,
+                            scope,
+                            { selectedOption = it; rightFocus = true; activateOption() },
+                            { value ->
+                                scope.launch {
+                                    repository.setBrightness(value)
+                                    ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
+                                        .setGlobalBrightness(value)
+                                }
+                            },
+                            { scope.launch { repository.setTheme(it) } }
+                            ,systemOverlayRequest,
+                            { systemOverlayRequest = null },
+                            wifiActivationRequest,
+                            { count ->
+                                bluetoothItemCount = count
+                                selectedOption = selectedOption.coerceIn(0, (count - 1).coerceAtLeast(0))
                             }
-                        },
-                        { scope.launch { repository.setTheme(it) } }
-                        ,systemOverlayRequest,
-                        { systemOverlayRequest = null }
-                    )
+                        )
+                    }
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsGray))
@@ -298,16 +333,38 @@ fun LauncherSettingsScreen(
 
 
 @Composable
-private fun SettingsContent(context: Context, category: Int, settings: LauncherSettings, selectedOption: Int, repository: LauncherSettingsRepository, scope: kotlinx.coroutines.CoroutineScope, onOptionSelected: (Int) -> Unit, onBrightnessChange: (Float) -> Unit, onThemeSelected: (String) -> Unit, systemOverlayRequest: Int?, onSystemOverlayConsumed: () -> Unit) {
+private fun SettingsContent(
+    context: Context,
+    category: Int,
+    settings: LauncherSettings,
+    selectedOption: Int,
+    repository: LauncherSettingsRepository,
+    scope: CoroutineScope,
+    onOptionSelected: (Int) -> Unit,
+    onBrightnessChange: (Float) -> Unit,
+    onThemeSelected: (String) -> Unit,
+    systemOverlayRequest: Int?,
+    onSystemOverlayConsumed: () -> Unit,
+    wifiActivationRequest: Int,
+    onBluetoothItemCountChange: (Int) -> Unit
+) {
     when (category) {
         0 -> AirplaneModeScreen(context, settings, selectedOption, { onOptionSelected(0) }, { onOptionSelected(1) }, { onOptionSelected(2) })
         1 -> BrightnessScreen(settings, selectedOption, { onOptionSelected(0) }, onBrightnessChange)
-        2 -> ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothScreen(selectedOption, onOptionSelected) {
+        2 -> ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothScreen(
+            selectedIndex = selectedOption,
+            onSelect = onOptionSelected,
+            onItemCountChange = onBluetoothItemCountChange
+        ) {
             val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
             controller.setEnabled(controller.enabled() != true)
         }
         3 -> LockScreenScreen(context, settings, selectedOption, { onOptionSelected(0) }, { timeout -> scope.launch { repository.setLockScreenTimeoutMinutes(timeout) } })
-        4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiScreen(selectedOption, onOptionSelected) {
+        4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiScreen(
+            selectedIndex = selectedOption,
+            onSelect = onOptionSelected,
+            activationRequest = wifiActivationRequest
+        ) {
             val controller = ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context)
             controller.setEnabled(controller.enabled() != true)
         }
@@ -333,45 +390,39 @@ private fun SettingsContent(context: Context, category: Int, settings: LauncherS
 
 @Composable
 private fun SettingsCategoryRow(text: String, selected: Boolean, focused: Boolean, onClick: () -> Unit) {
-    var touchArmed by remember { mutableStateOf(false) }
+    val inputMode = LocalSettingsInputMode.current
     val pulse = rememberInfiniteTransition(label = "settingsCategorySelectionPulse")
     val pulseValue by pulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1050, easing = FastOutSlowInEasing),
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "settingsCategorySelectionPulseValue"
     )
-    val accent = SettingsBlue
+    val frameActive = inputMode?.value == SettingsInputMode.GAMEPAD && focused
     Row(
         Modifier
             .fillMaxWidth()
             .height(54.dp)
             .then(
-                if (focused || touchArmed) {
-                    Modifier.drawBehind {
-                        drawRect(
-                            color = accent.copy(alpha = if (focused) 0.95f else 0.20f + pulseValue * 0.16f),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
-                        )
-                    }
+                if (frameActive) {
+                    Modifier.border(
+                        width = 3.dp,
+                        color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                    )
                 } else Modifier
             )
             .clickable {
-                if (touchArmed) {
-                    touchArmed = false
-                    onClick()
-                } else {
-                    touchArmed = true
-                }
+                inputMode?.value = SettingsInputMode.TOUCH
+                onClick()
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.width(if (selected) 4.dp else 0.dp).height(38.dp).background(if (selected) SettingsBlue else Color.Transparent))
         Spacer(Modifier.width(if (selected) 13.dp else 17.dp))
-        Text(text, color = if (focused) SettingsBlue else SettingsWhite, fontSize = 18.sp)
+        Text(text, color = SettingsWhite, fontSize = 18.sp)
     }
 }
 
@@ -381,10 +432,14 @@ private fun SettingsFooterButton(
     label: String,
     onClick: () -> Unit
 ) {
+    val inputMode = LocalSettingsInputMode.current
     Row(
         modifier = Modifier
             .height(44.dp)
-            .clickable(onClick = onClick)
+            .clickable {
+                inputMode?.value = SettingsInputMode.TOUCH
+                onClick()
+            }
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -8,7 +8,11 @@ import ru.nekostul.horizonos.ui.settings.LanguageManager
 import androidx.compose.foundation.layout.Column
 
 @Composable
-fun LanguageSettingsScreen(language: String, onLanguageSelected: (String) -> Unit) {
+fun LanguageSettingsScreen(
+    language: String,
+    onLanguageSelected: (String) -> Unit,
+    highlightedIndex: Int? = null
+) {
     val effectiveLanguage = LanguageManager.effectiveLanguage(
         androidx.compose.ui.platform.LocalContext.current,
         language
@@ -16,12 +20,12 @@ fun LanguageSettingsScreen(language: String, onLanguageSelected: (String) -> Uni
     Column {
         HorizonOverlayChoice(
             title = stringResource(R.string.language_russian),
-            selected = effectiveLanguage == LanguageManager.RUSSIAN,
+            selected = (highlightedIndex ?: if (effectiveLanguage == LanguageManager.RUSSIAN) 0 else 1) == 0,
             onClick = { onLanguageSelected(LanguageManager.RUSSIAN) }
         )
         HorizonOverlayChoice(
             title = stringResource(R.string.language_english),
-            selected = effectiveLanguage == LanguageManager.ENGLISH,
+            selected = (highlightedIndex ?: if (effectiveLanguage == LanguageManager.RUSSIAN) 0 else 1) == 1,
             onClick = { onLanguageSelected(LanguageManager.ENGLISH) }
         )
     }

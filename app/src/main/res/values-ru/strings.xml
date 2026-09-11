@@ -291,6 +291,10 @@
     <string name="games_platform_psp">PSP</string>
     <string name="games_platform_ps2">PlayStation 2</string>
     <string name="games_platform_gamecube_wii">GameCube / Wii</string>
+    <string name="games_emulator_duckstation">DuckStation</string>
+    <string name="games_emulator_ppsspp">PPSSPP</string>
+    <string name="games_emulator_nethersx2">NetherSX2</string>
+    <string name="games_emulator_dolphin">Dolphin</string>
     <string name="games_selection_summary">%1$s · %2$s</string>
     <string name="games_choose_file">Выбрать ROM-файл</string>
     <string name="games_choose_file_description">Выберите один поддерживаемый ROM через Файлы Android.</string>
@@ -318,5 +322,13 @@
     <string name="games_bios_warning_description">Для %1$s нужен файл BIOS. Если BIOS не добавлен в настройки эмулятора, игра не запустится.</string>
     <string name="games_bios_warning_continue">Понятно, продолжить</string>
     <string name="games_bios_warning_continue_description">Больше не показывать это предупреждение для выбранного эмулятора.</string>
+    <string name="games_error_unsupported_emulator">Для этой игры нет поддерживаемого эмулятора.</string>
+    <string name="games_error_file_unavailable">Файл игры недоступен. Проверьте разрешение на доступ к ROM.</string>
+    <string name="games_error_emulator_not_installed">Эмулятор не установлен: %1$s</string>
+    <string name="games_error_emulator_activity_unavailable">Эмулятор установлен, но его экран запуска игры недоступен.</string>
+    <string name="games_error_open_failed">Не удалось открыть игру через %1$s.</string>
+    <string name="games_error_launch_failed">Не удалось запустить игру.</string>
+    <string name="games_error_ppsspp_not_installed">Эмулятор PPSSPP не установлен.</string>
+    <string name="games_error_nethersx2_not_installed">Эмулятор NetherSX2 не установлен.</string>
 
 </resources>

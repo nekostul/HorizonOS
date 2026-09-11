@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.focusable
@@ -42,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,10 +73,14 @@ import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.settings.HorizonOverlay
 import ru.nekostul.horizonos.ui.settings.SettingsBlue
+import ru.nekostul.horizonos.ui.settings.SelectionFrameBlue
+import ru.nekostul.horizonos.ui.settings.SelectionPulseDurationMillis
 import ru.nekostul.horizonos.ui.settings.SettingsDivider
 import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.settings.SettingsOverlayPanel
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
+import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
+import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.hideDialogSystemBars
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.lerp
@@ -117,7 +123,9 @@ fun GamesScreen(
     var message by remember { mutableStateOf<String?>(null) }
     var isWorking by remember { mutableStateOf(false) }
     var detailsGame by remember { mutableStateOf<Game?>(null) }
-    var touchArmedIndex by remember { mutableIntStateOf(-1) }
+    val inputMode = remember { mutableStateOf(SettingsInputMode.TOUCH) }
+    val gamesScrollState = rememberScrollState()
+    val density = LocalDensity.current
 
     fun persistPermission(uri: Uri, flags: Int) {
         val persistableFlags = flags and
@@ -130,7 +138,6 @@ fun GamesScreen(
     fun resetToLibrary() {
         page = LibraryPage
         focusIndex = 0
-        touchArmedIndex = -1
         selectedLibraryIndex = selectedLibraryIndex.coerceIn(0, (games.size - 1).coerceAtLeast(0))
         pendingUri = null
         pendingName = ""
@@ -207,7 +214,6 @@ fun GamesScreen(
     fun moveFocus(direction: Int) {
         val count = currentItemCount()
         if (count > 0) {
-            touchArmedIndex = -1
             focusIndex = (focusIndex + direction + count) % count
             if (page == LibraryPage && focusIndex < games.size) {
                 selectedLibraryIndex = focusIndex
@@ -216,12 +222,16 @@ fun GamesScreen(
     }
 
     fun confirmFocusedItem() {
-        touchArmedIndex = -1
         when (page) {
             LibraryPage -> when {
                 focusIndex < games.size -> {
-                    selectedLibraryIndex = focusIndex
-                    openGameDetails(games[focusIndex])
+                    // The library can refresh asynchronously while a key
+                    // event is being delivered. Resolve the item defensively
+                    // so a stale focus index cannot crash the dialog.
+                    games.getOrNull(focusIndex)?.let { game ->
+                        selectedLibraryIndex = focusIndex
+                        openGameDetails(game)
+                    }
                 }
                 focusIndex == games.size -> {
                     page = PlatformPage
@@ -232,17 +242,22 @@ fun GamesScreen(
             }
 
             PlatformPage -> {
-                selectedPlatform = Platform.values()[focusIndex]
-                selectedEmulator = Emulator.values().first { it.platform == selectedPlatform }
-                page = EmulatorPage
-                focusIndex = 0
+                Platform.values().getOrNull(focusIndex)?.let { platform ->
+                    selectedPlatform = platform
+                    selectedEmulator = Emulator.values().firstOrNull { it.platform == platform }
+                        ?: return@let
+                    page = EmulatorPage
+                    focusIndex = 0
+                }
             }
 
             EmulatorPage -> {
                 val supported = Emulator.values().filter { it.platform == selectedPlatform }
-                selectedEmulator = supported[focusIndex]
-                page = SourcePage
-                focusIndex = 0
+                supported.getOrNull(focusIndex)?.let { emulator ->
+                    selectedEmulator = emulator
+                    page = SourcePage
+                    focusIndex = 0
+                }
             }
 
             SourcePage -> {
@@ -309,8 +324,16 @@ fun GamesScreen(
         return handleBack()
     }
 
+    // Keep Android Back consistent with the controller B button even when
+    // the event is dispatched by the host activity instead of the dialog.
+    BackHandler(enabled = true) {
+        handleOverlayBack()
+    }
+
     LaunchedEffect(page, games.size, focusIndex) {
         focusIndex = focusIndex.coerceIn(0, (currentItemCount() - 1).coerceAtLeast(0))
+        val target = with(density) { (focusIndex * 78).dp.roundToPx() }
+        gamesScrollState.animateScrollTo(target)
         // HorizonOverlay creates a separate Dialog window. Request focus
         // after that window has attached so controller events reach this
         // screen instead of the scrim host.
@@ -318,12 +341,14 @@ fun GamesScreen(
         focusRequester.requestFocus()
     }
 
-    HorizonOverlay(
-        title = stringResource(R.string.games_window_title),
-        onDismiss = onDismiss,
-        onControllerBack = ::handleOverlayBack,
-        onFooterBack = { handleOverlayBack() }
-    ) {
+    CompositionLocalProvider(LocalSettingsInputMode provides inputMode) {
+        HorizonOverlay(
+            title = stringResource(R.string.games_window_title),
+            onDismiss = onDismiss,
+            onControllerBack = ::handleOverlayBack,
+            onFooterBack = { handleOverlayBack() },
+            scrollState = gamesScrollState
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -331,6 +356,7 @@ fun GamesScreen(
                 .focusable()
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    inputMode.value = SettingsInputMode.GAMEPAD
                     if (isHorizonConfirmKey(event)) {
                         confirmFocusedItem()
                         true
@@ -352,9 +378,6 @@ fun GamesScreen(
                 LibraryPage -> LibraryContent(
                     games = games,
                     focusIndex = focusIndex,
-                    touchArmedIndex = touchArmedIndex,
-                    onTouchArm = { index -> touchArmedIndex = index },
-                    onTouchDisarm = { touchArmedIndex = -1 },
                     message = message,
                     onGameClick = ::openGameDetails,
                     onAddClick = {
@@ -366,9 +389,6 @@ fun GamesScreen(
 
                 PlatformPage -> PlatformContent(
                     focusIndex = focusIndex,
-                    touchArmedIndex = touchArmedIndex,
-                    onTouchArm = { index -> touchArmedIndex = index },
-                    onTouchDisarm = { touchArmedIndex = -1 },
                     selected = selectedPlatform,
                     onSelect = {
                         selectedPlatform = it
@@ -381,9 +401,6 @@ fun GamesScreen(
                 EmulatorPage -> EmulatorContent(
                     platform = selectedPlatform,
                     focusIndex = focusIndex,
-                    touchArmedIndex = touchArmedIndex,
-                    onTouchArm = { index -> touchArmedIndex = index },
-                    onTouchDisarm = { touchArmedIndex = -1 },
                     selected = selectedEmulator,
                     onSelect = {
                         selectedEmulator = it
@@ -396,9 +413,6 @@ fun GamesScreen(
                     platform = selectedPlatform,
                     emulator = selectedEmulator,
                     focusIndex = focusIndex,
-                    touchArmedIndex = touchArmedIndex,
-                    onTouchArm = { index -> touchArmedIndex = index },
-                    onTouchDisarm = { touchArmedIndex = -1 },
                     onSelect = {
                         selectedSource = RomSource.FOLDER
                         onOpenFolder(::handleFolderResult)
@@ -408,9 +422,6 @@ fun GamesScreen(
                 ConfirmPage -> ConfirmContent(
                     source = selectedSource,
                     focusIndex = focusIndex,
-                    touchArmedIndex = touchArmedIndex,
-                    onTouchArm = { index -> touchArmedIndex = index },
-                    onTouchDisarm = { touchArmedIndex = -1 },
                     isWorking = isWorking,
                     onConfirm = ::addPendingGame,
                     onCancel = ::handleBack
@@ -419,9 +430,6 @@ fun GamesScreen(
                 BiosWarningPage -> BiosWarningContent(
                     emulator = selectedEmulator,
                     focusIndex = focusIndex,
-                    touchArmedIndex = touchArmedIndex,
-                    onTouchArm = { index -> touchArmedIndex = index },
-                    onTouchDisarm = { touchArmedIndex = -1 },
                     onContinue = {
                         markBiosWarningShown(selectedEmulator)
                         page = ConfirmPage
@@ -431,7 +439,7 @@ fun GamesScreen(
                 )
             }
         }
-    }
+        }
 
     detailsGame?.let { game ->
         GameDetailsOverlay(
@@ -451,15 +459,13 @@ fun GamesScreen(
             onDismiss = { detailsGame = null }
         )
     }
+    }
 }
 
 @Composable
 private fun LibraryContent(
     games: List<Game>,
     focusIndex: Int,
-    touchArmedIndex: Int,
-    onTouchArm: (Int) -> Unit,
-    onTouchDisarm: () -> Unit,
     message: String?,
     onGameClick: (Game) -> Unit,
     onAddClick: () -> Unit
@@ -467,19 +473,15 @@ private fun LibraryContent(
     games.forEachIndexed { index, game ->
         GameOptionRow(
             title = game.title,
-            subtitle = "${game.platform.title} · ${game.emulator.title}",
+            subtitle = stringResource(
+                R.string.games_selection_summary,
+                platformLabel(game.platform),
+                emulatorLabel(game.emulator)
+            ),
             selected = false,
             focused = focusIndex == index,
-            touchArmed = touchArmedIndex == index,
             hidden = game.hidden,
-            onClick = {
-                if (touchArmedIndex == index) {
-                    onTouchDisarm()
-                    onGameClick(game)
-                } else {
-                    onTouchArm(index)
-                }
-            }
+            onClick = { onGameClick(game) }
         )
     }
     GameOptionRow(
@@ -491,16 +493,8 @@ private fun LibraryContent(
         },
         selected = false,
         focused = focusIndex == games.size,
-        touchArmed = touchArmedIndex == games.size,
         accent = true,
-        onClick = {
-            if (touchArmedIndex == games.size) {
-                onTouchDisarm()
-                onAddClick()
-            } else {
-                onTouchArm(games.size)
-            }
-        }
+        onClick = onAddClick
     )
     message?.let {
         Text(
@@ -515,9 +509,6 @@ private fun LibraryContent(
 @Composable
 private fun PlatformContent(
     focusIndex: Int,
-    touchArmedIndex: Int,
-    onTouchArm: (Int) -> Unit,
-    onTouchDisarm: () -> Unit,
     selected: Platform,
     onSelect: (Platform) -> Unit
 ) {
@@ -527,15 +518,7 @@ private fun PlatformContent(
             subtitle = platform.romExtensions.sorted().joinToString(", ") { ".${it.uppercase()}" },
             selected = selected == platform,
             focused = focusIndex == index,
-            touchArmed = touchArmedIndex == index,
-            onClick = {
-                if (touchArmedIndex == index) {
-                    onTouchDisarm()
-                    onSelect(platform)
-                } else {
-                    onTouchArm(index)
-                }
-            }
+            onClick = { onSelect(platform) }
         )
     }
 }
@@ -544,27 +527,16 @@ private fun PlatformContent(
 private fun EmulatorContent(
     platform: Platform,
     focusIndex: Int,
-    touchArmedIndex: Int,
-    onTouchArm: (Int) -> Unit,
-    onTouchDisarm: () -> Unit,
     selected: Emulator,
     onSelect: (Emulator) -> Unit
 ) {
     Emulator.values().filter { it.platform == platform }.forEachIndexed { index, emulator ->
         GameOptionRow(
-            title = emulator.title,
+            title = emulatorLabel(emulator),
             subtitle = platformLabel(platform),
             selected = selected == emulator,
             focused = focusIndex == index,
-            touchArmed = touchArmedIndex == index,
-            onClick = {
-                if (touchArmedIndex == index) {
-                    onTouchDisarm()
-                    onSelect(emulator)
-                } else {
-                    onTouchArm(index)
-                }
-            }
+            onClick = { onSelect(emulator) }
         )
     }
 }
@@ -574,13 +546,10 @@ private fun SourceContent(
     platform: Platform,
     emulator: Emulator,
     focusIndex: Int,
-    touchArmedIndex: Int,
-    onTouchArm: (Int) -> Unit,
-    onTouchDisarm: () -> Unit,
     onSelect: (RomSource) -> Unit
 ) {
     Text(
-        text = stringResource(R.string.games_selection_summary, platformLabel(platform), emulator.title),
+        text = stringResource(R.string.games_selection_summary, platformLabel(platform), emulatorLabel(emulator)),
         color = SettingsGray,
         fontSize = 14.sp,
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
@@ -590,16 +559,8 @@ private fun SourceContent(
         subtitle = stringResource(R.string.games_choose_folder_description),
         selected = true,
         focused = focusIndex == 0,
-        touchArmed = touchArmedIndex == 0,
         accent = true,
-        onClick = {
-            if (touchArmedIndex == 0) {
-                onTouchDisarm()
-                onSelect(RomSource.FOLDER)
-            } else {
-                onTouchArm(0)
-            }
-        }
+        onClick = { onSelect(RomSource.FOLDER) }
     )
 }
 
@@ -607,9 +568,6 @@ private fun SourceContent(
 private fun BiosWarningContent(
     emulator: Emulator,
     focusIndex: Int,
-    touchArmedIndex: Int,
-    onTouchArm: (Int) -> Unit,
-    onTouchDisarm: () -> Unit,
     onContinue: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -620,7 +578,7 @@ private fun BiosWarningContent(
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 18.dp)
     )
     Text(
-        text = stringResource(R.string.games_bios_warning_description, emulator.title),
+        text = stringResource(R.string.games_bios_warning_description, emulatorLabel(emulator)),
         color = SettingsWhite,
         fontSize = 14.sp,
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
@@ -630,31 +588,15 @@ private fun BiosWarningContent(
         subtitle = stringResource(R.string.games_bios_warning_continue_description),
         selected = false,
         focused = focusIndex == 0,
-        touchArmed = touchArmedIndex == 0,
         accent = true,
-        onClick = {
-            if (touchArmedIndex == 0) {
-                onTouchDisarm()
-                onContinue()
-            } else {
-                onTouchArm(0)
-            }
-        }
+        onClick = onContinue
     )
     GameOptionRow(
         title = stringResource(R.string.games_cancel),
         subtitle = "",
         selected = false,
         focused = focusIndex == 1,
-        touchArmed = touchArmedIndex == 1,
-        onClick = {
-            if (touchArmedIndex == 1) {
-                onTouchDisarm()
-                onCancel()
-            } else {
-                onTouchArm(1)
-            }
-        }
+        onClick = onCancel
     )
 }
 
@@ -662,9 +604,6 @@ private fun BiosWarningContent(
 private fun ConfirmContent(
     source: RomSource,
     focusIndex: Int,
-    touchArmedIndex: Int,
-    onTouchArm: (Int) -> Unit,
-    onTouchDisarm: () -> Unit,
     isWorking: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit
@@ -687,31 +626,15 @@ private fun ConfirmContent(
         subtitle = stringResource(R.string.games_confirm_description),
         selected = false,
         focused = focusIndex == 0,
-        touchArmed = touchArmedIndex == 0,
         accent = true,
-        onClick = {
-            if (touchArmedIndex == 0) {
-                onTouchDisarm()
-                onConfirm()
-            } else {
-                onTouchArm(0)
-            }
-        }
+        onClick = onConfirm
     )
     GameOptionRow(
         title = stringResource(R.string.games_choose_another_folder),
         subtitle = stringResource(R.string.games_choose_another_folder_description),
         selected = false,
         focused = focusIndex == 1,
-        touchArmed = touchArmedIndex == 1,
-        onClick = {
-            if (touchArmedIndex == 1) {
-                onTouchDisarm()
-                onCancel()
-            } else {
-                onTouchArm(1)
-            }
-        }
+        onClick = onCancel
     )
 }
 
@@ -721,38 +644,36 @@ private fun GameOptionRow(
     subtitle: String,
     selected: Boolean,
     focused: Boolean,
-    touchArmed: Boolean,
     accent: Boolean = false,
     hidden: Boolean = false,
     onClick: () -> Unit
 ) {
+    val inputMode = LocalSettingsInputMode.current
     val pulse = rememberInfiniteTransition(label = "gameOptionSelectionPulse")
     val pulseValue by pulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1050, easing = FastOutSlowInEasing),
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "gameOptionSelectionPulseValue"
     )
-    val active = focused || touchArmed
-    val selectionColor = SettingsBlue
+    val active = inputMode?.value == SettingsInputMode.GAMEPAD && focused
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (active) SettingsDivider.copy(alpha = 0.32f) else Color.Transparent)
             .then(
-                if (focused || touchArmed) {
-                    Modifier.drawBehind {
-                        drawRect(
-                            color = selectionColor.copy(alpha = if (focused) 0.95f else 0.20f + pulseValue * 0.16f),
-                            style = Stroke(width = 3.dp.toPx())
-                        )
-                    }
+                if (active) {
+                    Modifier.border(
+                        width = 3.dp,
+                        color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                    )
                 } else Modifier
             )
             .clickable {
+                inputMode?.value = SettingsInputMode.TOUCH
                 onClick()
             }
             .padding(horizontal = 14.dp, vertical = 9.dp)
@@ -760,19 +681,12 @@ private fun GameOptionRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = title,
-                color = if (active || (accent && selected)) SettingsBlue else SettingsWhite,
+                color = if (accent) SettingsBlue else SettingsWhite,
                 fontSize = 16.sp
             )
             Spacer(Modifier.weight(1f))
             if (hidden) {
                 HiddenEyeIcon(selected = active)
-            } else if (selected) {
-                Box(
-                    modifier = Modifier.size(22.dp).background(SettingsBlue, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("✓", color = SettingsOverlayPanel, fontSize = 15.sp)
-                }
             }
         }
         if (subtitle.isNotBlank()) {
@@ -816,6 +730,9 @@ private fun platformLabel(platform: Platform): String = when (platform) {
     Platform.GAMECUBE_WII -> stringResource(R.string.games_platform_gamecube_wii)
 }
 
+@Composable
+private fun emulatorLabel(emulator: Emulator): String = stringResource(emulator.titleRes)
+
 /** A deliberately different, compact dialog for per-game actions. */
 @Composable
 private fun GameDetailsOverlay(
@@ -828,7 +745,10 @@ private fun GameDetailsOverlay(
     val detailScrollState = rememberScrollState()
     val density = LocalDensity.current
     var focusIndex by remember { mutableIntStateOf(0) }
-    var touchArmedIndex by remember { mutableIntStateOf(-1) }
+    val inputMode = LocalSettingsInputMode.current
+    // Compose Dialog uses a separate window context. Preserve the localized
+    // parent context so the title and all action rows use the same language.
+    val localizedContext = LocalContext.current
 
     LaunchedEffect(focusIndex) {
         val target = when (focusIndex) {
@@ -841,7 +761,6 @@ private fun GameDetailsOverlay(
 
     fun moveFocus(direction: Int) {
         focusIndex = (focusIndex + direction + 4) % 4
-        touchArmedIndex = -1
     }
 
     fun activate(index: Int) {
@@ -862,10 +781,11 @@ private fun GameDetailsOverlay(
             decorFitsSystemWindows = false
         )
     ) {
-        BackHandler(enabled = true, onBack = onDismiss)
+        CompositionLocalProvider(LocalContext provides localizedContext) {
+            BackHandler(enabled = true, onBack = onDismiss)
 
-        val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
-        DisposableEffect(dialogWindow) {
+            val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+            DisposableEffect(dialogWindow) {
             if (dialogWindow == null) {
                 onDispose { }
             } else {
@@ -874,6 +794,19 @@ private fun GameDetailsOverlay(
                     if (hasFocus) hideDialogSystemBars(dialogWindow)
                 }
                 dialogWindow.decorView.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+                val previousWindowCallback = dialogWindow.callback
+                val backKeyCallback = previousWindowCallback?.let { previous ->
+                    object : android.view.Window.Callback by previous {
+                        override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+                            if (event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                                if (event.action == android.view.KeyEvent.ACTION_UP) onDismiss()
+                                return true
+                            }
+                            return previous.dispatchKeyEvent(event)
+                        }
+                    }
+                }
+                if (backKeyCallback != null) dialogWindow.callback = backKeyCallback
                 var nativeBackCallback: android.window.OnBackInvokedCallback? = null
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     nativeBackCallback = android.window.OnBackInvokedCallback { onDismiss() }
@@ -884,6 +817,9 @@ private fun GameDetailsOverlay(
                 }
                 onDispose {
                     dialogWindow.decorView.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
+                    if (backKeyCallback != null && dialogWindow.callback === backKeyCallback) {
+                        dialogWindow.callback = previousWindowCallback
+                    }
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                         nativeBackCallback?.let {
                             dialogWindow.onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it)
@@ -891,18 +827,19 @@ private fun GameDetailsOverlay(
                     }
                 }
             }
-        }
-        LaunchedEffect(dialogWindow) {
+            }
+            LaunchedEffect(dialogWindow) {
             delay(120)
             focusRequester.requestFocus()
-        }
-        Box(
+            }
+            Box(
             modifier = Modifier
                 .fillMaxSize()
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    inputMode?.value = SettingsInputMode.GAMEPAD
                     if (isHorizonConfirmKey(event)) {
                         activate(focusIndex)
                         true
@@ -924,7 +861,7 @@ private fun GameDetailsOverlay(
                 }
                 .background(Color.Black.copy(alpha = 0.70f)),
             contentAlignment = Alignment.Center
-        ) {
+            ) {
             BoxWithConstraints {
                 Column(
                     modifier = Modifier
@@ -982,8 +919,8 @@ private fun GameDetailsOverlay(
                     Text(
                         text = stringResource(
                             R.string.games_selection_summary,
-                            game.platform.title,
-                            game.emulator.title
+                            platformLabel(game.platform),
+                            emulatorLabel(game.emulator)
                         ),
                         color = SettingsGray,
                         fontSize = 13.sp,
@@ -1002,51 +939,30 @@ private fun GameDetailsOverlay(
                             subtitle = if (game.hidden) stringResource(R.string.games_show_description)
                             else stringResource(R.string.games_hide_description),
                             selected = focusIndex == 0,
-                            touchArmed = touchArmedIndex == 0,
-                            onClick = {
-                                if (touchArmedIndex == 0) {
-                                    touchArmedIndex = -1
-                                    onToggleHidden()
-                                } else {
-                                    touchArmedIndex = 0
-                                }
-                            }
+                            onClick = onToggleHidden
                         )
                         GameDetailsActionRow(
                             title = stringResource(R.string.games_refresh_cover),
                             subtitle = stringResource(R.string.games_action_coming_soon),
                             selected = focusIndex == 1,
-                            touchArmed = touchArmedIndex == 1,
-                            onClick = {
-                                if (touchArmedIndex == 1) touchArmedIndex = -1 else touchArmedIndex = 1
-                            }
+                            onClick = {}
                         )
                         GameDetailsActionRow(
                             title = stringResource(R.string.games_add_screenshot),
                             subtitle = stringResource(R.string.games_action_coming_soon),
                             selected = focusIndex == 2,
-                            touchArmed = touchArmedIndex == 2,
-                            onClick = {
-                                if (touchArmedIndex == 2) touchArmedIndex = -1 else touchArmedIndex = 2
-                            }
+                            onClick = {}
                         )
                         GameDetailsActionRow(
                             title = stringResource(R.string.games_delete),
                             subtitle = stringResource(R.string.games_delete_description),
                             selected = focusIndex == 3,
-                            touchArmed = touchArmedIndex == 3,
                             destructive = true,
-                            onClick = {
-                                if (touchArmedIndex == 3) {
-                                    touchArmedIndex = -1
-                                    onDelete()
-                                } else {
-                                    touchArmedIndex = 3
-                                }
-                            }
+                            onClick = onDelete
                         )
                     }
                 }
+            }
             }
         }
     }
@@ -1057,22 +973,21 @@ private fun GameDetailsActionRow(
     title: String,
     subtitle: String,
     selected: Boolean,
-    touchArmed: Boolean,
     destructive: Boolean = false,
     onClick: () -> Unit
 ) {
+    val inputMode = LocalSettingsInputMode.current
     val pulse = rememberInfiniteTransition(label = "gameDetailsSelectionPulse")
     val pulseValue by pulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1050, easing = FastOutSlowInEasing),
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "gameDetailsSelectionPulseValue"
     )
-    val active = selected || touchArmed
-    val activeColor = if (destructive) Color(0xFFFF6070) else SettingsBlue
+    val active = inputMode?.value == SettingsInputMode.GAMEPAD && selected
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1082,21 +997,23 @@ private fun GameDetailsActionRow(
                 RoundedCornerShape(6.dp)
             )
             .then(
-                if (selected || touchArmed) {
-                    Modifier.drawBehind {
-                        drawRoundRect(
-                            color = activeColor.copy(alpha = if (selected) 0.95f else 0.20f + pulseValue * 0.16f),
-                            style = Stroke(width = 3.dp.toPx())
-                        )
-                    }
+                if (active) {
+                    Modifier.border(
+                        width = 3.dp,
+                        color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f),
+                        shape = RoundedCornerShape(6.dp)
+                    )
                 } else Modifier
             )
-            .clickable(onClick = onClick)
+            .clickable {
+                inputMode?.value = SettingsInputMode.TOUCH
+                onClick()
+            }
             .padding(horizontal = 10.dp, vertical = 9.dp)
     ) {
         Text(
             text = title,
-            color = if (active) activeColor else SettingsWhite,
+            color = if (destructive) Color(0xFFFF6070) else SettingsWhite,
             fontSize = 16.sp
         )
         Text(

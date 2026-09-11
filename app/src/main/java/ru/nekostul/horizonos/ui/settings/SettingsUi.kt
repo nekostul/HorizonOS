@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,13 +31,12 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
+import androidx.compose.runtime.LaunchedEffect
 
 internal val SettingsBackground: Color
     @Composable get() = LocalHorizonColors.current.background
@@ -68,6 +70,22 @@ internal val SettingsTrack: Color
 internal val SettingsThumb: Color
     @Composable get() = SettingsGray
 
+// Selection is deliberately blue while the launcher text keeps its normal
+// color. The shorter cycle makes focus easier to see than on the Home screen.
+internal val SelectionFrameBlue = Color(0xFF08A8E6)
+internal const val SelectionPulseDurationMillis = 560
+
+internal val LocalSettingsRightMenuFocused = compositionLocalOf { false }
+
+/**
+ * Touch interaction should be direct and visually quiet.  The selection frame
+ * is reserved for navigation driven by a physical controller.
+ */
+internal enum class SettingsInputMode { TOUCH, GAMEPAD }
+
+internal val LocalSettingsInputMode =
+    compositionLocalOf<MutableState<SettingsInputMode>?> { null }
+
 internal data class SettingRow(
     val title: String,
     val value: String = "",
@@ -82,43 +100,39 @@ internal fun HorizonSettingRow(
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null
 ) {
-    var touchArmed by remember { mutableStateOf(false) }
-    var hasFocus by remember { mutableStateOf(false) }
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val inputMode = LocalSettingsInputMode.current
     val pulse = rememberInfiniteTransition(label = "settingsRowSelectionPulse")
     val pulseValue by pulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1050, easing = FastOutSlowInEasing),
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "settingsRowSelectionPulseValue"
     )
-    val active = selected || touchArmed || hasFocus
-    val accent = SettingsBlue
+    val rightMenuFocused = LocalSettingsRightMenuFocused.current
+    val frameActive = inputMode?.value == SettingsInputMode.GAMEPAD &&
+        rightMenuFocused && selected
+    LaunchedEffect(frameActive) {
+        if (frameActive) bringIntoViewRequester.bringIntoView()
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (active) SettingsDivider.copy(alpha = 0.24f) else Color.Transparent)
+            .background(if (frameActive) SettingsDivider.copy(alpha = 0.24f) else Color.Transparent)
             .then(
-                if (selected || touchArmed || hasFocus) {
-                    Modifier.drawBehind {
-                        drawRect(
-                            color = accent.copy(alpha = if (selected || hasFocus) 0.95f else 0.20f + pulseValue * 0.16f),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
-                        )
-                    }
-                } else Modifier
+                if (frameActive) Modifier.border(
+                    width = 3.dp,
+                    color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                ) else Modifier
             )
             .clickable(enabled = row.enabled) {
-                if (touchArmed) {
-                    touchArmed = false
-                    onClick()
-                } else {
-                    touchArmed = true
-                }
+                inputMode?.value = SettingsInputMode.TOUCH
+                onClick()
             }
-            .onFocusChanged { hasFocus = it.hasFocus }
+            .bringIntoViewRequester(bringIntoViewRequester)
             .focusable(row.enabled)
             .padding(horizontal = 14.dp)
     ) {
@@ -131,7 +145,7 @@ internal fun HorizonSettingRow(
         ) {
             Text(
                 text = row.title,
-                color = if (active && row.enabled) accent else if (row.enabled) SettingsWhite else SettingsGray,
+                color = if (row.enabled) SettingsWhite else SettingsGray,
                 fontSize = 18.sp
             )
             Spacer(Modifier.weight(1f))
@@ -191,18 +205,28 @@ internal fun SettingsSliderRow(
 ) {
     val activeTrackColor = SettingsBlue
     val inactiveTrackColor = SettingsTrack
+    val rightMenuFocused = LocalSettingsRightMenuFocused.current
+    val inputMode = LocalSettingsInputMode.current
+    val pulse = rememberInfiniteTransition(label = "settingsSliderSelectionPulse")
+    val pulseValue by pulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "settingsSliderSelectionPulseValue"
+    )
+    val frameActive = inputMode?.value == SettingsInputMode.GAMEPAD &&
+        rightMenuFocused && selected
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (selected) {
-                    Modifier.drawBehind {
-                        drawRect(
-                            color = activeTrackColor.copy(alpha = 0.95f),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
-                        )
-                    }
-                } else Modifier
+                if (frameActive) Modifier.border(
+                    width = 3.dp,
+                    color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                ) else Modifier
             )
             .padding(horizontal = 14.dp)
     ) {
@@ -229,7 +253,10 @@ internal fun SettingsSliderRow(
             if (leadingIcon != null) Spacer(Modifier.width(18.dp))
             Slider(
                 value = value,
-                onValueChange = onValueChange,
+                onValueChange = {
+                    inputMode?.value = SettingsInputMode.TOUCH
+                    onValueChange(it)
+                },
                 enabled = enabled,
                 valueRange = 0f..1f,
                 modifier = Modifier.weight(1f),

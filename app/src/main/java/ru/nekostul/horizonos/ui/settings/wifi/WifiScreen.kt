@@ -39,7 +39,12 @@ private fun WifiSecurity.label(): String = stringResource(
 )
 
 @Composable
-fun WifiScreen(selectedIndex: Int, onSelect: (Int) -> Unit, onToggle: () -> Unit) {
+fun WifiScreen(
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    activationRequest: Int,
+    onToggle: () -> Unit
+) {
     val context = LocalContext.current
     val controller = remember { WifiSettingsController(context) }
     val networks = controller.availableNetworks()
@@ -47,8 +52,10 @@ fun WifiScreen(selectedIndex: Int, onSelect: (Int) -> Unit, onToggle: () -> Unit
     var password by remember { mutableStateOf("") }
     var connectionState by remember { mutableStateOf<WifiConnectionState?>(null) }
 
-    LaunchedEffect(selectedIndex, networks) {
-        if (selectedIndex >= 3) selectedNetwork = networks.getOrNull(selectedIndex - 3)
+    LaunchedEffect(activationRequest) {
+        if (activationRequest > 0 && selectedIndex >= 3) {
+            selectedNetwork = networks.getOrNull(selectedIndex - 3)
+        }
     }
 
     val enabled = controller.enabled()
@@ -61,7 +68,7 @@ fun WifiScreen(selectedIndex: Int, onSelect: (Int) -> Unit, onToggle: () -> Unit
             enabled == true,
             selectedIndex == 0,
             enabled = controller.canControl,
-            onClick = { onSelect(0); onToggle() }
+            onClick = { onSelect(0) }
         )
         HorizonSettingRow(
             SettingRow(
@@ -79,7 +86,7 @@ fun WifiScreen(selectedIndex: Int, onSelect: (Int) -> Unit, onToggle: () -> Unit
                 stringResource(R.string.settings_wifi_scan_description)
             ),
             selectedIndex == 2,
-            onClick = { onSelect(2); controller.scan() }
+            onClick = { onSelect(2) }
         )
         networks.forEachIndexed { index, network ->
             HorizonSettingRow(

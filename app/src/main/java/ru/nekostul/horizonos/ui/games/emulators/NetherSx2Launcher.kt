@@ -5,6 +5,7 @@ import android.content.Intent
 import ru.nekostul.horizonos.ui.games.Emulator
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLaunchResult
+import ru.nekostul.horizonos.R
 
 class NetherSx2Launcher : EmulatorGameLauncher {
     override val emulator = Emulator.NETHERSX2
@@ -12,7 +13,7 @@ class NetherSx2Launcher : EmulatorGameLauncher {
     override fun launch(context: Context, game: Game): GameLaunchResult {
         val packageName = PACKAGES.firstOrNull {
             context.packageManager.getLaunchIntentForPackage(it) != null
-        } ?: return GameLaunchResult.Failed("Эмулятор NetherSX2 не установлен.")
+        } ?: return GameLaunchResult.Failed(context.getString(R.string.games_error_nethersx2_not_installed))
 
         return launchRomIntent(
             context = context,

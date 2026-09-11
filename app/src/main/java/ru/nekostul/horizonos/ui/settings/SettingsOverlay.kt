@@ -5,7 +5,9 @@ import android.content.Context
 import android.hardware.input.InputManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
@@ -44,10 +46,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -126,6 +131,8 @@ internal fun HorizonOverlay(
     onDismiss: () -> Unit,
     onControllerBack: (() -> Boolean)? = null,
     onFooterBack: (() -> Unit)? = null,
+    scrollState: androidx.compose.foundation.ScrollState? = null,
+    onDirectionalKey: ((Key) -> Boolean)? = null,
     content: @Composable () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
@@ -135,6 +142,11 @@ internal fun HorizonOverlay(
     val overlayVisibility = LocalSettingsOverlayVisible.current
     val overlayBackHandlers = LocalSettingsOverlayBackHandlers.current
     val latestControllerBack = rememberUpdatedState(onControllerBack)
+    val inputMode = LocalSettingsInputMode.current
+    // Dialog creates a new Android window and its LocalContext otherwise
+    // falls back to the device locale. Keep using the already localized
+    // context from the parent window for every string inside the dialog.
+    val localizedContext = LocalContext.current
 
     fun dismissAnimated() {
         if (dismissing) return
@@ -178,14 +190,15 @@ internal fun HorizonOverlay(
             decorFitsSystemWindows = false
         )
     ) {
-        BackHandler(enabled = true) {
-            if (latestControllerBack.value?.invoke() != true) {
-                dismissAnimated()
+        CompositionLocalProvider(LocalContext provides localizedContext) {
+            BackHandler(enabled = true) {
+                if (latestControllerBack.value?.invoke() != true) {
+                    dismissAnimated()
+                }
             }
-        }
 
-        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-        DisposableEffect(window) {
+            val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+            DisposableEffect(window) {
             if (window == null) {
                 onDispose { }
             } else {
@@ -194,6 +207,67 @@ internal fun HorizonOverlay(
                     if (hasFocus) hideDialogSystemBars(window)
                 }
                 decorView.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+                val previousWindowCallback = window.callback
+                var lastStickHorizontal = 0
+                var lastStickVertical = 0
+                fun axisDirection(value: Float): Int = when {
+                    value <= -0.55f -> -1
+                    value >= 0.55f -> 1
+                    else -> 0
+                }
+                fun dispatchAxisKey(previous: Int, current: Int, negativeKey: Int, positiveKey: Int) {
+                    if (previous == current) return
+                    val now = SystemClock.uptimeMillis()
+                    fun send(action: Int, keyCode: Int) {
+                        previousWindowCallback?.dispatchKeyEvent(
+                            android.view.KeyEvent(now, now, action, keyCode, 0)
+                        )
+                    }
+                    if (previous < 0) send(android.view.KeyEvent.ACTION_UP, negativeKey)
+                    if (previous > 0) send(android.view.KeyEvent.ACTION_UP, positiveKey)
+                    if (current < 0) send(android.view.KeyEvent.ACTION_DOWN, negativeKey)
+                    if (current > 0) send(android.view.KeyEvent.ACTION_DOWN, positiveKey)
+                }
+                val backKeyCallback = previousWindowCallback?.let { previous ->
+                    object : Window.Callback by previous {
+                        override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+                            if (event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                                if (event.action == android.view.KeyEvent.ACTION_UP) {
+                                    if (latestControllerBack.value?.invoke() != true) dismissAnimated()
+                                }
+                                return true
+                            }
+                            return previous.dispatchKeyEvent(event)
+                        }
+
+                        override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+                            val source = event.source
+                            val isController =
+                                (source and InputDevice.SOURCE_JOYSTICK) != 0 ||
+                                    (source and InputDevice.SOURCE_GAMEPAD) != 0
+                            if (!isController || event.action != MotionEvent.ACTION_MOVE) {
+                                return previous.dispatchGenericMotionEvent(event)
+                            }
+                            val horizontal = axisDirection(
+                                event.getAxisValue(MotionEvent.AXIS_HAT_X)
+                                    .takeUnless { kotlin.math.abs(it) < 0.01f }
+                                    ?: event.getAxisValue(MotionEvent.AXIS_X)
+                            )
+                            val vertical = axisDirection(
+                                event.getAxisValue(MotionEvent.AXIS_HAT_Y)
+                                    .takeUnless { kotlin.math.abs(it) < 0.01f }
+                                    ?: event.getAxisValue(MotionEvent.AXIS_Y)
+                            )
+                            val wasActive = lastStickHorizontal != 0 || lastStickVertical != 0
+                            dispatchAxisKey(lastStickHorizontal, horizontal, android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+                            dispatchAxisKey(lastStickVertical, vertical, android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+                            lastStickHorizontal = horizontal
+                            lastStickVertical = vertical
+                            return horizontal != 0 || vertical != 0 || wasActive
+                        }
+                    }
+                }
+                if (backKeyCallback != null) window.callback = backKeyCallback
                 var nativeBackCallback: android.window.OnBackInvokedCallback? = null
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     nativeBackCallback = android.window.OnBackInvokedCallback {
@@ -227,6 +301,9 @@ internal fun HorizonOverlay(
                 }
                 onDispose {
                     decorView.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
+                    if (backKeyCallback != null && window.callback === backKeyCallback) {
+                        window.callback = previousWindowCallback
+                    }
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                         nativeBackCallback?.let {
                             window.onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it)
@@ -234,56 +311,57 @@ internal fun HorizonOverlay(
                     }
                 }
             }
-        }
+            }
 
-        LaunchedEffect(window, onControllerBack) {
+            LaunchedEffect(window, onControllerBack) {
             overlayFocusRequester.requestFocus()
             // The generic settings dialogs use focusable rows rather than a
             // screen-specific index. Move focus into the first row so the
             // D-pad can traverse those rows normally.
             if (onControllerBack == null) {
                 delay(40)
-                focusManager.moveFocus(FocusDirection.Down)
+                // Enter the focus group explicitly. A spatial Down search
+                // from the full-screen container can skip the dialog's
+                // first choice on Android TV-style layouts.
+                focusManager.moveFocus(FocusDirection.Enter)
             }
-        }
+            }
 
-        Box(
+            Box(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.58f))
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = {
+                        inputMode?.value = SettingsInputMode.TOUCH
                         if (onControllerBack?.invoke() != true) dismissAnimated()
                     })
                 }
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) {
                         false
-                    } else if (event.key == Key.ButtonB || event.key == Key.Back) {
+                    } else {
+                        inputMode?.value = SettingsInputMode.GAMEPAD
+                        if (event.key == Key.ButtonB || event.key == Key.Back) {
                         if (onControllerBack?.invoke() != true) {
                             dismissAnimated()
                         }
                         true
-                    } else if (onControllerBack == null) {
-                        when (event.key) {
-                            Key.DirectionDown, Key.DirectionRight -> {
-                                focusManager.moveFocus(FocusDirection.Down)
-                                true
-                            }
-                            Key.DirectionUp, Key.DirectionLeft -> {
-                                focusManager.moveFocus(FocusDirection.Up)
-                                true
-                            }
+                        } else if (onControllerBack == null) {
+                        onDirectionalKey?.invoke(event.key) == true || when (event.key) {
+                            Key.DirectionDown, Key.DirectionRight -> focusManager.moveFocus(FocusDirection.Next)
+                            Key.DirectionUp, Key.DirectionLeft -> focusManager.moveFocus(FocusDirection.Previous)
                             else -> false
                         }
-                    } else {
+                        } else {
                         false
+                        }
                     }
                 }
                 .focusRequester(overlayFocusRequester)
                 .focusable(),
             contentAlignment = Alignment.BottomCenter
-        ) {
+            ) {
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -310,7 +388,9 @@ internal fun HorizonOverlay(
                             // Consume taps inside the panel without making
                             // empty space behave like a button.
                             .pointerInput(Unit) {
-                                detectTapGestures(onTap = {})
+                                detectTapGestures(onTap = {
+                                    inputMode?.value = SettingsInputMode.TOUCH
+                                })
                             }
                             .focusGroup()
                             .onPreviewKeyEvent { event ->
@@ -348,7 +428,7 @@ internal fun HorizonOverlay(
                                 Modifier
                                     .fillMaxWidth(0.58f)
                                     .align(Alignment.TopCenter)
-                                    .verticalScroll(rememberScrollState())
+                                    .verticalScroll(scrollState ?: rememberScrollState())
                                     .padding(top = 8.dp, bottom = 16.dp)
                             ) {
                                 content()
@@ -366,6 +446,7 @@ internal fun HorizonOverlay(
                         )
                     }
                 }
+            }
             }
         }
     }
@@ -489,49 +570,58 @@ internal fun HorizonOverlayChoice(
     enabled: Boolean = true,
     value: String = ""
 ) {
-    var touchArmed by remember { mutableStateOf(false) }
     var hasFocus by remember { mutableStateOf(false) }
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val choiceFocusRequester = remember { FocusRequester() }
+    val inputMode = LocalSettingsInputMode.current
     val pulse = rememberInfiniteTransition(label = "overlayChoiceSelectionPulse")
     val pulseValue by pulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1050, easing = FastOutSlowInEasing),
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "overlayChoiceSelectionPulseValue"
     )
-    val active = hasFocus || touchArmed
-    val accent = SettingsBlue
+    // The selected state is the single source of truth for the controller
+    // frame. Compose focus is still used for scrolling, but it can briefly
+    // lag during recomposition and must not leave a second frame behind.
+    val active = inputMode?.value == SettingsInputMode.GAMEPAD && selected && enabled
+    LaunchedEffect(hasFocus) {
+        if (hasFocus) bringIntoViewRequester.bringIntoView()
+    }
+    LaunchedEffect(inputMode?.value, selected) {
+        if (inputMode?.value == SettingsInputMode.GAMEPAD && selected && enabled) {
+            choiceFocusRequester.requestFocus()
+        }
+    }
     Column(
         Modifier
             .fillMaxWidth()
             .background(if (active) SettingsDivider.copy(alpha = 0.24f) else Color.Transparent)
             .then(
-                if (hasFocus || touchArmed) {
-                    Modifier.drawBehind {
-                        drawRect(
-                            color = accent.copy(alpha = if (hasFocus) 0.95f else 0.20f + pulseValue * 0.16f),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
-                        )
-                    }
+                if (active) {
+                    Modifier.border(
+                        width = 3.dp,
+                        color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                    )
                 } else Modifier
             )
             .clickable(enabled = enabled) {
-                if (touchArmed) {
-                    touchArmed = false
-                    onClick()
-                } else {
-                    touchArmed = true
-                }
+                inputMode?.value = SettingsInputMode.TOUCH
+                onClick()
             }
             .onKeyEvent { event ->
                 if (enabled && isHorizonConfirmKey(event)) {
+                    inputMode?.value = SettingsInputMode.GAMEPAD
                     onClick()
                     true
                 } else false
             }
             .onFocusChanged { hasFocus = it.hasFocus }
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .focusRequester(choiceFocusRequester)
             .focusable(enabled)
     ) {
         Row(
@@ -540,19 +630,9 @@ internal fun HorizonOverlayChoice(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, color = if (active && enabled) accent else if (enabled) SettingsWhite else SettingsGray, fontSize = 16.sp)
+            Text(title, color = if (enabled) SettingsWhite else SettingsGray, fontSize = 16.sp)
             Spacer(Modifier.weight(1f))
             if (value.isNotEmpty()) Text(value, color = if (selected) SettingsBlue else SettingsGray, fontSize = 16.sp)
-            if (selected) {
-                Box(
-                    Modifier
-                        .size(26.dp)
-                        .background(SettingsBlue, androidx.compose.foundation.shape.CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("✓", color = SettingsBackground, fontSize = 18.sp)
-                }
-            }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(SettingsDivider.copy(alpha = 0.38f)))
     }

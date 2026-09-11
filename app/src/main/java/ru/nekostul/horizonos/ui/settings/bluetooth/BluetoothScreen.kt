@@ -33,7 +33,12 @@ import ru.nekostul.horizonos.ui.settings.HorizonOverlay
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
 
 @Composable
-fun BluetoothScreen(selectedIndex: Int, onSelect: (Int) -> Unit, onToggle: () -> Unit) {
+fun BluetoothScreen(
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    onItemCountChange: (Int) -> Unit = {},
+    onToggle: () -> Unit
+) {
     val context = LocalContext.current
     val controller = remember { BluetoothSettingsController(context) }
     val discovered = remember { mutableStateListOf<BluetoothDevice>() }
@@ -71,6 +76,9 @@ fun BluetoothScreen(selectedIndex: Int, onSelect: (Int) -> Unit, onToggle: () ->
         add(SettingRow(stringResource(R.string.settings_bluetooth_add_device), if (scanning) stringResource(R.string.settings_bluetooth_scanning) else "", stringResource(R.string.settings_bluetooth_add_description)))
         controller.bondedDeviceNames().forEach { add(SettingRow(it, stringResource(R.string.settings_status_paired))) }
     }
+    androidx.compose.runtime.LaunchedEffect(rows.size, discovered.size) {
+        onItemCountChange(rows.size + discovered.size)
+    }
     Column {
         Text(stringResource(R.string.settings_bluetooth_title), color = SettingsWhite, fontSize = 25.sp)
         Spacer(Modifier.height(12.dp))
@@ -79,7 +87,7 @@ fun BluetoothScreen(selectedIndex: Int, onSelect: (Int) -> Unit, onToggle: () ->
             checked = controller.enabled() == true,
             selected = selectedIndex == 0,
             enabled = controller.canControl,
-            onClick = { onSelect(0); onToggle() }
+            onClick = { onSelect(0) }
         )
         rows.drop(1).forEachIndexed { index, row -> HorizonSettingRow(row, selectedIndex == index + 1, onClick = {
             onSelect(index + 1)

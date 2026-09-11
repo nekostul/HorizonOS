@@ -9,6 +9,7 @@ import android.net.Uri
 import ru.nekostul.horizonos.ui.games.Emulator
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLaunchResult
+import ru.nekostul.horizonos.R
 
 interface EmulatorGameLauncher {
     val emulator: Emulator
@@ -30,13 +31,15 @@ internal fun launchRomIntent(
 
     if (!readable) {
         return GameLaunchResult.Failed(
-            "Файл игры недоступен. Проверьте разрешение на доступ к ROM."
+            context.getString(R.string.games_error_file_unavailable)
         )
     }
 
     val packageManager = context.packageManager
     val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-        ?: return GameLaunchResult.Failed("Эмулятор не установлен: $packageName")
+        ?: return GameLaunchResult.Failed(
+            context.getString(R.string.games_error_emulator_not_installed, packageName)
+        )
 
     val component = ComponentName(packageName, activityName)
     val explicitIntent = intent.setComponent(component)
@@ -53,7 +56,7 @@ internal fun launchRomIntent(
     val canResolve = explicitIntent.resolveActivity(packageManager) != null
     if (!canResolve && launchIntent.component == null) {
         return GameLaunchResult.Failed(
-            "Эмулятор установлен, но его экран запуска игры недоступен."
+            context.getString(R.string.games_error_emulator_activity_unavailable)
         )
     }
 
@@ -67,9 +70,9 @@ internal fun launchRomIntent(
     }.onFailure { error ->
         return GameLaunchResult.Failed(
             if (error is ActivityNotFoundException) {
-                "Не удалось открыть игру через $packageName."
+                context.getString(R.string.games_error_open_failed, packageName)
             } else {
-                "Не удалось запустить игру: ${error.message ?: "неизвестная ошибка"}"
+                context.getString(R.string.games_error_launch_failed)
             }
         )
     }

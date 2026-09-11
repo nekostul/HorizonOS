@@ -17,6 +17,7 @@ object ControllerManager {
     fun connectedControllers(): List<ConnectedController> = InputDevice.getDeviceIds().toList().mapNotNull { id ->
         val device = InputDevice.getDevice(id) ?: return@mapNotNull null
         val source = device.sources
+        if (device.isVirtual || !device.isExternal) return@mapNotNull null
         if (source and InputDevice.SOURCE_GAMEPAD == 0 && source and InputDevice.SOURCE_JOYSTICK == 0) return@mapNotNull null
         ConnectedController(
             name = device.name?.takeIf(String::isNotBlank),
