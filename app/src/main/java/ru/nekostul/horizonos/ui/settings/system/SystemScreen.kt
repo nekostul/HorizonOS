@@ -26,9 +26,6 @@ fun SystemScreen(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     onLanguageSelected: (String) -> Unit,
-    onInterfaceScaleChange: (Float) -> Unit,
-    onAnimationsToggle: () -> Unit,
-    onInterfaceSoundsToggle: () -> Unit,
     openOverlayIndex: Int? = null,
     onOverlayRequestConsumed: () -> Unit = {}
     ) {
@@ -40,10 +37,6 @@ fun SystemScreen(
     val rows = listOf(
         SettingRow(stringResource(R.string.settings_system_date_time), "", stringResource(R.string.settings_system_date_time_description)),
         SettingRow(stringResource(R.string.settings_system_language), languageName, stringResource(R.string.settings_system_language_description)),
-        SettingRow(stringResource(R.string.settings_system_display), "", stringResource(R.string.settings_system_display_description)),
-        SettingRow(stringResource(R.string.settings_system_sound), "", stringResource(R.string.settings_system_sound_description)),
-        SettingRow(stringResource(R.string.settings_system_accessibility), "", stringResource(R.string.settings_system_accessibility_description)),
-        SettingRow(stringResource(R.string.settings_system_apps), "", stringResource(R.string.settings_system_apps_description)),
         SettingRow(stringResource(R.string.settings_system_battery), "", stringResource(R.string.settings_system_battery_description)),
         SettingRow(stringResource(R.string.settings_system_info), "", stringResource(R.string.settings_system_info_description))
     )
@@ -95,12 +88,15 @@ fun SystemScreen(
         ) {
             when (index) {
                 0 -> DateTimeScreen()
-                1 -> LanguageSettingsScreen(language, onLanguageSelected, languageChoice)
-                2 -> DisplaySettingsScreen(settings, onInterfaceScaleChange, onAnimationsToggle)
-                3 -> SoundSettingsScreen(settings, onInterfaceSoundsToggle)
-                4 -> AccessibilityScreen(settings, onAnimationsToggle, onInterfaceScaleChange)
-                5 -> AppsSettingsScreen()
-                6 -> BatterySettingsScreen()
+                1 -> LanguageSettingsScreen(
+                    language = language,
+                    onLanguageSelected = { selected ->
+                        onLanguageSelected(selected)
+                        overlayIndex = null
+                    },
+                    highlightedIndex = languageChoice
+                )
+                2 -> BatterySettingsScreen()
                 else -> SystemInfoScreen()
             }
         }

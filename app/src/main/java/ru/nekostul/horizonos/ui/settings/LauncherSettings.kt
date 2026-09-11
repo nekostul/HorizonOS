@@ -26,6 +26,7 @@ data class LauncherSettings(
     val notificationsEnabled: Boolean = true,
     val sleepEnabled: Boolean = true,
     val sleepTimeoutMinutes: Int = 10,
+    val sleepMediaEnabled: Boolean = true,
     val vibrationEnabled: Boolean = true,
     val controllerSensitivity: Float = 1.0f,
     val controllerDeadZone: Float = 0.15f

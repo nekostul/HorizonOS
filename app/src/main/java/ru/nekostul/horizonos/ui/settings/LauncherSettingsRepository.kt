@@ -61,6 +61,7 @@ class LauncherSettingsRepository(
         val notificationsEnabled = booleanPreferencesKey("notifications_enabled")
         val sleepEnabled = booleanPreferencesKey("sleep_enabled")
         val sleepTimeoutMinutes = intPreferencesKey("sleep_timeout_minutes")
+        val sleepMediaEnabled = booleanPreferencesKey("sleep_media_enabled")
         val vibrationEnabled = booleanPreferencesKey("vibration_enabled")
         val controllerSensitivity = floatPreferencesKey("controller_sensitivity")
         val controllerDeadZone = floatPreferencesKey("controller_dead_zone")
@@ -110,6 +111,7 @@ class LauncherSettingsRepository(
                 ,notificationsEnabled = preferences[Keys.notificationsEnabled] ?: true
                 ,sleepEnabled = preferences[Keys.sleepEnabled] ?: true
                 ,sleepTimeoutMinutes = preferences[Keys.sleepTimeoutMinutes] ?: 10
+                ,sleepMediaEnabled = preferences[Keys.sleepMediaEnabled] ?: true
                 ,vibrationEnabled = preferences[Keys.vibrationEnabled] ?: true
                 ,controllerSensitivity = preferences[Keys.controllerSensitivity] ?: 1.0f
                 ,controllerDeadZone = preferences[Keys.controllerDeadZone] ?: 0.15f
@@ -187,6 +189,7 @@ class LauncherSettingsRepository(
     suspend fun setNotificationsEnabled(value: Boolean) = update { it[Keys.notificationsEnabled] = value }
     suspend fun setSleepEnabled(value: Boolean) = update { it[Keys.sleepEnabled] = value }
     suspend fun setSleepTimeoutMinutes(value: Int) = update { it[Keys.sleepTimeoutMinutes] = value }
+    suspend fun setSleepMediaEnabled(value: Boolean) = update { it[Keys.sleepMediaEnabled] = value }
     suspend fun setVibrationEnabled(value: Boolean) = update { it[Keys.vibrationEnabled] = value }
     suspend fun setControllerSensitivity(value: Float) = update { it[Keys.controllerSensitivity] = value.coerceIn(0.5f, 2f) }
     suspend fun setControllerDeadZone(value: Float) = update { it[Keys.controllerDeadZone] = value.coerceIn(0f, 0.5f) }

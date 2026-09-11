@@ -198,6 +198,10 @@
     <string name="settings_auto_sleep">Автоматический режим сна</string>
     <string name="settings_sleep_description">Таймер бездействия HorizonOS.</string>
     <string name="settings_sleep_after">Переходить в сон через: %1$s</string>
+    <string name="settings_sleep_standby">Режим ожидания</string>
+    <string name="settings_sleep_standby_description">Время ожидания перед включением режима ожидания.</string>
+    <string name="settings_sleep_media">Режим ожидания и мультимедийный контент</string>
+    <string name="settings_sleep_media_hint">Если эта функция выключена, режим ожидания будет включаться при воспроизведении мультимедийного контента не ранее, чем через четыре часа.</string>
     <string name="settings_sleep_capability">Полный sleep устройства требует системного разрешения. HorizonOS использует собственный таймер без ложной имитации сна.</string>
     <string name="settings_controllers_title_runtime">Контроллеры</string>
     <string name="settings_connected_controllers">Подключенные контроллеры</string>

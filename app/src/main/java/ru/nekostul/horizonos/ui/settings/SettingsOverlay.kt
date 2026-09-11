@@ -568,7 +568,8 @@ internal fun HorizonOverlayChoice(
     selected: Boolean,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    value: String = ""
+    value: String = "",
+    titleColor: Color? = null
 ) {
     var hasFocus by remember { mutableStateOf(false) }
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -630,7 +631,7 @@ internal fun HorizonOverlayChoice(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, color = if (enabled) SettingsWhite else SettingsGray, fontSize = 16.sp)
+            Text(title, color = titleColor ?: if (enabled) SettingsWhite else SettingsGray, fontSize = 16.sp)
             Spacer(Modifier.weight(1f))
             if (value.isNotEmpty()) Text(value, color = if (selected) SettingsBlue else SettingsGray, fontSize = 16.sp)
         }
@@ -643,8 +644,29 @@ internal fun HorizonOverlayTextField(
     value: String,
     onValueChange: (String) -> Unit,
     password: Boolean = false,
-    placeholder: String = ""
+    placeholder: String = "",
+    selected: Boolean = false
 ) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val fieldFocusRequester = remember { FocusRequester() }
+    val inputMode = LocalSettingsInputMode.current
+    val pulse = rememberInfiniteTransition(label = "overlayFieldSelectionPulse")
+    val pulseValue by pulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "overlayFieldSelectionPulseValue"
+    )
+    val active = selected
+    LaunchedEffect(selected) {
+        if (selected) {
+            bringIntoViewRequester.bringIntoView()
+            fieldFocusRequester.requestFocus()
+        }
+    }
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -653,8 +675,16 @@ internal fun HorizonOverlayTextField(
         visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         modifier = Modifier
             .fillMaxWidth()
-            .background(SettingsBackground, RoundedCornerShape(6.dp))
-            .border(1.dp, SettingsGray, RoundedCornerShape(6.dp))
+            .background(if (active) SettingsDivider.copy(alpha = 0.24f) else Color.Transparent)
+            .then(
+                if (active) Modifier.border(
+                    width = 3.dp,
+                    color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                ) else Modifier.border(1.dp, SettingsGray, RoundedCornerShape(6.dp))
+            )
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .focusRequester(fieldFocusRequester)
+            .focusable()
             .padding(horizontal = 14.dp, vertical = 12.dp),
         decorationBox = { innerTextField ->
             Box {

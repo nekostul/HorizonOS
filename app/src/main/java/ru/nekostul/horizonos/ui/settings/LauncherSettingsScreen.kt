@@ -109,6 +109,7 @@ fun LauncherSettingsScreen(
     val rightScrollState = rememberScrollState()
     val inputMode = remember { mutableStateOf(SettingsInputMode.TOUCH) }
     var wifiActivationRequest by remember { mutableIntStateOf(0) }
+    var sleepActivationRequest by remember { mutableIntStateOf(0) }
     var bluetoothItemCount by remember { mutableIntStateOf(2) }
 
     fun optionCount(category: Int): Int = when (category) {
@@ -120,7 +121,7 @@ fun LauncherSettingsScreen(
         5 -> 10
         6 -> 2
         7 -> NotificationController(context).installedApps().size + 2
-        8 -> 6
+        8 -> 2
         9 -> ControllerManager.connectedControllers().size + 4
         else -> 8
     }
@@ -184,8 +185,8 @@ fun LauncherSettingsScreen(
                 6 -> repository.setTheme(if (selectedOption == 0) "dark" else "light")
                 7 -> if (selectedOption == 0) repository.setNotificationsEnabled(!settings.notificationsEnabled)
                 8 -> when (selectedOption) {
-                    0 -> repository.setSleepEnabled(!settings.sleepEnabled)
-                    in 1..5 -> repository.setSleepTimeoutMinutes(listOf(0, 5, 10, 30, 60)[selectedOption - 1])
+                    0 -> sleepActivationRequest++
+                    1 -> repository.setSleepMediaEnabled(!settings.sleepMediaEnabled)
                 }
                 9 -> if (selectedOption == 1) repository.setVibrationEnabled(!settings.vibrationEnabled)
                 10 -> systemOverlayRequest = selectedOption
@@ -300,6 +301,7 @@ fun LauncherSettingsScreen(
                             ,systemOverlayRequest,
                             { systemOverlayRequest = null },
                             wifiActivationRequest,
+                            sleepActivationRequest,
                             { count ->
                                 bluetoothItemCount = count
                                 selectedOption = selectedOption.coerceIn(0, (count - 1).coerceAtLeast(0))
@@ -346,6 +348,7 @@ private fun SettingsContent(
     systemOverlayRequest: Int?,
     onSystemOverlayConsumed: () -> Unit,
     wifiActivationRequest: Int,
+    sleepActivationRequest: Int,
     onBluetoothItemCountChange: (Int) -> Unit
 ) {
     when (category) {
@@ -371,7 +374,14 @@ private fun SettingsContent(
         5 -> StorageScreen(context, selectedOption, onOptionSelected)
         6 -> ThemesScreen(settings, selectedOption, onThemeSelected)
         7 -> NotificationsScreen(settings, selectedOption) { onOptionSelected(0) }
-        8 -> SleepScreen(context, settings, selectedOption, { onOptionSelected(0) }, { timeout -> scope.launch { repository.setSleepTimeoutMinutes(timeout) } })
+        8 -> SleepScreen(
+            context = context,
+            settings = settings,
+            selectedIndex = selectedOption,
+            activationRequest = sleepActivationRequest,
+            onTimeoutSelected = { timeout -> scope.launch { repository.setSleepTimeoutMinutes(timeout) } },
+            onMediaToggle = { scope.launch { repository.setSleepMediaEnabled(!settings.sleepMediaEnabled) } }
+        )
         9 -> ControllersScreen(settings, selectedOption, { scope.launch { repository.setVibrationEnabled(!settings.vibrationEnabled) } }, { value -> scope.launch { repository.setControllerSensitivity(value) } }, { value -> scope.launch { repository.setControllerDeadZone(value) } })
         else -> SystemScreen(
             settings = settings,
@@ -379,9 +389,6 @@ private fun SettingsContent(
             selectedIndex = selectedOption,
             onSelect = onOptionSelected,
             onLanguageSelected = { language -> scope.launch { repository.setLanguage(language) } },
-            onInterfaceScaleChange = { value -> scope.launch { repository.setInterfaceScale(value) } },
-            onAnimationsToggle = { scope.launch { repository.setAnimations(!settings.animations) } },
-            onInterfaceSoundsToggle = { scope.launch { repository.setInterfaceSounds(!settings.interfaceSounds) } },
             openOverlayIndex = systemOverlayRequest,
             onOverlayRequestConsumed = onSystemOverlayConsumed
         )

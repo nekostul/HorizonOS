@@ -198,6 +198,10 @@
     <string name="settings_auto_sleep">Automatic Sleep Mode</string>
     <string name="settings_sleep_description">HorizonOS inactivity timer.</string>
     <string name="settings_sleep_after">Enter sleep after: %1$s</string>
+    <string name="settings_sleep_standby">Standby Mode</string>
+    <string name="settings_sleep_standby_description">Wait time before entering standby mode.</string>
+    <string name="settings_sleep_media">Standby Mode and Media Content</string>
+    <string name="settings_sleep_media_hint">If this feature is disabled, standby mode will engage during media playback no earlier than after four hours.</string>
     <string name="settings_sleep_capability">Full device sleep requires a system permission. HorizonOS uses its own timer without faking sleep.</string>
     <string name="settings_controllers_title_runtime">Controllers</string>
     <string name="settings_connected_controllers">Connected Controllers</string>

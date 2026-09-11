@@ -75,6 +75,9 @@ internal val SettingsThumb: Color
 internal val SelectionFrameBlue = Color(0xFF08A8E6)
 internal const val SelectionPulseDurationMillis = 560
 
+// Console teal used for the active value and the highlighted choice text.
+internal val SettingsAccentTeal = Color(0xFF00B180)
+
 internal val LocalSettingsRightMenuFocused = compositionLocalOf { false }
 
 /**
@@ -98,7 +101,8 @@ internal fun HorizonSettingRow(
     row: SettingRow,
     selected: Boolean,
     onClick: () -> Unit,
-    trailing: (@Composable () -> Unit)? = null
+    trailing: (@Composable () -> Unit)? = null,
+    valueColor: Color? = null
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val inputMode = LocalSettingsInputMode.current
@@ -153,7 +157,7 @@ internal fun HorizonSettingRow(
             if (row.value.isNotEmpty()) {
                 Text(
                     text = row.value,
-                    color = SettingsGray,
+                    color = valueColor ?: SettingsGray,
                     fontSize = 17.sp
                 )
             }
@@ -219,6 +223,10 @@ internal fun SettingsSliderRow(
     )
     val frameActive = inputMode?.value == SettingsInputMode.GAMEPAD &&
         rightMenuFocused && selected
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(frameActive) {
+        if (frameActive) bringIntoViewRequester.bringIntoView()
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -228,6 +236,7 @@ internal fun SettingsSliderRow(
                     color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
                 ) else Modifier
             )
+            .bringIntoViewRequester(bringIntoViewRequester)
             .padding(horizontal = 14.dp)
     ) {
         if (title.isNotEmpty()) {

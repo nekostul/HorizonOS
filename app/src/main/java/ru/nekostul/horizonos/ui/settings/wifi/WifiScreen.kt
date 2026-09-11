@@ -9,10 +9,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -104,9 +106,19 @@ fun WifiScreen(
 
     selectedNetwork?.let { network ->
         val needsPassword = network.security != WifiSecurity.OPEN
+        var dialogIndex by remember { mutableIntStateOf(if (needsPassword) 0 else 1) }
         HorizonOverlay(
             title = stringResource(R.string.settings_wifi_connect_title, network.ssid),
-            onDismiss = { selectedNetwork = null; password = "" }
+            onDismiss = { selectedNetwork = null; password = "" },
+            onDirectionalKey = { key ->
+                if (!needsPassword) return@HorizonOverlay false
+                when (key) {
+                    Key.DirectionDown, Key.DirectionRight -> dialogIndex = (dialogIndex + 1).coerceAtMost(1)
+                    Key.DirectionUp, Key.DirectionLeft -> dialogIndex = (dialogIndex - 1).coerceAtLeast(0)
+                    else -> return@HorizonOverlay false
+                }
+                true
+            }
         ) {
             Text(network.security.label(), color = SettingsGray, fontSize = 16.sp)
             Spacer(Modifier.height(12.dp))
@@ -115,14 +127,15 @@ fun WifiScreen(
                     value = password,
                     onValueChange = { password = it },
                     password = true,
-                    placeholder = stringResource(R.string.settings_wifi_password)
+                    placeholder = stringResource(R.string.settings_wifi_password),
+                    selected = dialogIndex == 0
                 )
                 Spacer(Modifier.height(12.dp))
             }
             Row(Modifier.fillMaxWidth()) {
                 HorizonOverlayChoice(
                     stringResource(R.string.settings_wifi_connect),
-                    selected = true,
+                    selected = dialogIndex == 1,
                     onClick = {
                         connectionState = WifiConnectionState.CONNECTING
                         controller.connect(network.ssid, password, network.security) { connectionState = it }
@@ -141,8 +154,6 @@ fun WifiScreen(
                     } ?: ""
                 )
             }
-            Spacer(Modifier.height(6.dp))
-            HorizonOverlayChoice(stringResource(R.string.settings_action_cancel), false, { selectedNetwork = null })
         }
     }
 }
