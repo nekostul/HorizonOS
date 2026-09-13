@@ -80,6 +80,7 @@ import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.settings.HorizonOverlay
+import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
 import ru.nekostul.horizonos.ui.settings.SettingsBlue
 import ru.nekostul.horizonos.ui.settings.SelectionFrameBlue
 import ru.nekostul.horizonos.ui.settings.SelectionPulseDurationMillis
@@ -92,6 +93,7 @@ import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.hideDialogSystemBars
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.GameMetadataEditor
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.MediaType
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperRepository
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperSettings
 import androidx.compose.ui.draw.drawBehind
@@ -124,6 +126,7 @@ fun GamesScreen(
     val library = remember { GameLibrary(context) }
     val games by library.games.collectAsState(initial = emptyList())
     val scanner = remember { GameScanner(context) }
+    val folderRepository = remember { GameFolderRepository(context) }
     val focusRequester = remember { FocusRequester() }
 
     var page by remember { mutableIntStateOf(LibraryPage) }
@@ -135,11 +138,13 @@ fun GamesScreen(
     var pendingUri by remember { mutableStateOf<Uri?>(null) }
     var pendingName by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
+    var duplicateFolder by remember { mutableStateOf(false) }
     var isWorking by remember { mutableStateOf(false) }
     var detailsGame by remember { mutableStateOf<Game?>(null) }
     var titleEditorGame by remember { mutableStateOf<Game?>(null) }
-    var coverPickerGame by remember { mutableStateOf<Game?>(null) }
-    var screenshotPickerGame by remember { mutableStateOf<Game?>(null) }
+    var scanMenuGame by remember { mutableStateOf<Game?>(null) }
+    var customCoverGame by remember { mutableStateOf<Game?>(null) }
+    var customScreenshotGame by remember { mutableStateOf<Game?>(null) }
     val metadataEditor = remember { GameMetadataEditor(context.filesDir) }
     val androidApps = remember { AndroidAppRepository(context) }
     var installedApps by remember { mutableStateOf<List<InstalledAppInfo>>(emptyList()) }
@@ -202,12 +207,26 @@ fun GamesScreen(
             }
             val added = withContext(Dispatchers.IO) { library.addAll(scan.games) }
             isWorking = false
-            message = if (added == 0) {
-                context.getString(R.string.games_already_added)
-            } else {
-                context.getString(R.string.games_added_count, added)
+            if (added == 0) {
+                // Every game in this folder is already in the library, so
+                // surface a clear launcher-styled message and stay put.
+                message = null
+                duplicateFolder = true
+                return@launch
             }
-            if (added > 0) onGamesAdded(scan.games)
+            // Remember the folder so it can be silently rescanned on launch.
+            withContext(Dispatchers.IO) {
+                folderRepository.remember(
+                    GameFolderRepository.Folder(
+                        path = uri.toString(),
+                        name = pendingName.ifBlank { uri.toString() },
+                        platform = selectedPlatform,
+                        emulator = selectedEmulator
+                    )
+                )
+            }
+            message = context.getString(R.string.games_added_count, added)
+            onGamesAdded(scan.games)
             // Close the Games window and return to the launcher Home screen.
             onDismiss()
         }
@@ -265,6 +284,12 @@ fun GamesScreen(
 
     fun handleFolderResult(uri: Uri?) {
         if (uri == null) return
+        // Reject a folder that was already added, even under another platform,
+        // so the same games are never imported twice.
+        if (folderRepository.load().any { it.path == uri.toString() }) {
+            duplicateFolder = true
+            return
+        }
         persistPermission(
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -572,8 +597,7 @@ fun GamesScreen(
                 scope.launch { library.update(updated) }
             },
             onEditTitle = { titleEditorGame = game },
-            onEditCover = { coverPickerGame = game },
-            onEditScreenshot = { screenshotPickerGame = game },
+            onScan = { scanMenuGame = game },
             onDelete = {
                 detailsGame = null
                 scope.launch {
@@ -596,43 +620,76 @@ fun GamesScreen(
         )
     }
 
-    coverPickerGame?.let { game ->
-        val scraperSettings = remember { ScraperRepository(context).load() }
-        GameMediaPickerOverlay(
+    scanMenuGame?.let { game ->
+        GameScanMenuOverlay(
             game = game,
-            type = MediaType.COVER,
-            editor = metadataEditor,
-            settings = scraperSettings,
-            onSelect = { variant ->
-                coverPickerGame = null
-                scope.launch {
-                    val updated = withContext(Dispatchers.IO) { metadataEditor.applyCover(game, variant) }
-                    if (updated != null) applyGameUpdate(updated)
-                    else message = context.getString(R.string.games_media_apply_failed)
-                }
+            onAutoScan = {
+                scanMenuGame = null
+                ScanCoordinator.init(context)
+                ScanCoordinator.enqueue(listOf(game))
+                message = context.getString(R.string.games_scan_started)
             },
-            onDismiss = { coverPickerGame = null }
+            onCustomCover = {
+                scanMenuGame = null
+                customCoverGame = game
+            },
+            onCustomScreenshot = {
+                scanMenuGame = null
+                customScreenshotGame = game
+            },
+            onDismiss = { scanMenuGame = null }
         )
     }
 
-    screenshotPickerGame?.let { game ->
-        val scraperSettings = remember { ScraperRepository(context).load() }
-        GameMediaPickerOverlay(
-            game = game,
-            type = MediaType.SCREENSHOT,
-            editor = metadataEditor,
-            settings = scraperSettings,
-            onSelect = { variant ->
-                screenshotPickerGame = null
+    customCoverGame?.let { game ->
+        ImagePickerOverlay(
+            title = stringResource(R.string.games_custom_cover_title),
+            onPick = { entry ->
+                customCoverGame = null
                 scope.launch {
-                    val updated = withContext(Dispatchers.IO) { metadataEditor.applyScreenshot(game, variant) }
+                    val updated = withContext(Dispatchers.IO) { metadataEditor.applyLocalCover(game, entry.path) }
                     if (updated != null) applyGameUpdate(updated)
                     else message = context.getString(R.string.games_media_apply_failed)
                 }
             },
-            onDismiss = { screenshotPickerGame = null }
+            onDismiss = { customCoverGame = null }
         )
     }
+
+    customScreenshotGame?.let { game ->
+        ImagePickerOverlay(
+            title = stringResource(R.string.games_custom_screenshot_title),
+            onPick = { entry ->
+                customScreenshotGame = null
+                scope.launch {
+                    val updated = withContext(Dispatchers.IO) { metadataEditor.applyLocalScreenshot(game, entry.path) }
+                    if (updated != null) applyGameUpdate(updated)
+                    else message = context.getString(R.string.games_media_apply_failed)
+                }
+            },
+            onDismiss = { customScreenshotGame = null }
+        )
+    }
+
+    if (duplicateFolder) {
+        HorizonOverlay(
+            title = stringResource(R.string.games_duplicate_title),
+            onDismiss = { duplicateFolder = false }
+        ) {
+            Text(
+                text = stringResource(R.string.games_already_added_folder),
+                color = SettingsWhite,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.action_ok),
+                selected = true,
+                onClick = { duplicateFolder = false }
+            )
+        }
+    }
+
     }
 }
 
@@ -1090,8 +1147,7 @@ private fun GameDetailsOverlay(
     game: Game,
     onToggleHidden: () -> Unit,
     onEditTitle: () -> Unit,
-    onEditCover: () -> Unit,
-    onEditScreenshot: () -> Unit,
+    onScan: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1103,7 +1159,7 @@ private fun GameDetailsOverlay(
     // Compose Dialog uses a separate window context. Preserve the localized
     // parent context so the title and all action rows use the same language.
     val localizedContext = LocalContext.current
-    val rowCount = 5
+    val rowCount = 4
 
     LaunchedEffect(focusIndex) {
         detailScrollState.animateScrollTo(with(density) { (focusIndex * 58).dp.roundToPx() })
@@ -1117,9 +1173,8 @@ private fun GameDetailsOverlay(
         when (index) {
             0 -> onToggleHidden()
             1 -> onEditTitle()
-            2 -> onEditCover()
-            3 -> onEditScreenshot()
-            4 -> onDelete()
+            2 -> onScan()
+            3 -> onDelete()
         }
     }
 
@@ -1299,23 +1354,16 @@ private fun GameDetailsOverlay(
                             onClick = onEditTitle
                         )
                         GameDetailsActionRow(
-                            title = stringResource(R.string.games_refresh_cover),
+                            title = stringResource(R.string.games_scan_action),
                             subtitle = if (game.coverPath != null) stringResource(R.string.games_cover_added)
                             else stringResource(R.string.games_cover_not_added),
                             selected = focusIndex == 2,
-                            onClick = onEditCover
-                        )
-                        GameDetailsActionRow(
-                            title = stringResource(R.string.games_add_screenshot),
-                            subtitle = if (game.screenshotPath != null) stringResource(R.string.games_screenshot_added)
-                            else stringResource(R.string.games_screenshot_not_added),
-                            selected = focusIndex == 3,
-                            onClick = onEditScreenshot
+                            onClick = onScan
                         )
                         GameDetailsActionRow(
                             title = stringResource(R.string.games_delete),
                             subtitle = stringResource(R.string.games_delete_description),
-                            selected = focusIndex == 4,
+                            selected = focusIndex == 3,
                             destructive = true,
                             onClick = onDelete
                         )

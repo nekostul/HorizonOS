@@ -87,8 +87,12 @@ class ScanService : Service() {
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setProgress(progress?.total ?: 0, progress?.index ?: 0, progress == null)
-            .apply { if (pending != null) setContentIntent(pending) }
+            .apply {
+                // Only show a progress bar while a game is actually being
+                // scanned; never an endless indeterminate one.
+                if (progress != null) setProgress(progress.total, progress.index, false)
+                if (pending != null) setContentIntent(pending)
+            }
             .build()
     }
 

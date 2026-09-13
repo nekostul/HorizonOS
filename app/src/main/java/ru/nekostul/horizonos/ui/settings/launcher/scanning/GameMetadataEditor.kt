@@ -46,6 +46,18 @@ class GameMetadataEditor(mediaDir: File) {
         return game.copy(screenshotPath = path, isScreenshotManuallySet = true)
     }
 
+    /** Applies a user-picked local image as the cover (1:1, no stretching). */
+    suspend fun applyLocalCover(game: Game, sourcePath: String): Game? {
+        val path = imageProcessor.storeLocalCover(game.id, sourcePath) ?: return null
+        return game.copy(coverPath = path, isCoverManuallySet = true)
+    }
+
+    /** Applies a user-picked local image as the screenshot (original ratio). */
+    suspend fun applyLocalScreenshot(game: Game, sourcePath: String): Game? {
+        val path = imageProcessor.storeLocalScreenshot(game.id, sourcePath) ?: return null
+        return game.copy(screenshotPath = path, isScreenshotManuallySet = true)
+    }
+
     /** Manual title override. The ROM file is never touched. */
     fun setTitle(game: Game, title: String): Game =
         game.copy(fullTitle = title.trim(), isTitleManuallySet = true)

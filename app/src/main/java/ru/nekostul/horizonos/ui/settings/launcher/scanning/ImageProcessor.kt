@@ -42,6 +42,35 @@ class ImageProcessor(
         return target.absolutePath
     }
 
+    /**
+     * Copies a user-selected local image and stores a 1:1 cover for [gameId].
+     * Proportions are preserved via center crop; nothing is stretched.
+     */
+    suspend fun storeLocalCover(gameId: String, sourcePath: String): String? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val source = BitmapFactory.decodeFile(sourcePath) ?: return@withContext null
+            val side = minOf(source.width, source.height)
+            if (side <= 0) return@withContext null
+            val cropped = Bitmap.createBitmap(source, (source.width - side) / 2, (source.height - side) / 2, side, side)
+            val square = if (side <= 512) cropped else Bitmap.createScaledBitmap(cropped, 512, 512, true)
+            if (square !== cropped) cropped.recycle()
+            val target = File(coverDir, "$gameId.png")
+            writePng(target, square)
+            target.absolutePath
+        }
+
+    /**
+     * Copies a user-selected local image as a screenshot, preserving the
+     * original aspect ratio.
+     */
+    suspend fun storeLocalScreenshot(gameId: String, sourcePath: String): String? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val bitmap = BitmapFactory.decodeFile(sourcePath) ?: return@withContext null
+            val target = File(screenshotDir, "$gameId.jpg")
+            writeJpeg(target, bitmap)
+            target.absolutePath
+        }
+
     private suspend fun decode(bytes: ByteArray): Bitmap? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)

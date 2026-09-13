@@ -1,6 +1,7 @@
 package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,6 +22,7 @@ import ru.nekostul.horizonos.ui.games.GameLibrary
  */
 object ScanCoordinator {
 
+    private const val TAG = "ScanCoordinator"
     private const val PREFS = "scan_state"
     private const val KEY_ACTIVE = "active"
     private const val KEY_IDS = "ids"
@@ -53,11 +55,20 @@ object ScanCoordinator {
         if (!workerRunning) resumeIfNeeded(ctx)
     }
 
+    /**
+     * A game still needs a scan while any metadata field is missing. Fully
+     * resolved games are never queued, so no progress notification is shown
+     * for a scan that would not actually download anything.
+     */
+    private val Game.needsScanning: Boolean
+        get() = fullTitle == null || coverPath == null || screenshotPath == null
+
     /** Queue the given games for scanning (used after adding games). */
     fun enqueue(games: List<Game>) {
-        if (games.isEmpty()) return
+        val pending = games.filter { it.needsScanning }
+        if (pending.isEmpty()) return
         synchronized(this) {
-            games.forEach { game ->
+            pending.forEach { game ->
                 if (runIdSet.add(game.id)) runIds.add(game.id)
             }
             persist()
@@ -83,6 +94,9 @@ object ScanCoordinator {
         val ctx = appContext ?: return
         synchronized(this) {
             if (workerRunning) return
+            // Never start the foreground scan notification when there is no
+            // actual metadata left to download.
+            if (runIds.isEmpty()) return
             workerRunning = true
         }
         _scanning.value = true
@@ -91,33 +105,39 @@ object ScanCoordinator {
     }
 
     private suspend fun runWorker(ctx: Context) {
-        val settings = ScraperRepository(ctx).load()
-        val library = GameLibrary(ctx)
-        val scraper = GameMetadataScraper(library, ctx.filesDir)
+        try {
+            val settings = ScraperRepository(ctx).load()
+            val library = GameLibrary(ctx)
+            val scraper = GameMetadataScraper(library, ctx.filesDir)
 
-        while (true) {
-            val snapshot = synchronized(this) {
-                if (done >= runIds.size) null
-                else runIds[done] to runIds.size
-            } ?: break
-            val (id, total) = snapshot
+            while (true) {
+                val snapshot = synchronized(this) {
+                    if (done >= runIds.size) null
+                    else runIds[done] to runIds.size
+                } ?: break
+                val (id, total) = snapshot
 
-            val game = runCatching { library.games.first() }
-                .getOrDefault(emptyList())
-                .firstOrNull { it.id == id }
+                val game = runCatching { library.games.first() }
+                    .getOrDefault(emptyList())
+                    .firstOrNull { it.id == id }
 
-            if (game != null) {
-                _progress.value = ScraperProgress(done + 1, total, game.displayTitle)
-                runCatching { scraper.scrapeSingle(settings, game) }
+                if (game != null) {
+                    _progress.value = ScraperProgress(done + 1, total, game.displayTitle)
+                    runCatching { scraper.scrapeSingle(settings, game) }
+                }
+
+                synchronized(this) {
+                    done++
+                    persist()
+                }
             }
 
-            synchronized(this) {
-                done++
-                persist()
-            }
+            finish(ctx, library)
+        } catch (error: Throwable) {
+            // A failed worker must never leave an endless "scanning" notification.
+            Log.e(TAG, "Metadata scan failed", error)
+            abort(ctx)
         }
-
-        finish(ctx, library)
     }
 
     private suspend fun finish(ctx: Context, library: GameLibrary) {
@@ -142,6 +162,17 @@ object ScanCoordinator {
             _scanning.value = false
             ScanService.stop(ctx)
         }
+    }
+
+    /** Clears the queue and removes the progress notification after a failure. */
+    private fun abort(ctx: Context) {
+        synchronized(this) {
+            workerRunning = false
+            clearState()
+        }
+        _progress.value = null
+        _scanning.value = false
+        runCatching { ScanService.stop(ctx) }
     }
 
     private fun resumeIfNeeded(ctx: Context) {

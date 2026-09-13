@@ -139,5 +139,4 @@ class GameScanner(private val context: Context) {
         ?.substringAfterLast('.', missingDelimiterValue = "")
         ?.lowercase(Locale.ROOT)
         .orEmpty()
-
 }

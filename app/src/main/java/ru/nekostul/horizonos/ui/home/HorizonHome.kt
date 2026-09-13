@@ -92,19 +92,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.Context
 import android.hardware.input.InputManager
-import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
-import android.text.format.DateFormat
 import android.graphics.BitmapFactory
 import android.view.InputDevice
 import android.widget.Toast
@@ -132,6 +126,17 @@ import ru.nekostul.horizonos.ui.games.GameLaunchResult
 import ru.nekostul.horizonos.ui.games.GameLauncher
 import ru.nekostul.horizonos.ui.games.GameLibrary
 import ru.nekostul.horizonos.ui.games.GamesScreen
+import ru.nekostul.horizonos.ui.games.FolderRescan
+import ru.nekostul.horizonos.ui.games.NewGamesNotifier
+import ru.nekostul.horizonos.ui.games.NewGamesAddedOverlay
+import ru.nekostul.horizonos.ui.home.status.StatusAirplaneIcon
+import ru.nekostul.horizonos.ui.home.status.StatusBatteryIcon
+import ru.nekostul.horizonos.ui.home.status.StatusClock
+import ru.nekostul.horizonos.ui.home.status.StatusWifiIcon
+import ru.nekostul.horizonos.ui.home.status.batteryBarColor
+import ru.nekostul.horizonos.ui.home.status.rememberAirplaneModeEnabled
+import ru.nekostul.horizonos.ui.home.status.rememberBatteryState
+import ru.nekostul.horizonos.ui.home.status.rememberWifiEnabled
 import ru.nekostul.horizonos.ui.settings.HorizonOverlay
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
 import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
@@ -173,76 +178,6 @@ private fun launchStaggerProgress(
         .coerceIn(0f, 1f)
 }
 
-
-@Composable
-private fun BatteryLevel(): Int {
-
-    val context = LocalContext.current
-
-    var batteryLevel by remember {
-        mutableIntStateOf(100)
-    }
-
-    LaunchedEffect(Unit) {
-
-        while (true) {
-
-            val intent = context.registerReceiver(
-                null,
-                IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-            )
-
-            if (intent != null) {
-
-                val level = intent.getIntExtra(
-                    BatteryManager.EXTRA_LEVEL,
-                    -1
-                )
-
-                val scale = intent.getIntExtra(
-                    BatteryManager.EXTRA_SCALE,
-                    -1
-                )
-
-                if (level >= 0 && scale > 0) {
-                    batteryLevel =
-                        (level * 100 / scale)
-                }
-            }
-
-            delay(5000)
-        }
-    }
-
-    return batteryLevel
-}
-
-@Composable
-private fun CurrentTime(): String {
-    val context = LocalContext.current
-    val pattern = if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a"
-    var currentTime by remember {
-        mutableStateOf(
-            SimpleDateFormat(
-                pattern,
-                Locale.getDefault()
-            ).format(Date())
-        )
-    }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            currentTime = SimpleDateFormat(
-                pattern,
-                Locale.getDefault()
-            ).format(Date())
-
-            delay(1000)
-        }
-    }
-
-    return currentTime
-}
 
 private fun isExternalGamepadConnected(): Boolean {
     return InputDevice.getDeviceIds().any { deviceId ->
@@ -298,8 +233,9 @@ fun HorizonHome(
     val coroutineScope = rememberCoroutineScope()
     val homeFocusRequester = remember { FocusRequester() }
 
-    val currentTime = CurrentTime()
-    val battery = BatteryLevel()
+    val battery = rememberBatteryState()
+    val wifiEnabled = rememberWifiEnabled()
+    val airplaneEnabled = rememberAirplaneModeEnabled()
     val externalGamepadConnected = ExternalGamepadConnected()
     var homeEntryTarget by remember { mutableFloatStateOf(0f) }
     val homeEntryProgress by animateFloatAsState(
@@ -581,6 +517,26 @@ fun launchGame(game: Game) {
         tappedGameIndex = 0
     }
 
+    // Silently rescan remembered ROM folders once per launch; if new games are
+    // found they are added, scraped and announced with a small notice.
+    LaunchedEffect(Unit) {
+        if (!FolderRescan.claim()) return@LaunchedEffect
+        val result = withContext(Dispatchers.IO) { FolderRescan.rescan(context) }
+        if (result.added.isNotEmpty()) {
+            ScanCoordinator.init(context)
+            ScanCoordinator.enqueue(result.added)
+            NewGamesNotifier.publish(result.platforms)
+        }
+    }
+
+    val newGamePlatforms by NewGamesNotifier.platforms.collectAsState()
+    if (newGamePlatforms.isNotEmpty()) {
+        NewGamesAddedOverlay(
+            platforms = newGamePlatforms,
+            onDismiss = { NewGamesNotifier.consume() }
+        )
+    }
+
     if (showGames) {
         GamesScreen(
             onOpenFolder = onOpenGameFolder,
@@ -725,37 +681,26 @@ if (isHorizonConfirmKey(event)) {
             ) {
                 ProfileIcon(size = h * 0.082f)
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = currentTime,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(h * 0.014f)
+                ) {
+                    StatusClock(
                         color = HorizonWhite,
-                        fontSize = (h.value * 0.042f).sp,
-                        fontWeight = FontWeight.Medium
+                        fontSize = (h.value * 0.042f).sp
                     )
-                    Spacer(Modifier.width(h * 0.018f))
-                    Text(
-                        text = "✈",
-                        color = HorizonWhite,
-                        fontSize = (h.value * 0.039f).sp
-                    )
-                    Spacer(Modifier.width(h * 0.012f))
-                    Text(
-                        text = "⌁",
-                        color = HorizonWhite,
-                        fontSize = (h.value * 0.040f).sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.width(h * 0.020f))
-                    Text(
-                        text = "$battery%",
-                        color = HorizonWhite,
-                        fontSize = (h.value * 0.039f).sp
-                    )
-                    Spacer(Modifier.width(h * 0.010f))
-                    BatteryIcon(
-                        width = h * 0.052f,
-                        height = h * 0.032f,
-                        level = battery
+                    if (airplaneEnabled) {
+                        StatusAirplaneIcon(color = HorizonWhite, size = h * 0.030f)
+                    }
+                    if (wifiEnabled) {
+                        StatusWifiIcon(color = HorizonWhite, size = h * 0.032f)
+                    }
+                    StatusBatteryIcon(
+                        level = battery.level,
+                        fillColor = batteryBarColor(battery),
+                        height = h * 0.030f - 1.dp,
+                        percentageFontSize = (h.value * 0.039f).sp,
+                        modifier = Modifier.offset(y = (0).dp)
                     )
                 }
             }
@@ -1826,42 +1771,6 @@ private fun ProfileIcon(
             color = HorizonWhite,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-
-// ═══════════════════════════════════════════════════════════════════
-// BATTERY
-// ═══════════════════════════════════════════════════════════════════
-
-@Composable
-private fun BatteryIcon(
-    width: Dp,
-    height: Dp,
-    level: Int
-) {
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .width(width)
-                .height(height)
-                .border(2.dp, HorizonWhite)
-                .padding(2.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(level.coerceIn(0, 100) / 100f)
-                    .background(HorizonWhite)
-            )
-        }
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .height(height * 0.45f)
-                .background(HorizonWhite)
         )
     }
 }
