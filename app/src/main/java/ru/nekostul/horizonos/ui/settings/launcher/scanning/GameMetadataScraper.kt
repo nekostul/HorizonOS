@@ -60,31 +60,7 @@ class GameMetadataScraper(
                 failed++
                 return@forEachIndexed
             }
-            // A field is settled when it already has a value. Android apps
-            // created before scraping support may carry a stale "manual cover"
-            // flag with no actual cover; value-based checks let them be scraped.
-            val titleSettled = game.fullTitle != null
-            val coverSettled = game.coverPath != null
-            val screenshotSettled = game.screenshotPath != null
-            if (titleSettled && coverSettled && screenshotSettled) {
-                diag("[${game.displayTitle}] skipped: all fields already resolved")
-                return@forEachIndexed
-            }
-            val result = scrapeGame(settings, game, ::diag)
-            if (result != null && result.changed) {
-                gameLibrary.update(
-                    game.copy(
-                        fullTitle = result.fullTitle,
-                        coverPath = result.coverPath,
-                        screenshotPath = result.screenshotPath
-                    )
-                )
-                updated++
-                diag("[${game.displayTitle}] updated: title=${result.fullTitle} cover=${result.coverPath != null} screenshot=${result.screenshotPath != null}")
-            } else {
-                failed++
-                diag("[${game.displayTitle}] no new metadata found")
-            }
+            if (scrapeSingle(settings, game, ::diag)) updated++ else failed++
         }
 
         diag("Scan finished. updated=$updated noData=$failed")
@@ -95,6 +71,42 @@ class GameMetadataScraper(
             networkUnavailable = networkUnavailable,
             diagnostics = diagnostics
         )
+    }
+
+    /**
+     * Scrapes a single game and writes the result back to the library. Returns
+     * true when something changed. Exposed so the scan queue can persist its
+     * position after every game and resume after a restart.
+     */
+    suspend fun scrapeSingle(
+        settings: ScraperSettings,
+        game: Game,
+        diag: (String) -> Unit = {}
+    ): Boolean {
+        // A field is settled when it already has a value. Android apps created
+        // before scraping support may carry a stale "manual cover" flag with no
+        // actual cover; value-based checks let them be scraped.
+        val titleSettled = game.fullTitle != null
+        val coverSettled = game.coverPath != null
+        val screenshotSettled = game.screenshotPath != null
+        if (titleSettled && coverSettled && screenshotSettled) {
+            diag("[${game.displayTitle}] skipped: all fields already resolved")
+            return false
+        }
+        val result = scrapeGame(settings, game, diag) ?: run {
+            diag("[${game.displayTitle}] no new metadata found")
+            return false
+        }
+        if (!result.changed) return false
+        gameLibrary.update(
+            game.copy(
+                fullTitle = result.fullTitle,
+                coverPath = result.coverPath,
+                screenshotPath = result.screenshotPath
+            )
+        )
+        diag("[${game.displayTitle}] updated: title=${result.fullTitle} cover=${result.coverPath != null} screenshot=${result.screenshotPath != null}")
+        return true
     }
 
     private suspend fun scrapeGame(

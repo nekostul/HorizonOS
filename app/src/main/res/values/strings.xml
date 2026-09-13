@@ -111,6 +111,8 @@
     <string name="settings_category_launcher">Launcher Settings</string>
     <string name="settings_launcher_scanning">Scanning</string>
     <string name="settings_launcher_scanning_description">Game information sources: title, cover and screenshot.</string>
+    <string name="settings_launcher_screenshot_background">Use game screenshots as background</string>
+    <string name="settings_launcher_screenshot_background_description">Show the selected game\'s screenshot as the Home background.</string>
     <string name="settings_scanning_title">Scanning</string>
     <string name="settings_scanning_order_hint">Sources are checked strictly in this order. Each field is filled by the first source that provides it.</string>
     <string name="settings_scraper_screen_scraper">ScreenScraper.fr</string>
@@ -388,9 +390,31 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_error_app_not_installed">The application is no longer installed: %1$s</string>
     <string name="scanning_covers">Scanning covers…</string>
     <string name="scanning_covers_progress">Scanning covers… %1$d/%2$d</string>
+    <string name="scan_notification_channel">Cover scanning</string>
+    <string name="scan_notification_title">Scanning covers</string>
+    <string name="scan_notification_text">Scanning in progress…</string>
+    <string name="scan_notification_progress">%1$d of %2$d games done</string>
     <string name="scan_hint_title">Covers not found</string>
     <string name="scan_hint_intro">No cover was found for these games:</string>
     <string name="scan_hint_manual">You can scan manually: Settings → Launcher Settings → Scanning, then press “Scan games”.</string>
     <string name="scan_hint_rename">If a game still isn’t found, its name may differ from the official one. Try renaming it to the real title: open the Games section, select the game, then in its menu choose “Change title”.</string>
+    <string name="files_title">Files</string>
+    <string name="files_search_hint">Search…</string>
+    <string name="files_copy">Copy</string>
+    <string name="files_cut">Cut</string>
+    <string name="files_paste">Paste</string>
+    <string name="files_delete">Delete</string>
+    <string name="files_cancel">Cancel</string>
+    <string name="files_new">New</string>
+    <string name="files_new_title">Create</string>
+    <string name="files_new_folder_default">New Folder</string>
+    <string name="files_new_file_default">New File.txt</string>
+    <string name="files_delete_title">Delete</string>
+    <string name="files_delete_message">Delete %1$d selected item(s)?</string>
+    <string name="files_delete_confirm">Delete</string>
+    <string name="files_error_title">Error</string>
+    <string name="files_root_warning_title">System folder</string>
+    <string name="files_root_warning_body">You are entering a system folder. Changing files here may make Android unstable.</string>
+    <string name="files_root_warning_go">Continue</string>
 
 </resources>

@@ -65,6 +65,7 @@ class LauncherSettingsRepository(
         val vibrationEnabled = booleanPreferencesKey("vibration_enabled")
         val controllerSensitivity = floatPreferencesKey("controller_sensitivity")
         val controllerDeadZone = floatPreferencesKey("controller_dead_zone")
+        val screenshotBackgroundEnabled = booleanPreferencesKey("screenshot_background_enabled")
     }
 
     val settings: Flow<LauncherSettings> =
@@ -115,6 +116,7 @@ class LauncherSettingsRepository(
                 ,vibrationEnabled = preferences[Keys.vibrationEnabled] ?: true
                 ,controllerSensitivity = preferences[Keys.controllerSensitivity] ?: 1.0f
                 ,controllerDeadZone = preferences[Keys.controllerDeadZone] ?: 0.15f
+                ,screenshotBackgroundEnabled = preferences[Keys.screenshotBackgroundEnabled] ?: true
             )
         }
 
@@ -193,6 +195,7 @@ class LauncherSettingsRepository(
     suspend fun setVibrationEnabled(value: Boolean) = update { it[Keys.vibrationEnabled] = value }
     suspend fun setControllerSensitivity(value: Float) = update { it[Keys.controllerSensitivity] = value.coerceIn(0.5f, 2f) }
     suspend fun setControllerDeadZone(value: Float) = update { it[Keys.controllerDeadZone] = value.coerceIn(0f, 0.5f) }
+    suspend fun setScreenshotBackgroundEnabled(value: Boolean) = update { it[Keys.screenshotBackgroundEnabled] = value }
 
     private suspend fun update(block: suspend (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.launcherSettingsDataStore.edit(block)

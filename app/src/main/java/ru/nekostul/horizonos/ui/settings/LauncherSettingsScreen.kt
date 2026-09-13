@@ -126,7 +126,7 @@ fun LauncherSettingsScreen(
         8 -> 2
         9 -> ControllerManager.connectedControllers().size + 4
         10 -> 4
-        11 -> 1
+        11 -> 2
         else -> 8
     }
 
@@ -194,7 +194,10 @@ fun LauncherSettingsScreen(
                 }
                 9 -> if (selectedOption == 1) repository.setVibrationEnabled(!settings.vibrationEnabled)
                 10 -> systemOverlayRequest = selectedOption
-                11 -> launcherOverlayRequest = selectedOption
+                11 -> when (selectedOption) {
+                    0 -> repository.setScreenshotBackgroundEnabled(!settings.screenshotBackgroundEnabled)
+                    1 -> launcherOverlayRequest = selectedOption
+                }
             }
         }
     }
@@ -402,6 +405,7 @@ private fun SettingsContent(
             onOverlayRequestConsumed = onSystemOverlayConsumed
         )
         11 -> ru.nekostul.horizonos.ui.settings.launcher.LauncherSettingsHubScreen(
+            settings = settings,
             selectedIndex = selectedOption,
             onSelect = onOptionSelected,
             openOverlayIndex = launcherOverlayRequest,

@@ -122,6 +122,8 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.animation.core.animateFloat
 import ru.nekostul.horizonos.ui.settings.LauncherSettingsScreen
+import ru.nekostul.horizonos.ui.settings.LauncherSettings
+import ru.nekostul.horizonos.ui.settings.LauncherSettingsRepository
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
@@ -136,9 +138,7 @@ import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
-import ru.nekostul.horizonos.ui.settings.launcher.scanning.GameMetadataScraper
-import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperProgress
-import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperRepository
+import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
 import kotlinx.coroutines.flow.first
 import kotlin.math.roundToInt
 import kotlin.math.abs
@@ -317,6 +317,8 @@ fun HorizonHome(
 
     val gameLibrary = remember { GameLibrary(context) }
     val games by gameLibrary.games.collectAsState(initial = emptyList())
+    val launcherSettingsRepository = remember { LauncherSettingsRepository(context) }
+    val launcherSettings by launcherSettingsRepository.settings.collectAsState(initial = LauncherSettings())
     val visibleGames = games.filterNot { it.hidden }
     val gameLauncher = remember { GameLauncher() }
 
@@ -376,17 +378,20 @@ fun HorizonHome(
         mutableStateOf(false)
     }
 
+    var showFiles by remember {
+        mutableStateOf(false)
+    }
+
     // Ghost launch animation layer (null when inactive).
     var launchGhost by remember {
         mutableStateOf<LaunchGhostData?>(null)
     }
 
-    // Automatic metadata scan started right after games are added.
-    var scanning by remember { mutableStateOf(false) }
-    var scanProgress by remember { mutableStateOf<ScraperProgress?>(null) }
-    var scanQueue by remember { mutableStateOf<List<Game>>(emptyList()) }
-    var scanHintGames by remember { mutableStateOf<List<String>>(emptyList()) }
-    var showScanHint by remember { mutableStateOf(false) }
+    // Automatic metadata scan state comes from the app-wide coordinator so the
+    // Home indicator reflects both automatic and manually started scans.
+    val scanning by ScanCoordinator.scanning.collectAsState()
+    val scanProgress by ScanCoordinator.progress.collectAsState()
+    val scanHint by ScanCoordinator.hint.collectAsState()
 
     // While the launch sequence runs, the Home content zooms toward the
     // player and dims, mirroring the console's fade into the loading screen.
@@ -470,12 +475,7 @@ fun HorizonHome(
 
                 // Файлы
                 1 -> {
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "*/*"
-                    }
-
-                    context.startActivity(intent)
+                    showFiles = true
                 }
 
                 // GameSir
@@ -548,45 +548,14 @@ fun launchGame(game: Game) {
     }
 
     /**
-     * Queues newly added games for automatic metadata/covers scanning. A single
-     * worker drains the queue; games added while a scan is already running are
-     * appended and scanned next, without stopping the current batch.
+     * Queues newly added games for automatic metadata/covers scanning. The scan
+     * runs in an app-wide coordinator, so it keeps going after leaving Home or
+     * the Games window, and survives the app being backgrounded.
      */
     fun enqueueAutoScan(added: List<Game>) {
-        if (added.isEmpty()) return
-        scanQueue = scanQueue + added
-        if (scanning) return
-        scanning = true
-        scanProgress = null
-        coroutineScope.launch {
-            val library = GameLibrary(context)
-            val settings = ScraperRepository(context).load()
-            val scraper = GameMetadataScraper(library, context.filesDir)
-            val scannedIds = mutableSetOf<String>()
-            while (true) {
-                val batch = scanQueue
-                if (batch.isEmpty()) break
-                scanQueue = emptyList()
-                // Resolve the freshest copy of each game (respects manual edits)
-                // and keep only distinct ids.
-                val current = library.games.first().associateBy { it.id }
-                val targets = batch.map { current[it.id] ?: it }.distinctBy { it.id }
-                scannedIds += targets.map { it.id }
-                withContext(Dispatchers.IO) {
-                    scraper.scrape(settings, targets) { progress ->
-                        coroutineScope.launch { scanProgress = progress }
-                    }
-                }
-            }
-            val after = library.games.first()
-            val missing = after.filter { it.id in scannedIds && it.coverPath == null }
-            scanning = false
-            scanProgress = null
-            if (missing.isNotEmpty()) {
-                scanHintGames = missing.map { it.displayTitle }
-                showScanHint = true
-            }
-        }
+        ScanCoordinator.init(context)
+        ScanCoordinator.consumeHint()
+        ScanCoordinator.enqueue(added)
     }
 
     fun selectGame(index: Int) {
@@ -620,6 +589,16 @@ fun launchGame(game: Game) {
                 clearHomeSelection()
             },
             onGamesAdded = { added -> enqueueAutoScan(added) }
+        )
+        return
+    }
+
+    if (showFiles) {
+        ru.nekostul.horizonos.ui.files.FilesScreen(
+            onDismiss = {
+                showFiles = false
+                clearHomeSelection()
+            }
         )
         return
     }
@@ -707,9 +686,11 @@ if (isHorizonConfirmKey(event)) {
         val cardStartOffset = h * 0.114f
 
         // Blurred screenshot of the selected game as a living backdrop.
-        GameScreenshotBackground(
-            screenshotPath = visibleGames.getOrNull(selectedGame)?.screenshotPath
-        )
+        if (launcherSettings.screenshotBackgroundEnabled) {
+            GameScreenshotBackground(
+                screenshotPath = visibleGames.getOrNull(selectedGame)?.screenshotPath
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -962,10 +943,10 @@ Row(verticalAlignment = Alignment.CenterVertically) {
         )
     }
 
-    if (showScanHint) {
+    if (scanHint.isNotEmpty()) {
         ScanHintOverlay(
-            games = scanHintGames,
-            onDismiss = { showScanHint = false }
+            games = scanHint,
+            onDismiss = { ScanCoordinator.consumeHint() }
         )
     }
 

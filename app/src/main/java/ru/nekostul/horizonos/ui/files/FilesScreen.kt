@@ -1,0 +1,598 @@
+package ru.nekostul.horizonos.ui.files
+
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import android.graphics.BitmapFactory
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import ru.nekostul.horizonos.R
+import ru.nekostul.horizonos.ui.settings.*
+
+/**
+ * HorizonOS File Manager. Full-screen, gamepad-first, using the shared
+ * HorizonOS overlay system. Root-aware reading when running with root;
+ * otherwise plain Android storage access.
+ */
+@Composable
+fun FilesScreen(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val inputMode = remember { mutableStateOf(SettingsInputMode.TOUCH) }
+    val listFocusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState()
+
+    var currentPath by remember { mutableStateOf<String?>(null) }
+    var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
+    var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var focusedIndex by remember { mutableIntStateOf(0) }
+    var sortMode by remember { mutableStateOf(FileSortMode.NAME) }
+    var showHidden by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var busyText by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    var clipboard by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
+    var clipboardMove by remember { mutableStateOf(false) }
+
+    // Overlays
+    var confirmTitle by remember { mutableStateOf<String?>(null) }
+    var confirmMessage by remember { mutableStateOf("") }
+    var confirmCall by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var propsEntry by remember { mutableStateOf<FileEntry?>(null) }
+    var propsSize by remember { mutableStateOf(-1L) }
+    var propsCount by remember { mutableStateOf(-1) }
+    var showSortOverlay by remember { mutableStateOf(false) }
+    var showNewMenu by remember { mutableStateOf(false) }
+    var renameTarget by remember { mutableStateOf<FileEntry?>(null) }
+    var createKind by remember { mutableStateOf<Int?>(null) }
+    var rootWarningShow by remember { mutableStateOf(false) }
+    var rootWarningPath by remember { mutableStateOf<String?>(null) }
+
+    // Search
+    var searching by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<FileSearch.SearchHit>>(emptyList()) }
+
+    val rootAvailable = remember { RootHelper.isRootAvailable() }
+
+    fun refresh() {
+        val path = currentPath ?: return
+        scope.launch {
+            val raw = withContext(Dispatchers.IO) { FileOperations.listRoot(path) }
+            var list = raw
+            if (!showHidden) list = list.filter { !it.hidden }
+            entries = when (sortMode) {
+                FileSortMode.NAME -> list.sortedWith(FileSorting.byName)
+                FileSortMode.SIZE -> list.sortedWith(FileSorting.bySize)
+                FileSortMode.DATE -> list.sortedWith(FileSorting.byDate)
+            }
+        }
+    }
+
+    suspend fun loadEntries() {
+        val path = currentPath ?: return
+        val raw = withContext(Dispatchers.IO) { FileOperations.listRoot(path) }
+        var list = raw
+        if (!showHidden) list = list.filter { !it.hidden }
+        entries = when (sortMode) {
+            FileSortMode.NAME -> list.sortedWith(FileSorting.byName)
+            FileSortMode.SIZE -> list.sortedWith(FileSorting.bySize)
+            FileSortMode.DATE -> list.sortedWith(FileSorting.byDate)
+        }
+    }
+
+    fun openEntry(entry: FileEntry) {
+        if (!entry.isDirectory) return
+        val path = entry.path
+        if (rootAvailable && isSystemRoot(path) && rootWarningPath != path) {
+            rootWarningShow = true
+            rootWarningPath = path
+            return
+        }
+        currentPath = path
+        focusedIndex = 0
+        scope.launch { loadEntries() }
+    }
+
+    fun openFile(entry: FileEntry) {
+        scope.launch {
+            when (val result = withContext(Dispatchers.IO) {
+                FileOpenHandler.open(context, File(entry.path), entry.kind)
+            }) {
+                is FileOpenResult.Success -> Unit
+                is FileOpenResult.Failed -> error = result.message
+            }
+        }
+    }
+
+    fun toggleSelect(entry: FileEntry) {
+        selected = if (entry.path in selected) selected - entry.path else selected + entry.path
+    }
+
+    fun doCopySelected() {
+        val sel = entries.filter { it.path in selected }
+        if (sel.isEmpty()) return
+        clipboard = sel
+        clipboardMove = false
+        selected = emptySet()
+    }
+
+    fun doCutSelected() {
+        val sel = entries.filter { it.path in selected }
+        if (sel.isEmpty()) return
+        clipboard = sel
+        clipboardMove = true
+        selected = emptySet()
+    }
+
+    fun doPaste() {
+        val path = currentPath ?: return
+        val items = clipboard.toList()
+        scope.launch {
+            busy = true
+            busyText = if (clipboardMove) "Перемещение…" else "Копирование…"
+            val dest = File(path)
+            withContext(Dispatchers.IO) {
+                items.forEach { item ->
+                    if (clipboardMove) FileOperations.move(File(item.path), dest)
+                    else FileOperations.copy(File(item.path), dest)
+                }
+            }
+            clipboard = emptyList()
+            clipboardMove = false
+            busy = false
+            refresh()
+        }
+    }
+
+    fun doDeleteSelected() {
+        val sel = entries.filter { it.path in selected }
+        scope.launch {
+            busy = true
+            busyText = "Удаление…"
+            withContext(Dispatchers.IO) {
+                sel.forEach { FileOperations.delete(File(it.path)) }
+            }
+            busy = false
+            selected = emptySet()
+            refresh()
+        }
+    }
+
+    fun showProperties(entry: FileEntry) {
+        propsEntry = entry
+        propsSize = -1
+        propsCount = -1
+        if (entry.isDirectory) {
+            scope.launch {
+                val size = withContext(Dispatchers.IO) { FileOperations.sizeOf(File(entry.path)) }
+                val count = withContext(Dispatchers.IO) { FileOperations.itemCount(File(entry.path)) }
+                if (propsEntry?.path == entry.path) {
+                    propsSize = size
+                    propsCount = count
+                }
+            }
+        }
+    }
+
+    // Search
+    LaunchedEffect(query, searching) {
+        if (!searching || query.isBlank()) { searchResults = emptyList(); return@LaunchedEffect }
+        searchResults = withContext(Dispatchers.IO) {
+            FileSearch.search(File(currentPath ?: "/storage/emulated/0"), query)
+        }
+    }
+
+    // Return focus to the list after any overlay closes.
+    val overlayOpen = confirmTitle != null || propsEntry != null || showSortOverlay ||
+        showNewMenu || createKind != null || renameTarget != null || rootWarningShow
+    LaunchedEffect(overlayOpen) {
+        if (!overlayOpen) {
+            delay(80)
+            listFocusRequester.requestFocus()
+        }
+    }
+
+    // Initial load
+    LaunchedEffect(Unit) {
+        val roots = File("/storage/emulated/0")
+        currentPath = if (roots.exists()) "/storage/emulated/0" else "/"
+        loadEntries()
+        listFocusRequester.requestFocus()
+    }
+
+    BackHandler(enabled = true) {
+        when {
+            confirmTitle != null -> confirmTitle = null
+            propsEntry != null -> propsEntry = null
+            searching -> { searching = false; query = "" }
+            showNewMenu -> showNewMenu = false
+            selected.isNotEmpty() -> selected = emptySet()
+            else -> {
+                val path = currentPath
+                if (path == null || path == "/" || path == "/storage/emulated/0") onDismiss()
+                else {
+                    val parent = File(path).parent
+                    if (parent != null) {
+                        currentPath = parent
+                        focusedIndex = 0
+                        scope.launch { loadEntries() }
+                    } else onDismiss()
+                }
+            }
+        }
+    }
+
+    CompositionLocalProvider(LocalSettingsInputMode provides inputMode) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(FileTheme.background)
+                .focusable()
+        ) {
+            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.files_title),
+                        color = FileTheme.text,
+                        fontSize = 25.sp
+                    )
+                    Spacer(Modifier.weight(1f))
+                    HorizonFilesIconButton("+") { showNewMenu = true }
+                    Spacer(Modifier.width(10.dp))
+                    HorizonFilesIconButton("⇅") { showSortOverlay = true }
+                    Spacer(Modifier.width(10.dp))
+                    HorizonFilesIconButton("🔍") { searching = !searching }
+                }
+                Spacer(Modifier.height(11.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(FileTheme.pathBar, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = currentPath ?: "/",
+                        color = FileTheme.muted,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("${entries.size}", color = FileTheme.muted, fontSize = 12.sp)
+                }
+                if (searching) {
+                    Spacer(Modifier.height(8.dp))
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = FileTheme.text, fontSize = 15.sp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(FileTheme.pathBar, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        decorationBox = { inner ->
+                            Box {
+                                if (query.isEmpty()) Text(stringResource(R.string.files_search_hint), color = FileTheme.muted, fontSize = 15.sp)
+                                inner()
+                            }
+                        }
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+
+                if (searching && query.isNotBlank()) {
+                    LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+                        itemsIndexed(searchResults) { index, hit ->
+                            FileRow(
+                                entry = hit.entry,
+                                selected = hit.entry.path in selected,
+                                focused = focusedIndex == index && inputMode.value == SettingsInputMode.GAMEPAD,
+                                inputMode = inputMode.value,
+                                subtitle = "${hit.entry.sizeLabel()} · ${hit.parent}",
+                                onClick = { openFile(hit.entry) },
+                                onFocus = { focusedIndex = index }
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(listFocusRequester)
+                            .focusable()
+                            .onKeyEvent { event ->
+                                if (event.type != KeyEventType.KeyDown) false
+                                else when (event.key) {
+                                    Key.DirectionDown -> {
+                                        if (entries.isNotEmpty()) {
+                                            focusedIndex = (focusedIndex + 1).coerceAtMost(entries.lastIndex)
+                                            scope.launch { listState.animateScrollToItem(focusedIndex) }
+                                        }
+                                        true
+                                    }
+                                    Key.DirectionUp -> {
+                                        focusedIndex = (focusedIndex - 1).coerceAtLeast(0)
+                                        scope.launch { listState.animateScrollToItem(focusedIndex) }
+                                        true
+                                    }
+                                    Key.ButtonA -> {
+                                        if (entries.isNotEmpty() && focusedIndex in entries.indices) {
+                                            val e = entries[focusedIndex]
+                                            inputMode.value = SettingsInputMode.GAMEPAD
+                                            if (selected.isNotEmpty()) toggleSelect(e)
+                                            else if (e.isDirectory) openEntry(e)
+                                            else openFile(e)
+                                        }
+                                        true
+                                    }
+                                    Key.ButtonX -> {
+                                        if (entries.isNotEmpty() && focusedIndex in entries.indices) {
+                                            toggleSelect(entries[focusedIndex])
+                                        }
+                                        true
+                                    }
+                                    Key.ButtonB -> {
+                                        if (selected.isNotEmpty()) selected = emptySet()
+                                        else {
+                                            val path = currentPath
+                                            if (path == null || path == "/" || path == "/storage/emulated/0") onDismiss()
+                                            else {
+                                                val parent = File(path).parent
+                                                if (parent != null) { currentPath = parent; focusedIndex = 0; scope.launch { loadEntries() } }
+                                            }
+                                        }
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                    ) {
+                        itemsIndexed(entries) { index, entry ->
+                            val sel = entry.path in selected
+                            FileRow(
+                                entry = entry,
+                                selected = sel,
+                                focused = focusedIndex == index && inputMode.value == SettingsInputMode.GAMEPAD,
+                                inputMode = inputMode.value,
+                                subtitle = entry.sizeLabel(),
+                                onClick = {
+                                    inputMode.value = SettingsInputMode.TOUCH
+                                    if (selected.isNotEmpty()) toggleSelect(entry)
+                                    else if (entry.isDirectory) openEntry(entry)
+                                    else openFile(entry)
+                                },
+                                onFocus = { focusedIndex = index }
+                            )
+                        }
+                    }
+                }
+
+                // Bottom action bar
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (selected.isNotEmpty()) {
+                        Text(
+                            text = "${selected.size}",
+                            color = FileTheme.accent,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        HorizonFilesTextButton(stringResource(R.string.files_copy)) { doCopySelected() }
+                        Spacer(Modifier.width(6.dp))
+                        HorizonFilesTextButton(stringResource(R.string.files_cut)) { doCutSelected() }
+                        Spacer(Modifier.width(6.dp))
+                        HorizonFilesTextButton(stringResource(R.string.files_delete)) {
+                            confirmTitle = context.getString(R.string.files_delete_title)
+                            confirmMessage = context.getString(R.string.files_delete_message, selected.size)
+                            confirmCall = { doDeleteSelected() }
+                        }
+                        if (selected.size == 1) {
+                            val e = entries.firstOrNull { it.path in selected }
+                            if (e != null) {
+                                Spacer(Modifier.width(6.dp))
+                                HorizonFilesTextButton("Свойства") { showProperties(e) }
+                                Spacer(Modifier.width(6.dp))
+                                HorizonFilesTextButton("Переименовать") { renameTarget = e }
+                            }
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        HorizonFilesTextButton(stringResource(R.string.files_cancel)) { selected = emptySet() }
+                    } else {
+                        if (clipboard.isNotEmpty()) {
+                            HorizonFilesTextButton(stringResource(R.string.files_paste)) { doPaste() }
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        HorizonFilesTextButton(stringResource(R.string.files_new)) { showNewMenu = true }
+                        if (rootAvailable) {
+                            Spacer(Modifier.width(8.dp))
+                            Text("ROOT", color = FileTheme.accent, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            if (busy) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
+                    Text(busyText, color = FileTheme.text, fontSize = 18.sp)
+                }
+            }
+        }
+    }
+
+    // Root warning overlay
+    if (rootWarningShow) {
+        HorizonOverlay(
+            title = stringResource(R.string.files_root_warning_title),
+            onDismiss = { rootWarningShow = false }
+        ) {
+            Text(
+                stringResource(R.string.files_root_warning_body),
+                color = FileTheme.text,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.files_root_warning_go),
+                selected = true,
+                onClick = {
+                    rootWarningShow = false
+                    val p = entries.find { it.isDirectory && it.path == rootWarningPath }?.path
+                        ?: rootWarningPath
+                    if (p != null) {
+                        currentPath = p
+                        focusedIndex = 0
+                        scope.launch { loadEntries() }
+                    }
+                }
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.files_cancel),
+                selected = false,
+                onClick = { rootWarningShow = false }
+            )
+        }
+    }
+
+    // Properties overlay
+    propsEntry?.let { entry ->
+        PropertiesOverlay(
+            entry = entry,
+            size = propsSize,
+            count = propsCount,
+            onDismiss = { propsEntry = null }
+        )
+    }
+
+    // Sorting overlay
+    if (showSortOverlay) {
+        SortOverlay(
+            current = sortMode,
+            onSelect = { mode ->
+                sortMode = mode
+                showSortOverlay = false
+                refresh()
+            },
+            onDismiss = { showSortOverlay = false }
+        )
+    }
+
+    // New item menu
+    if (showNewMenu) {
+        NewItemOverlay(
+            title = stringResource(R.string.files_new_title),
+            onFolder = { showNewMenu = false; createKind = 0 },
+            onFile = { showNewMenu = false; createKind = 1 },
+            onCancel = { showNewMenu = false }
+        )
+    }
+
+    createKind?.let { kind ->
+        TextInputOverlay(
+            title = stringResource(R.string.files_new_title),
+            initial = if (kind == 0) context.getString(R.string.files_new_folder_default)
+            else context.getString(R.string.files_new_file_default),
+            onConfirm = { name ->
+                val path = currentPath
+                createKind = null
+                if (path != null) scope.launch {
+                    withContext(Dispatchers.IO) {
+                        if (kind == 0) FileOperations.createFolder(File(path), name)
+                        else FileOperations.createFile(File(path), name)
+                    }
+                    refresh()
+                }
+            },
+            onCancel = { createKind = null }
+        )
+    }
+
+    renameTarget?.let { entry ->
+        TextInputOverlay(
+            title = "Переименовать",
+            initial = entry.name,
+            onConfirm = { name ->
+                renameTarget = null
+                scope.launch {
+                    withContext(Dispatchers.IO) { FileOperations.rename(File(entry.path), name) }
+                    refresh()
+                }
+            },
+            onCancel = { renameTarget = null }
+        )
+    }
+
+    // Confirm overlay
+    confirmTitle?.let { title ->
+        HorizonOverlay(
+            title = title,
+            onDismiss = { confirmTitle = null }
+        ) {
+            Text(
+                confirmMessage,
+                color = FileTheme.text,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+            HorizonOverlayChoice(title = stringResource(R.string.files_cancel), selected = false, onClick = { confirmTitle = null })
+            HorizonOverlayChoice(
+                title = stringResource(R.string.files_delete_confirm),
+                selected = true,
+                onClick = {
+                    confirmTitle = null
+                    confirmCall?.invoke()
+                }
+            )
+        }
+    }
+
+    // Error overlay
+    error?.let { msg ->
+        HorizonOverlay(title = stringResource(R.string.files_error_title), onDismiss = { error = null }) {
+            Text(msg, color = FileTheme.text, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
+            HorizonOverlayChoice(title = stringResource(R.string.action_ok), selected = true, onClick = { error = null })
+        }
+    }
+}

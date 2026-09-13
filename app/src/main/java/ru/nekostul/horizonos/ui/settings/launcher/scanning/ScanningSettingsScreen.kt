@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.res.stringResource
@@ -49,9 +50,9 @@ fun ScanningSettingsScreen(
     var selectedIndex by remember { mutableIntStateOf(0) }
     var editor by remember { mutableStateOf<EditorTarget?>(null) }
 
-    var scanning by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf<ScraperProgress?>(null) }
-    var summary by remember { mutableStateOf<ScanSummary?>(null) }
+    val scanning by ScanCoordinator.scanning.collectAsState()
+    val progress by ScanCoordinator.progress.collectAsState()
+    val summary by ScanCoordinator.summary.collectAsState()
 
     fun toggleSource(id: ScraperSourceId) {
         val next = !settings.isEnabled(id)
@@ -60,19 +61,8 @@ fun ScanningSettingsScreen(
     }
 
     fun startScan() {
-        if (scanning) return
-        scanning = true
-        summary = null
-        progress = null
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                val games = runCatching { GameLibrary(context).games.first() }.getOrDefault(emptyList())
-                val scraper = GameMetadataScraper(GameLibrary(context), context.filesDir)
-                scraper.scrape(settings, games) { value -> scope.launch { progress = value } }
-            }
-            summary = result
-            scanning = false
-        }
+        ScanCoordinator.init(context)
+        ScanCoordinator.enqueueAll()
     }
 
     fun activate(index: Int) {

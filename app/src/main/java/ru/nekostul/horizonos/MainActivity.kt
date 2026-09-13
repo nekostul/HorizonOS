@@ -6,7 +6,11 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.WindowManager
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
@@ -108,6 +112,15 @@ class MainActivity : ComponentActivity() {
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        // Draw edge-to-edge behind the display cutout on tall (20:9) screens
+        // so no black bar appears next to the front camera.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+
         WindowInsetsControllerCompat(
             window,
             window.decorView
@@ -128,6 +141,23 @@ class MainActivity : ComponentActivity() {
             var showStartupAnimation by remember { mutableStateOf(true) }
             val localizedContext = remember(settings.language) {
                 LanguageManager.localizedContext(this@MainActivity, settings.language)
+            }
+            // Let the scan coordinator reach the app context as early as possible.
+            LaunchedEffect(Unit) {
+                ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
+                    .init(this@MainActivity)
+            }
+            // Ask for notification permission so the background scan progress is
+            // visible on Android 13+.
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    runtimePermissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                }
             }
             CompositionLocalProvider(
                 LocalContext provides localizedContext,
