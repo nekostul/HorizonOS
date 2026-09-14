@@ -30,6 +30,7 @@ import ru.nekostul.horizonos.ui.settings.HorizonOverlayTextField
 import ru.nekostul.horizonos.ui.settings.SettingsAccentTeal
 import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
+import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
 private enum class EditorTarget { SCREEN_SCRAPER, THE_GAMES_DB, IGDB, STEAM_GRID_DB }
 
@@ -280,6 +281,7 @@ private fun CredentialsEditor(
         else -> 1
     }
     var selectedIndex by remember { mutableIntStateOf(0) }
+    var editingField by remember { mutableIntStateOf(-1) }
     val hasDelete = when (target) {
         EditorTarget.SCREEN_SCRAPER -> settings.screenScraperDevId.isNotBlank()
         EditorTarget.THE_GAMES_DB -> settings.theGamesDbApiKey.isNotBlank()
@@ -325,7 +327,8 @@ private fun CredentialsEditor(
                     EditorTarget.IGDB -> stringResource(R.string.settings_scraper_igdb_client_id_hint)
                     EditorTarget.STEAM_GRID_DB -> stringResource(R.string.settings_scraper_steam_api_key_hint)
                 },
-                selected = selectedIndex == 0
+                selected = selectedIndex == 0,
+                onEdit = { editingField = 0 }
             )
             Spacer(Modifier.height(10.dp))
         }
@@ -337,7 +340,8 @@ private fun CredentialsEditor(
                 placeholder = if (target == EditorTarget.SCREEN_SCRAPER)
                     stringResource(R.string.settings_scraper_screen_scraper_devpassword_hint)
                 else stringResource(R.string.settings_scraper_igdb_client_secret_hint),
-                selected = selectedIndex == 1
+                selected = selectedIndex == 1,
+                onEdit = { editingField = 1 }
             )
             Spacer(Modifier.height(12.dp))
         }
@@ -382,6 +386,18 @@ private fun CredentialsEditor(
             title = stringResource(R.string.settings_action_cancel),
             selected = selectedIndex == cancelIndex,
             onClick = onDismiss
+        )
+    }
+
+    if (editingField >= 0) {
+        HorizonKeyboardDialog(
+            title = title,
+            initialValue = if (editingField == 0) first else second,
+            onConfirm = { value ->
+                if (editingField == 0) first = value else second = value
+                editingField = -1
+            },
+            onCancel = { editingField = -1 }
         )
     }
 }

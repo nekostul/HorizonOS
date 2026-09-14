@@ -139,6 +139,7 @@
     <string name="user_page_online">Онлайн</string>
     <string name="user_page_offline">Оффлайн</string>
     <string name="user_page_edit_nick">Изменить ник</string>
+    <string name="user_page_nick_prompt">Введите ник.</string>
     <string name="user_page_nick_hint">Ник</string>
     <string name="user_page_avatar_pick">Выбрать аватарку</string>
     <string name="unlock_launch">Запустить</string>
@@ -471,4 +472,14 @@
     <string name="scan_hint_manual">Можно запустить сканирование вручную: Настройки → Настройки лаунчера → Сканирование, затем нажмите «Сканировать игры».</string>
     <string name="scan_hint_rename">Если игра всё равно не находится, её название может отличаться от официального. Попробуйте изменить его на реальное: откройте раздел «Игры», выберите игру и в меню игры нажмите «Изменить название».</string>
 
+    <string name="ime_name">Клавиатура Horizon</string>
+    <string name="ime_subtype_english">Английский</string>
+    <string name="ime_subtype_russian">Русский</string>
+    <string name="keyboard_space">Пробел</string>
+    <string name="keyboard_enter">Ввод</string>
+    <string name="keyboard_choose">Выбрать</string>
+    <string name="keyboard_cancel">Отмена</string>
+    <string name="keyboard_language">Язык</string>
+    <string name="keyboard_symbols">Символы</string>
+    <string name="keyboard_shift">Регистр</string>
 </resources>

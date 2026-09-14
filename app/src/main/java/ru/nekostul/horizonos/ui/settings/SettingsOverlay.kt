@@ -49,7 +49,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -82,8 +81,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -651,7 +648,9 @@ internal fun HorizonOverlayTextField(
     onValueChange: (String) -> Unit,
     password: Boolean = false,
     placeholder: String = "",
-    selected: Boolean = false
+    selected: Boolean = false,
+    onEdit: (() -> Unit)? = null,
+    autoEditOnSelection: Boolean = true
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val fieldFocusRequester = remember { FocusRequester() }
@@ -671,34 +670,43 @@ internal fun HorizonOverlayTextField(
         if (selected) {
             bringIntoViewRequester.bringIntoView()
             fieldFocusRequester.requestFocus()
+            if (autoEditOnSelection) onEdit?.invoke()
         }
     }
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        singleLine = true,
-        textStyle = TextStyle(color = SettingsWhite, fontSize = 17.sp),
-        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (active) SettingsDivider.copy(alpha = 0.24f) else Color.Transparent)
             .then(
                 if (active) Modifier.border(
                     width = 3.dp,
-                    color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                    color = SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f),
+                    shape = RoundedCornerShape(6.dp)
                 ) else Modifier.border(1.dp, SettingsGray, RoundedCornerShape(6.dp))
             )
             .bringIntoViewRequester(bringIntoViewRequester)
             .focusRequester(fieldFocusRequester)
             .focusable()
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        decorationBox = { innerTextField ->
-            Box {
-                if (value.isEmpty() && placeholder.isNotEmpty()) {
-                    Text(placeholder, color = SettingsGray, fontSize = 17.sp)
-                }
-                innerTextField()
+            .clickable {
+                inputMode?.value = SettingsInputMode.TOUCH
+                onEdit?.invoke()
             }
-        }
-    )
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && isHorizonConfirmKey(event)) {
+                    onEdit?.invoke()
+                    true
+                } else {
+                    false
+                }
+            }
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        val shownValue = if (password) value.map { '•' }.joinToString("") else value
+        Text(
+            text = if (shownValue.isEmpty()) placeholder else shownValue,
+            color = if (shownValue.isEmpty()) SettingsGray else SettingsWhite,
+            fontSize = 17.sp,
+            maxLines = 1
+        )
+    }
 }

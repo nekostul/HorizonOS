@@ -19,6 +19,7 @@ import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayTextField
 import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.games.Platform
+import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
 /**
  * Small notice shown when the silent launch rescan added new games.
@@ -112,8 +113,9 @@ fun GameTitleEditorOverlay(
     onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var value by remember { mutableStateOf(game.displayTitle) }
-    HorizonOverlay(
+      var value by remember { mutableStateOf(game.displayTitle) }
+      var showKeyboard by remember { mutableStateOf(false) }
+      HorizonOverlay(
         title = stringResource(R.string.games_edit_title),
         onDismiss = onDismiss
     ) {
@@ -126,9 +128,10 @@ fun GameTitleEditorOverlay(
         Spacer(Modifier.height(8.dp))
         HorizonOverlayTextField(
             value = value,
-            onValueChange = { value = it },
-            placeholder = stringResource(R.string.games_title_hint),
-            selected = true
+              onValueChange = { value = it },
+              placeholder = stringResource(R.string.games_title_hint),
+              selected = true,
+              onEdit = { showKeyboard = true }
         )
         Spacer(Modifier.height(12.dp))
         HorizonOverlayChoice(
@@ -141,6 +144,14 @@ fun GameTitleEditorOverlay(
             title = stringResource(R.string.settings_action_cancel),
             selected = false,
             onClick = onDismiss
-        )
-    }
+          )
+      }
+      if (showKeyboard) {
+          HorizonKeyboardDialog(
+              title = stringResource(R.string.games_edit_title),
+              initialValue = value,
+              onConfirm = { value = it; showKeyboard = false },
+              onCancel = { showKeyboard = false }
+          )
+      }
 }

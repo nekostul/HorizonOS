@@ -81,6 +81,7 @@ import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsPanel
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
+import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 import java.io.File
 
 private val OnlineGreen = Color(0xFF34C759)
@@ -320,31 +321,52 @@ private fun NickEditorOverlay(
     onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var value by remember { mutableStateOf(current) }
-    HorizonOverlay(
-        title = stringResource(R.string.user_page_edit_nick),
-        onDismiss = onDismiss
-    ) {
-        Spacer(Modifier.height(8.dp))
-        HorizonOverlayTextField(
-            value = value,
-            onValueChange = { value = it },
-            placeholder = stringResource(R.string.user_page_nick_hint),
-            selected = true
-        )
-        Spacer(Modifier.height(12.dp))
-        ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice(
-            title = stringResource(R.string.settings_action_save),
-            selected = true,
-            enabled = value.isNotBlank(),
-            onClick = { onSave(value.trim()) }
-        )
-        ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice(
-            title = stringResource(R.string.settings_action_cancel),
-            selected = false,
-            onClick = onDismiss
-        )
-    }
+      var value by remember { mutableStateOf(current) }
+      var showKeyboard by remember { mutableStateOf(false) }
+      var autoOpenField by remember { mutableStateOf(true) }
+      if (!showKeyboard) {
+          HorizonOverlay(
+              title = stringResource(R.string.user_page_edit_nick),
+              onDismiss = onDismiss
+          ) {
+              Spacer(Modifier.height(8.dp))
+              HorizonOverlayTextField(
+                  value = value,
+                  onValueChange = { value = it },
+                  placeholder = stringResource(R.string.user_page_nick_hint),
+                  selected = true,
+                  autoEditOnSelection = autoOpenField,
+                  onEdit = {
+                      autoOpenField = false
+                      showKeyboard = true
+                  }
+              )
+              Spacer(Modifier.height(12.dp))
+              ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice(
+                  title = stringResource(R.string.settings_action_save),
+                  selected = true,
+                  enabled = value.isNotBlank(),
+                  onClick = { onSave(value.trim()) }
+              )
+              ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice(
+                  title = stringResource(R.string.settings_action_cancel),
+                  selected = false,
+                  onClick = onDismiss
+              )
+          }
+      }
+      if (showKeyboard) {
+          HorizonKeyboardDialog(
+              title = stringResource(R.string.user_page_nick_prompt),
+              initialValue = value,
+              maxLength = 10,
+              onConfirm = { value = it; showKeyboard = false },
+              onCancel = {
+                  autoOpenField = false
+                  showKeyboard = false
+              }
+          )
+      }
 }
 
 @Composable

@@ -12,7 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -36,7 +35,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,6 +47,7 @@ import ru.nekostul.horizonos.ui.HorizonXboxGlyph
 import ru.nekostul.horizonos.ui.isExternalGamepadConnected
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.settings.*
+import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
 /**
  * HorizonOS File Manager. Full-screen, gamepad-first, using the shared
@@ -113,6 +112,7 @@ fun FilesScreen(
 
     // Search
     var searching by remember { mutableStateOf(false) }
+    var showSearchKeyboard by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<FileSearch.SearchHit>>(emptyList()) }
 
@@ -322,7 +322,7 @@ fun FilesScreen(
 
     // Return focus to the list after any overlay closes.
     val overlayOpen = confirmTitle != null || propsEntry != null || showSortOverlay ||
-        showNewMenu || createKind != null || renameTarget != null || rootWarningShow
+        showNewMenu || createKind != null || renameTarget != null || rootWarningShow || showSearchKeyboard
     LaunchedEffect(overlayOpen) {
         if (!overlayOpen) {
             delay(80)
@@ -353,7 +353,8 @@ fun FilesScreen(
         when {
             confirmTitle != null -> confirmTitle = null
             propsEntry != null -> propsEntry = null
-            searching -> { searching = false; query = "" }
+              showSearchKeyboard -> showSearchKeyboard = false
+              searching -> { searching = false; query = "" }
             showNewMenu -> showNewMenu = false
             selected.isNotEmpty() -> selected = emptySet()
             else -> goUp()
@@ -391,7 +392,15 @@ fun FilesScreen(
                     Spacer(Modifier.width(10.dp))
                     HorizonFilesIconButton("⇅") { showSortOverlay = true }
                     Spacer(Modifier.width(10.dp))
-                    HorizonFilesIconButton("🔍") { searching = !searching }
+                    HorizonFilesIconButton("🔍") {
+                        if (searching) {
+                            searching = false
+                            showSearchKeyboard = false
+                        } else {
+                            searching = true
+                            showSearchKeyboard = true
+                        }
+                    }
                 }
                 Spacer(Modifier.height(11.dp))
                 Row(
@@ -412,22 +421,23 @@ fun FilesScreen(
                 }
                 if (searching) {
                     Spacer(Modifier.height(8.dp))
-                    BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        singleLine = true,
-                        textStyle = TextStyle(color = FileTheme.text, fontSize = 15.sp),
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(FileTheme.pathBar, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        decorationBox = { inner ->
-                            Box {
-                                if (query.isEmpty()) Text(stringResource(R.string.files_search_hint), color = FileTheme.muted, fontSize = 15.sp)
-                                inner()
+                            .clickable {
+                                inputMode.value = SettingsInputMode.TOUCH
+                                showSearchKeyboard = true
                             }
-                        }
-                    )
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = query.ifEmpty { stringResource(R.string.files_search_hint) },
+                            color = if (query.isEmpty()) FileTheme.muted else FileTheme.text,
+                            fontSize = 15.sp,
+                            maxLines = 1
+                        )
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
 
@@ -719,6 +729,15 @@ fun FilesScreen(
                 }
             },
             onCancel = { renameTarget = null }
+        )
+    }
+
+    if (showSearchKeyboard) {
+        HorizonKeyboardDialog(
+            title = stringResource(R.string.files_search_hint),
+            initialValue = query,
+            onConfirm = { value -> query = value; showSearchKeyboard = false },
+            onCancel = { showSearchKeyboard = false }
         )
     }
 

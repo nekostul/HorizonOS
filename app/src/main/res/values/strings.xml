@@ -461,6 +461,7 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="user_page_online">Online</string>
     <string name="user_page_offline">Offline</string>
     <string name="user_page_edit_nick">Change nickname</string>
+    <string name="user_page_nick_prompt">Enter nickname.</string>
     <string name="user_page_nick_hint">Nickname</string>
     <string name="user_page_avatar_pick">Choose avatar</string>
     <string name="unlock_launch">Launch</string>
@@ -471,4 +472,14 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="home_gamesir_download">Get it on Google Play</string>
     <string name="home_gamesir_close">Close</string>
 
+    <string name="ime_name">Horizon Keyboard</string>
+    <string name="ime_subtype_english">English</string>
+    <string name="ime_subtype_russian">Russian</string>
+    <string name="keyboard_space">Space</string>
+    <string name="keyboard_enter">Enter</string>
+    <string name="keyboard_choose">Choose</string>
+    <string name="keyboard_cancel">Cancel</string>
+    <string name="keyboard_language">Language</string>
+    <string name="keyboard_symbols">Symbols</string>
+    <string name="keyboard_shift">Shift</string>
 </resources>

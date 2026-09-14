@@ -29,6 +29,7 @@ import ru.nekostul.horizonos.ui.settings.SettingsCapabilitiesNote
 import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.settings.SettingsToggleRow
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
+import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
 @Composable
 private fun WifiSecurity.label(): String = stringResource(
@@ -107,6 +108,7 @@ fun WifiScreen(
     selectedNetwork?.let { network ->
         val needsPassword = network.security != WifiSecurity.OPEN
         var dialogIndex by remember { mutableIntStateOf(if (needsPassword) 0 else 1) }
+        var showKeyboard by remember(network.ssid) { mutableStateOf(false) }
         HorizonOverlay(
             title = stringResource(R.string.settings_wifi_connect_title, network.ssid),
             onDismiss = { selectedNetwork = null; password = "" },
@@ -128,7 +130,8 @@ fun WifiScreen(
                     onValueChange = { password = it },
                     password = true,
                     placeholder = stringResource(R.string.settings_wifi_password),
-                    selected = dialogIndex == 0
+                    selected = dialogIndex == 0,
+                    onEdit = { showKeyboard = true }
                 )
                 Spacer(Modifier.height(12.dp))
             }
@@ -154,6 +157,14 @@ fun WifiScreen(
                     } ?: ""
                 )
             }
+        }
+        if (showKeyboard) {
+            HorizonKeyboardDialog(
+                title = stringResource(R.string.settings_wifi_password),
+                initialValue = password,
+                onConfirm = { password = it; showKeyboard = false },
+                onCancel = { showKeyboard = false }
+            )
         }
     }
 }
