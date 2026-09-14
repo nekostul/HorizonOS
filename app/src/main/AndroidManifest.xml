@@ -39,6 +39,10 @@
         <package android:name="org.eden.eden_emulator" />
         <package android:name="org.yuzu.yuzu_emu" />
         <package android:name="org.sudachi.sudachi_emu" />
+        <package android:name="com.xiaoji.xtouch.google" />
+        <package android:name="com.xiaoji.gamemiracle" />
+        <package android:name="com.gamesir.virtualtouchutil" />
+        <package android:name="com.gamesir" />
     </queries>
 
     <application

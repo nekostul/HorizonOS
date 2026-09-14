@@ -97,6 +97,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import android.content.Intent
 import android.content.Context
+import android.net.Uri
 import android.hardware.input.InputManager
 import android.os.Handler
 import android.os.Looper
@@ -171,6 +172,16 @@ private val HorizonWhite: Color
 private val HorizonGray: Color
     @Composable get() = LocalHorizonColors.current.mutedText
 private const val HomeCardSlotCount = 12
+
+// Installed GameSir app package candidates (Google Play build first), and the
+// package used for the "Get it on Google Play" link.
+private val GameSirPackages = listOf(
+    "com.xiaoji.xtouch.google",
+    "com.xiaoji.gamemiracle",
+    "com.gamesir.virtualtouchutil",
+    "com.gamesir"
+)
+private const val GameSirPlayPackage = "com.xiaoji.xtouch.google"
 
 /**
  * Small in-memory cache of decoded, down-scaled backdrop screenshots. The
@@ -353,9 +364,9 @@ fun HorizonHome(
         mutableStateOf<Job?>(null)
     }
 
-    var showPowerMenu by remember {
-        mutableStateOf(false)
-    }
+    // GameSir app ("not installed") notice.
+    var gamesirMissing by remember { mutableStateOf(false) }
+    var gamesirChoice by remember { mutableIntStateOf(0) }
 
     var showLauncherSettings by remember {
         mutableStateOf(false)
@@ -396,6 +407,27 @@ fun HorizonHome(
     // Ghost launch animation layer (null when inactive).
     var launchGhost by remember {
         mutableStateOf<LaunchGhostData?>(null)
+    }
+
+    // Power-off (lock) animation state: a quick fade to black, then the screen
+    // is turned off.
+    var poweringOff by remember { mutableStateOf(false) }
+    val powerOffProgress = remember { Animatable(0f) }
+    LaunchedEffect(poweringOff) {
+        if (!poweringOff) return@LaunchedEffect
+        powerOffProgress.snapTo(0f)
+        powerOffProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+        )
+        withContext(Dispatchers.IO) { PowerController.turnOffScreen(context) }
+        // Hold the black frame while the screen powers down, then reset.
+        delay(500)
+        powerOffProgress.animateTo(
+            targetValue = 0f,
+            animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+        )
+        poweringOff = false
     }
 
     // Automatic metadata scan state comes from the app-wide coordinator so the
@@ -460,6 +492,38 @@ fun HorizonHome(
         tappedGameIndex = selectedGame
     }
 
+    /** Opens the GameSir app, or shows the "not installed" notice. */
+    fun openGamesir() {
+        val launchIntent = GameSirPackages.firstNotNullOfOrNull { packageName ->
+            runCatching { context.packageManager.getLaunchIntentForPackage(packageName) }.getOrNull()
+        }
+        if (launchIntent == null) {
+            gamesirChoice = 0
+            gamesirMissing = true
+            return
+        }
+        runCatching { context.startActivity(launchIntent) }
+            .onFailure {
+                gamesirChoice = 0
+                gamesirMissing = true
+            }
+    }
+
+    /** Sends the user to the GameSir page on Google Play. */
+    fun openGamesirStore() {
+        gamesirMissing = false
+        val market = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("market://details?id=$GameSirPlayPackage")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val web = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("https://play.google.com/store/apps/details?id=$GameSirPlayPackage")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(market) }
+            .recoverCatching { context.startActivity(web) }
+    }
+
     fun activateMenu(index: Int) {
 
         if (menuOpeningIndex >= 0) return
@@ -495,20 +559,7 @@ fun HorizonHome(
 
                 // GameSir
                 2 -> {
-                    val packages = listOf(
-                        "com.xiaoji.gamemiracle",
-                        "com.gamesir"
-                    )
-
-                    for (packageName in packages) {
-                        val launchIntent =
-                            context.packageManager.getLaunchIntentForPackage(packageName)
-
-                        if (launchIntent != null) {
-                            context.startActivity(launchIntent)
-                            break
-                        }
-                    }
+                    openGamesir()
                 }
 
                 // Настройки лаунчера
@@ -518,7 +569,7 @@ fun HorizonHome(
 
                 // Питание
                 4 -> {
-                    showPowerMenu = true
+                    poweringOff = true
                 }
             }
         }
@@ -625,6 +676,43 @@ fun launchGame(game: Game) {
         )
     }
 
+    if (gamesirMissing) {
+        HorizonOverlay(
+            title = stringResource(R.string.home_gamesir_missing_title),
+            onDismiss = { gamesirMissing = false },
+            onDirectionalKey = { key ->
+                when (key) {
+                    Key.DirectionDown, Key.DirectionRight -> {
+                        gamesirChoice = (gamesirChoice + 1).coerceAtMost(1)
+                        true
+                    }
+                    Key.DirectionUp, Key.DirectionLeft -> {
+                        gamesirChoice = (gamesirChoice - 1).coerceAtLeast(0)
+                        true
+                    }
+                    else -> false
+                }
+            }
+        ) {
+            Text(
+                text = stringResource(R.string.home_gamesir_missing_message),
+                color = SettingsWhite,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.home_gamesir_download),
+                selected = gamesirChoice == 0,
+                onClick = { openGamesirStore() }
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.home_gamesir_close),
+                selected = gamesirChoice == 1,
+                onClick = { gamesirMissing = false }
+            )
+        }
+    }
+
     if (showUserPage) {
         UserPageScreen(
             repository = userProfileRepository,
@@ -674,9 +762,11 @@ fun launchGame(game: Game) {
             .background(HorizonBackground)
             .graphicsLayer {
                 val zoom = FastOutSlowInEasing.transform(homeLaunchZoom)
-                scaleX = 1f + 0.085f * zoom
-                scaleY = 1f + 0.085f * zoom
-                alpha = 1f - 0.45f * zoom
+                val powerZoom = powerOffProgress.value
+                val base = 1f + 0.085f * zoom
+                scaleX = base * (1f - 0.06f * powerZoom)
+                scaleY = base * (1f - 0.06f * powerZoom)
+                alpha = (1f - 0.45f * zoom) * (1f - 0.15f * powerZoom)
             }
             .focusRequester(homeFocusRequester)
             .focusProperties { canFocus = !locked }
@@ -1038,6 +1128,15 @@ Row(verticalAlignment = Alignment.CenterVertically) {
         ScanHintOverlay(
             games = scanHint,
             onDismiss = { ScanCoordinator.consumeHint() }
+        )
+    }
+
+    // Power-off (lock) fade to black.
+    if (poweringOff || powerOffProgress.value > 0f) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = powerOffProgress.value))
         )
     }
 

@@ -144,6 +144,10 @@
     <string name="unlock_launch">Запустить</string>
     <string name="home_profile_label_none">профиль пользователя</string>
     <string name="home_profile_label_nick">Профиль пользователя * %1$s *</string>
+    <string name="home_gamesir_missing_title">Приложение GameSir не установлено</string>
+    <string name="home_gamesir_missing_message">Установите приложение GameSir, чтобы настроить и переназначить кнопки геймпада. Сейчас оно не установлено на устройстве.</string>
+    <string name="home_gamesir_download">Скачать из Google Play</string>
+    <string name="home_gamesir_close">Закрыть</string>
     <string name="settings_scanning_title">Сканирование</string>
     <string name="settings_scanning_order_hint">Источники проверяются строго в этом порядке. Каждое поле заполняет первый источник, который его предоставил.</string>
     <string name="settings_scraper_screen_scraper">ScreenScraper.fr</string>

@@ -466,5 +466,9 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="unlock_launch">Launch</string>
     <string name="home_profile_label_none">user profile</string>
     <string name="home_profile_label_nick">User profile * %1$s *</string>
+    <string name="home_gamesir_missing_title">GameSir app not installed</string>
+    <string name="home_gamesir_missing_message">Install the GameSir app to set up and map your controller. It is not installed on this device yet.</string>
+    <string name="home_gamesir_download">Get it on Google Play</string>
+    <string name="home_gamesir_close">Close</string>
 
 </resources>
