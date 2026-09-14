@@ -84,15 +84,22 @@ object RootHelper {
     }
 
     private fun parseLsLine(parent: String, line: String): FileEntry? {
-        // ls -laH: drwxr-xr-x  1 root root     4096 Jan 1 12:00 name
-        val fields = line.trim().split(Regex("\\s+"), limit = 9)
-        if (fields.size < 9) return null
+        // ls -laH: `<perms> <links> <owner> <group> <size> <date...> <name>`
+        // The date can be "Jan 1 12:00" (3 tokens) or "2023-01-01 12:00"
+        // (2 tokens), so accept both shapes instead of requiring a fixed
+        // number of fields — otherwise every file is dropped on some devices.
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) return null
+        val fields = trimmed.split(Regex("\\s+"))
+        if (fields.size < 8) return null
         val perms = fields[0]
         if (perms.isEmpty() || perms[0] !in "dl-") return null
         val isDir = perms[0] == 'd'
-        val size = fields[4].toLongOrNull() ?: -1L
-        val name = fields.drop(8).joinToString(" ")
-        if (name == "." || name == "..") return null
+        val size = fields.getOrNull(4)?.toLongOrNull() ?: -1L
+        // Classic ls has 3 date tokens, toybox/ISO has 2.
+        val nameStart = if (fields.size >= 9) 8 else 7
+        val name = fields.drop(nameStart).joinToString(" ")
+        if (name.isBlank() || name == "." || name == "..") return null
         val full = if (parent == "/") "/$name" else "$parent/$name"
         return FileEntry(
             name = name,
@@ -100,7 +107,7 @@ object RootHelper {
             isDirectory = isDir,
             size = if (isDir) -1 else size,
             hidden = name.startsWith('.'),
-            executable = perms.substring(3, 4) == "x"
+            executable = perms.length > 3 && perms[3] == 'x'
         )
     }
 }

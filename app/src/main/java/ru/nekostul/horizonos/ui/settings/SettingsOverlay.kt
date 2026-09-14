@@ -96,6 +96,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
+import ru.nekostul.horizonos.ui.HorizonNavigation
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 
 internal val LocalSettingsOverlayVisible =
@@ -342,7 +343,12 @@ internal fun HorizonOverlay(
                         false
                     } else {
                         inputMode?.value = SettingsInputMode.GAMEPAD
-                        if (event.key == Key.ButtonB || event.key == Key.Back) {
+                        if (HorizonNavigation.isHomeKeyCode(event.nativeKeyEvent.keyCode)) {
+                            // HOME/Xbox always returns to the Home Screen, even
+                            // from any nested overlay.
+                            HorizonNavigation.requestHome()
+                            true
+                        } else if (event.key == Key.ButtonB || event.key == Key.Back) {
                         if (onControllerBack?.invoke() != true) {
                             dismissAnimated()
                         }

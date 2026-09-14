@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.alpha
@@ -79,6 +80,12 @@ internal const val SelectionPulseDurationMillis = 560
 internal val SettingsAccentTeal = Color(0xFF00B180)
 
 internal val LocalSettingsRightMenuFocused = compositionLocalOf { false }
+
+/**
+ * True while the gamepad has grabbed the currently selected slider, so the
+ * slider row can highlight its thumb.
+ */
+internal val LocalSliderEditing = compositionLocalOf { false }
 
 /**
  * Touch interaction should be direct and visually quiet.  The selection frame
@@ -223,6 +230,7 @@ internal fun SettingsSliderRow(
     )
     val frameActive = inputMode?.value == SettingsInputMode.GAMEPAD &&
         rightMenuFocused && selected
+    val sliderEditing = LocalSliderEditing.current && selected && enabled
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     LaunchedEffect(frameActive) {
         if (frameActive) bringIntoViewRequester.bringIntoView()
@@ -304,7 +312,15 @@ internal fun SettingsSliderRow(
                         Modifier
                             .size(20.dp)
                             .background(SettingsThumb, CircleShape)
-                            .border(1.dp, SettingsDivider, CircleShape)
+                            .border(
+                                width = if (sliderEditing) 3.dp else 1.dp,
+                                color = if (sliderEditing) {
+                                    SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                                } else {
+                                    SettingsDivider
+                                },
+                                shape = CircleShape
+                            )
                     )
                 }
             )

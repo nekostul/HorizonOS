@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
@@ -91,6 +92,9 @@ import ru.nekostul.horizonos.ui.settings.SettingsWhite
 import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.hideDialogSystemBars
+import ru.nekostul.horizonos.ui.files.FolderPickerDialog
+import ru.nekostul.horizonos.ui.files.FileEntry
+import ru.nekostul.horizonos.ui.files.RomPickerDialog
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.GameMetadataEditor
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.MediaType
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
@@ -110,6 +114,7 @@ private const val ConfirmPage = 4
 private const val BiosWarningPage = 5
 private const val AndroidAppPage = 6
 private const val BiosWarningPreferences = "game_bios_warnings"
+private const val ConfigWarningPreferences = "game_config_warnings"
 
 private enum class RomSource {
     FOLDER
@@ -118,7 +123,6 @@ private enum class RomSource {
 @Composable
 fun GamesScreen(
     onDismiss: () -> Unit,
-    onOpenFolder: (((Uri?) -> Unit) -> Unit),
     onGamesAdded: (List<Game>) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -127,6 +131,7 @@ fun GamesScreen(
     val games by library.games.collectAsState(initial = emptyList())
     val scanner = remember { GameScanner(context) }
     val folderRepository = remember { GameFolderRepository(context) }
+    val deletedRoms = remember { DeletedRomRepository(context) }
     val focusRequester = remember { FocusRequester() }
 
     var page by remember { mutableIntStateOf(LibraryPage) }
@@ -135,8 +140,15 @@ fun GamesScreen(
     var selectedPlatform by remember { mutableStateOf(Platform.PLAYSTATION_1) }
     var selectedEmulator by remember { mutableStateOf(Emulator.DUCKSTATION) }
     var selectedSource by remember { mutableStateOf(RomSource.FOLDER) }
-    var pendingUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingPath by remember { mutableStateOf<String?>(null) }
     var pendingName by remember { mutableStateOf("") }
+    var showFolderPicker by remember { mutableStateOf(false) }
+    var showRomPicker by remember { mutableStateOf(false) }
+    var pendingRom by remember { mutableStateOf<FileEntry?>(null) }
+    var romConfirmIndex by remember { mutableIntStateOf(0) }
+    var infoOverlay by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var configWarningEmulator by remember { mutableStateOf<Emulator?>(null) }
+    var configWarningIndex by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
     var duplicateFolder by remember { mutableStateOf(false) }
     var isWorking by remember { mutableStateOf(false) }
@@ -159,19 +171,18 @@ fun GamesScreen(
         if (detailsGame?.id == updated.id) detailsGame = updated
     }
 
-    fun persistPermission(uri: Uri, flags: Int) {
-        val persistableFlags = flags and
-            (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(uri, persistableFlags)
-        }
+    // Keep the open details overlay in sync with the library, so a metadata
+    // scan that changes the title/cover is reflected immediately.
+    LaunchedEffect(games) {
+        val current = detailsGame ?: return@LaunchedEffect
+        games.firstOrNull { it.id == current.id }?.let { detailsGame = it }
     }
 
     fun resetToLibrary() {
         page = LibraryPage
         focusIndex = 0
         selectedLibraryIndex = selectedLibraryIndex.coerceIn(0, (games.size - 1).coerceAtLeast(0))
-        pendingUri = null
+        pendingPath = null
         pendingName = ""
     }
 
@@ -191,42 +202,84 @@ fun GamesScreen(
             .apply()
     }
 
+    fun isConfigWarningShown(emulator: Emulator): Boolean = context
+        .getSharedPreferences(ConfigWarningPreferences, 0)
+        .getBoolean(emulator.name, false)
+
+    fun markConfigWarningShown(emulator: Emulator) {
+        context.getSharedPreferences(ConfigWarningPreferences, 0)
+            .edit()
+            .putBoolean(emulator.name, true)
+            .apply()
+    }
+
+    /** Shows the "configure the emulator first" notice when needed. */
+    fun maybeWarnAboutConfiguration() {
+        if (selectedEmulator.requiresConfiguration && !isConfigWarningShown(selectedEmulator)) {
+            configWarningIndex = 0
+            configWarningEmulator = selectedEmulator
+        }
+    }
+
+    fun setupEmulatorNow(emulator: Emulator) {
+        markConfigWarningShown(emulator)
+        configWarningEmulator = null
+        val opened = ru.nekostul.horizonos.ui.games.emulators.SwitchEmulatorLauncher
+            .openSettings(context, emulator)
+        if (!opened) {
+            infoOverlay = context.getString(R.string.games_config_warning_title) to
+                context.getString(R.string.games_config_not_installed)
+        }
+    }
+
     fun addPendingGame() {
-        val uri = pendingUri ?: return
+        val path = pendingPath ?: return
         if (isWorking) return
         isWorking = true
         message = null
         scope.launch {
             val scan = withContext(Dispatchers.IO) {
-                val result = scanner.scanWithDetails(uri.toString(), selectedPlatform, selectedEmulator)
+                val result = scanner.scanDirectory(
+                    java.io.File(path),
+                    selectedPlatform,
+                    selectedEmulator
+                )
                 // Older builds stored every disc referenced by an M3U as a
                 // separate game. Remove those stale entries before adding the
                 // playlist-backed game so rescanning repairs existing data.
                 library.removeByRomUris(result.playlistMemberUris)
                 result
             }
-            val added = withContext(Dispatchers.IO) { library.addAll(scan.games) }
-            isWorking = false
-            if (added == 0) {
-                // Every game in this folder is already in the library, so
-                // surface a clear launcher-styled message and stay put.
-                message = null
-                duplicateFolder = true
-                return@launch
+            val addedGames = withContext(Dispatchers.IO) {
+                val ignored = deletedRoms.all()
+                val fresh = scan.games.filter { it.romUri !in ignored }
+                if (library.addAll(fresh) > 0) fresh else emptyList()
             }
-            // Remember the folder so it can be silently rescanned on launch.
+            isWorking = false
+            // Remember the folder even when nothing new was added, so a
+            // subfolder of an already-added folder can still be selected and
+            // tracked. The exact same folder is rejected earlier, in
+            // handleFolderResult, with the dedicated "already added" overlay.
             withContext(Dispatchers.IO) {
                 folderRepository.remember(
                     GameFolderRepository.Folder(
-                        path = uri.toString(),
-                        name = pendingName.ifBlank { uri.toString() },
+                        path = path,
+                        name = pendingName.ifBlank { path },
                         platform = selectedPlatform,
                         emulator = selectedEmulator
                     )
                 )
             }
-            message = context.getString(R.string.games_added_count, added)
-            onGamesAdded(scan.games)
+            if (addedGames.isEmpty()) {
+                // Nothing new was found here (all games already known or no
+                // supported ROMs). Stay on the library page with a message.
+                message = context.getString(R.string.games_none_found)
+                page = LibraryPage
+                focusIndex = 0
+                return@launch
+            }
+            message = context.getString(R.string.games_added_count, addedGames.size)
+            onGamesAdded(addedGames)
             // Close the Games window and return to the launcher Home screen.
             onDismiss()
         }
@@ -282,35 +335,77 @@ fun GamesScreen(
         }
     }
 
-    fun handleFolderResult(uri: Uri?) {
-        if (uri == null) return
+    fun handleFolderResult(path: String?) {
+        if (path.isNullOrBlank()) return
         // Reject a folder that was already added, even under another platform,
         // so the same games are never imported twice.
-        if (folderRepository.load().any { it.path == uri.toString() }) {
+        if (folderRepository.load().any { it.path == path }) {
             duplicateFolder = true
             return
         }
-        persistPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
-        pendingUri = uri
-        pendingName = DocumentFile.fromTreeUri(context, uri)?.name
-            ?: context.getString(R.string.games_selected_folder)
+        pendingPath = path
+        pendingName = java.io.File(path).name.ifBlank {
+            context.getString(R.string.games_selected_folder)
+        }
         page = if (selectedEmulator.requiresBios && !isBiosWarningShown(selectedEmulator)) {
             BiosWarningPage
         } else {
+            maybeWarnAboutConfiguration()
             ConfirmPage
         }
         focusIndex = 0
         message = null
     }
 
+    /** ROM picked from the built-in file manager (single-file add flow). */
+    fun handleRomPicked(entry: FileEntry) {
+        // Ask the user to confirm before touching the library.
+        romConfirmIndex = 0
+        pendingRom = entry
+        maybeWarnAboutConfiguration()
+    }
+
+    fun confirmAddRom() {
+        val entry = pendingRom ?: return
+        pendingRom = null
+        val file = java.io.File(entry.path)
+        if (!selectedPlatform.supportsFileName(file.name)) {
+            infoOverlay = context.getString(R.string.games_rom_error_title) to
+                context.getString(R.string.games_rom_unsupported)
+            return
+        }
+        val game = Game.fromRom(
+            title = file.nameWithoutExtension.ifBlank { file.name },
+            platform = selectedPlatform,
+            emulator = selectedEmulator,
+            romUri = file.absolutePath,
+            romName = file.name
+        )
+        scope.launch {
+            val added = withContext(Dispatchers.IO) { library.addAll(listOf(game)) }
+            if (added == 0) {
+                infoOverlay = context.getString(R.string.games_duplicate_title) to
+                    context.getString(R.string.games_rom_already_added)
+                return@launch
+            }
+            // A deliberate add clears the "deleted" mark, so the game sticks.
+            withContext(Dispatchers.IO) { deletedRoms.clearDeleted(file.absolutePath) }
+            showRomPicker = false
+            onGamesAdded(listOf(game))
+            onDismiss()
+        }
+    }
+
+    /** Library order used for display and focus: grouped by emulator. */
+    fun orderedGames(): List<Game> = games.sortedWith(
+        compareBy({ it.emulator.ordinal }, { it.displayTitle.lowercase() })
+    )
+
     fun currentItemCount(): Int = when (page) {
-        LibraryPage -> games.size + 1
+        LibraryPage -> orderedGames().size + 1
         PlatformPage -> Platform.values().size
         EmulatorPage -> Emulator.values().count { it.platform == selectedPlatform }
-        SourcePage -> 1
+        SourcePage -> 2
         ConfirmPage -> 2
         BiosWarningPage -> 2
         AndroidAppPage -> installedApps.size + 1
@@ -321,7 +416,7 @@ fun GamesScreen(
         val count = currentItemCount()
         if (count > 0) {
             focusIndex = (focusIndex + direction + count) % count
-            if (page == LibraryPage && focusIndex < games.size) {
+            if (page == LibraryPage && focusIndex < orderedGames().size) {
                 selectedLibraryIndex = focusIndex
             }
         }
@@ -329,22 +424,25 @@ fun GamesScreen(
 
     fun confirmFocusedItem() {
         when (page) {
-            LibraryPage -> when {
-                focusIndex < games.size -> {
-                    // The library can refresh asynchronously while a key
-                    // event is being delivered. Resolve the item defensively
-                    // so a stale focus index cannot crash the dialog.
-                    games.getOrNull(focusIndex)?.let { game ->
-                        selectedLibraryIndex = focusIndex
-                        openGameDetails(game)
+            LibraryPage -> {
+                val ordered = orderedGames()
+                when {
+                    focusIndex < ordered.size -> {
+                        // The library can refresh asynchronously while a key
+                        // event is being delivered. Resolve the item defensively
+                        // so a stale focus index cannot crash the dialog.
+                        ordered.getOrNull(focusIndex)?.let { game ->
+                            selectedLibraryIndex = focusIndex
+                            openGameDetails(game)
+                        }
                     }
+                    focusIndex == ordered.size -> {
+                        page = PlatformPage
+                        focusIndex = 0
+                        message = null
+                    }
+                    else -> Unit
                 }
-                focusIndex == games.size -> {
-                    page = PlatformPage
-                    focusIndex = 0
-                    message = null
-                }
-                else -> Unit
             }
 
             PlatformPage -> {
@@ -373,14 +471,18 @@ fun GamesScreen(
             }
 
             SourcePage -> {
-                selectedSource = RomSource.FOLDER
-                onOpenFolder(::handleFolderResult)
+                if (focusIndex == 0) {
+                    selectedSource = RomSource.FOLDER
+                    showFolderPicker = true
+                } else {
+                    showRomPicker = true
+                }
             }
 
             ConfirmPage -> if (focusIndex == 0) addPendingGame() else {
                 page = SourcePage
                 focusIndex = 0
-                pendingUri = null
+                pendingPath = null
                 pendingName = ""
             }
 
@@ -391,7 +493,7 @@ fun GamesScreen(
             } else {
                 page = SourcePage
                 focusIndex = 0
-                pendingUri = null
+                pendingPath = null
                 pendingName = ""
             }
 
@@ -425,13 +527,13 @@ fun GamesScreen(
             ConfirmPage -> {
                 page = SourcePage
                 focusIndex = 0
-                pendingUri = null
+                pendingPath = null
                 pendingName = ""
             }
             BiosWarningPage -> {
                 page = SourcePage
                 focusIndex = 0
-                pendingUri = null
+                pendingPath = null
                 pendingName = ""
             }
             AndroidAppPage -> {
@@ -458,13 +560,8 @@ fun GamesScreen(
 
     LaunchedEffect(page, games.size, focusIndex) {
         focusIndex = focusIndex.coerceIn(0, (currentItemCount() - 1).coerceAtLeast(0))
-        // The Android app list scrolls only when the focused row is actually
-        // outside the viewport (handled per-row via BringIntoViewRequester),
-        // so it must not use the fixed offset scrolling below.
-        if (page != AndroidAppPage) {
-            val target = with(density) { (focusIndex * 78).dp.roundToPx() }
-            gamesScrollState.animateScrollTo(target)
-        }
+        // Scrolling is handled per-row via BringIntoViewRequester, so it only
+        // happens when the focused row is actually outside the viewport.
         // HorizonOverlay creates a separate Dialog window. Request focus
         // after that window has attached so controller events reach this
         // screen instead of the scrim host.
@@ -507,7 +604,7 @@ fun GamesScreen(
         ) {
             when (page) {
                 LibraryPage -> LibraryContent(
-                    games = games,
+                    games = orderedGames(),
                     focusIndex = focusIndex,
                     message = message,
                     onGameClick = ::openGameDetails,
@@ -560,10 +657,11 @@ fun GamesScreen(
                     platform = selectedPlatform,
                     emulator = selectedEmulator,
                     focusIndex = focusIndex,
-                    onSelect = {
+                    onFolder = {
                         selectedSource = RomSource.FOLDER
-                        onOpenFolder(::handleFolderResult)
-                    }
+                        showFolderPicker = true
+                    },
+                    onRom = { showRomPicker = true }
                 )
 
                 ConfirmPage -> ConfirmContent(
@@ -601,6 +699,9 @@ fun GamesScreen(
             onDelete = {
                 detailsGame = null
                 scope.launch {
+                    // Remember the deletion so the silent folder rescan never
+                    // brings this ROM back on its own.
+                    withContext(Dispatchers.IO) { deletedRoms.markDeleted(game.romUri) }
                     library.remove(game)
                     message = context.getString(R.string.games_removed)
                 }
@@ -644,6 +745,7 @@ fun GamesScreen(
     customCoverGame?.let { game ->
         ImagePickerOverlay(
             title = stringResource(R.string.games_custom_cover_title),
+            cropSquare = true,
             onPick = { entry ->
                 customCoverGame = null
                 scope.launch {
@@ -690,6 +792,128 @@ fun GamesScreen(
         }
     }
 
+    if (showFolderPicker) {
+        FolderPickerDialog(
+            onDismiss = { showFolderPicker = false },
+            onPick = { path ->
+                showFolderPicker = false
+                handleFolderResult(path)
+            }
+        )
+    }
+
+    if (showRomPicker) {
+        RomPickerDialog(
+            onDismiss = { showRomPicker = false },
+            // Keep the picker open while the confirmation is shown, so "No"
+            // returns the user exactly where they were.
+            onPick = { entry -> handleRomPicked(entry) },
+            allowedExtensions = selectedPlatform.romExtensions
+        )
+    }
+
+    configWarningEmulator?.let { emulator ->
+        HorizonOverlay(
+            title = stringResource(R.string.games_config_warning_title),
+            onDismiss = {
+                markConfigWarningShown(emulator)
+                configWarningEmulator = null
+            },
+            onDirectionalKey = { key ->
+                when (key) {
+                    Key.DirectionDown, Key.DirectionRight -> {
+                        configWarningIndex = (configWarningIndex + 1).coerceAtMost(1)
+                        true
+                    }
+                    Key.DirectionUp, Key.DirectionLeft -> {
+                        configWarningIndex = (configWarningIndex - 1).coerceAtLeast(0)
+                        true
+                    }
+                    else -> false
+                }
+            }
+        ) {
+            Text(
+                text = stringResource(
+                    R.string.games_config_warning_description,
+                    emulatorLabel(emulator)
+                ),
+                color = SettingsWhite,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.games_config_now),
+                selected = configWarningIndex == 0,
+                onClick = { setupEmulatorNow(emulator) }
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.games_config_later),
+                selected = configWarningIndex == 1,
+                onClick = {
+                    markConfigWarningShown(emulator)
+                    configWarningEmulator = null
+                }
+            )
+        }
+    }
+
+    pendingRom?.takeIf { configWarningEmulator == null }?.let { entry ->
+        HorizonOverlay(
+            title = stringResource(R.string.games_rom_confirm_title),
+            onDismiss = { pendingRom = null },
+            onDirectionalKey = { key ->
+                when (key) {
+                    Key.DirectionDown, Key.DirectionRight -> {
+                        romConfirmIndex = (romConfirmIndex + 1).coerceAtMost(1)
+                        true
+                    }
+                    Key.DirectionUp, Key.DirectionLeft -> {
+                        romConfirmIndex = (romConfirmIndex - 1).coerceAtLeast(0)
+                        true
+                    }
+                    else -> false
+                }
+            }
+        ) {
+            Text(
+                text = stringResource(R.string.games_rom_confirm_message, entry.name),
+                color = SettingsWhite,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.games_confirm_yes),
+                selected = romConfirmIndex == 0,
+                onClick = { confirmAddRom() }
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.games_confirm_no),
+                selected = romConfirmIndex == 1,
+                onClick = { pendingRom = null }
+            )
+        }
+    }
+
+    infoOverlay?.let { (title, text) ->
+        HorizonOverlay(
+            title = title,
+            onDismiss = { infoOverlay = null }
+        ) {
+            Text(
+                text = text,
+                color = SettingsWhite,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+            HorizonOverlayChoice(
+                title = stringResource(R.string.action_ok),
+                selected = true,
+                onClick = { infoOverlay = null }
+            )
+        }
+    }
+
     }
 }
 
@@ -701,9 +925,18 @@ private fun LibraryContent(
     onGameClick: (Game) -> Unit,
     onAddClick: () -> Unit
 ) {
-    games.forEachIndexed { index, game ->
+    var index = 0
+    var currentEmulator: Emulator? = null
+    games.forEach { game ->
+        if (game.emulator != currentEmulator) {
+            currentEmulator = game.emulator
+            LibrarySectionHeader(
+                title = platformLabel(game.platform),
+                subtitle = emulatorLabel(game.emulator)
+            )
+        }
         GameOptionRow(
-title = game.displayTitle,
+            title = game.displayTitle,
             subtitle = stringResource(
                 R.string.games_selection_summary,
                 platformLabel(game.platform),
@@ -714,6 +947,7 @@ title = game.displayTitle,
             hidden = game.hidden,
             onClick = { onGameClick(game) }
         )
+        index++
     }
     GameOptionRow(
         title = stringResource(R.string.games_add),
@@ -734,6 +968,28 @@ title = game.displayTitle,
             fontSize = 14.sp,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
         )
+    }
+}
+
+/** Visual grouping header for a platform/emulator section in the library. */
+@Composable
+private fun LibrarySectionHeader(title: String, subtitle: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .width(4.dp)
+                .height(22.dp)
+                .background(SettingsBlue)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(title, color = SettingsWhite, fontSize = 18.sp)
+        Spacer(Modifier.width(8.dp))
+        Text(subtitle, color = SettingsGray, fontSize = 13.sp)
     }
 }
 
@@ -781,7 +1037,8 @@ private fun SourceContent(
     platform: Platform,
     emulator: Emulator,
     focusIndex: Int,
-    onSelect: (RomSource) -> Unit
+    onFolder: () -> Unit,
+    onRom: () -> Unit
 ) {
     Text(
         text = stringResource(R.string.games_selection_summary, platformLabel(platform), emulatorLabel(emulator)),
@@ -792,10 +1049,18 @@ private fun SourceContent(
     GameOptionRow(
         title = stringResource(R.string.games_choose_folder),
         subtitle = stringResource(R.string.games_choose_folder_description),
-        selected = true,
+        selected = focusIndex == 0,
         focused = focusIndex == 0,
         accent = true,
-        onClick = { onSelect(RomSource.FOLDER) }
+        onClick = onFolder
+    )
+    GameOptionRow(
+        title = stringResource(R.string.games_add_rom),
+        subtitle = stringResource(R.string.games_add_rom_description),
+        selected = focusIndex == 1,
+        focused = focusIndex == 1,
+        accent = true,
+        onClick = onRom
     )
 }
 
@@ -1047,7 +1312,7 @@ private fun GameOptionRow(
     focused: Boolean,
     accent: Boolean = false,
     hidden: Boolean = false,
-    bringIntoViewWhenFocused: Boolean = false,
+    bringIntoViewWhenFocused: Boolean = true,
     onClick: () -> Unit
 ) {
     val inputMode = LocalSettingsInputMode.current
@@ -1135,6 +1400,7 @@ private fun platformLabel(platform: Platform): String = when (platform) {
     Platform.PSP -> stringResource(R.string.games_platform_psp)
     Platform.PLAYSTATION_2 -> stringResource(R.string.games_platform_ps2)
     Platform.GAMECUBE_WII -> stringResource(R.string.games_platform_gamecube_wii)
+    Platform.NINTENDO_SWITCH -> stringResource(R.string.games_platform_switch)
     Platform.ANDROID -> stringResource(R.string.games_platform_android)
 }
 
@@ -1153,17 +1419,12 @@ private fun GameDetailsOverlay(
 ) {
     val focusRequester = remember { FocusRequester() }
     val detailScrollState = rememberScrollState()
-    val density = LocalDensity.current
     var focusIndex by remember { mutableIntStateOf(0) }
     val inputMode = LocalSettingsInputMode.current
     // Compose Dialog uses a separate window context. Preserve the localized
     // parent context so the title and all action rows use the same language.
     val localizedContext = LocalContext.current
     val rowCount = 4
-
-    LaunchedEffect(focusIndex) {
-        detailScrollState.animateScrollTo(with(density) { (focusIndex * 58).dp.roundToPx() })
-    }
 
     fun moveFocus(direction: Int) {
         focusIndex = (focusIndex + direction + rowCount) % rowCount
@@ -1395,6 +1656,10 @@ private fun GameDetailsActionRow(
         label = "gameDetailsSelectionPulseValue"
     )
     val active = inputMode?.value == SettingsInputMode.GAMEPAD && selected
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(selected) {
+        if (selected) bringIntoViewRequester.bringIntoView()
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1416,6 +1681,7 @@ private fun GameDetailsActionRow(
                 inputMode?.value = SettingsInputMode.TOUCH
                 onClick()
             }
+            .bringIntoViewRequester(bringIntoViewRequester)
             .padding(horizontal = 10.dp, vertical = 9.dp)
     ) {
         Text(

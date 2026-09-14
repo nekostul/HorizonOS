@@ -74,7 +74,7 @@ internal fun FileRow(
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FileIcon(entry, preview)
+        FileEntryIcon(entry = entry, preview = preview, iconSize = 36.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -107,58 +107,5 @@ internal fun FileRow(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun FileIcon(entry: FileEntry, preview: ImageBitmap?) {
-    val tint = if (entry.isDirectory) FileTheme.accent else FileTheme.muted
-    Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(FileTheme.pathBar),
-        contentAlignment = Alignment.Center
-    ) {
-        when {
-            preview != null -> Image(bitmap = preview, contentDescription = null, modifier = Modifier.size(36.dp), contentScale = ContentScale.Crop)
-            entry.isDirectory -> FolderGlyph(tint)
-            entry.kind == FileKind.APK -> FileGlyph("APK", tint)
-            entry.kind == FileKind.IMAGE -> FileGlyph("IMG", tint)
-            entry.kind == FileKind.VIDEO -> FileGlyph("VID", tint)
-            entry.kind == FileKind.AUDIO -> FileGlyph("AUD", tint)
-            entry.kind == FileKind.ZIP || entry.kind == FileKind.RAR ||
-                entry.kind == FileKind.SEVEN_ZIP || entry.kind == FileKind.TAR ||
-                entry.kind == FileKind.GZIP || entry.kind == FileKind.BZIP -> FileGlyph("ARC", tint)
-            entry.kind == FileKind.ROM || entry.kind == FileKind.ISO ||
-                entry.kind == FileKind.BIN_CUE || entry.kind == FileKind.CHD -> FileGlyph("ROM", tint)
-            entry.kind == FileKind.TEXT -> FileGlyph("TXT", tint)
-            else -> FileGlyph("FILE", tint)
-        }
-    }
-}
-
-@Composable
-private fun FolderGlyph(color: Color) {
-    Canvas(Modifier.size(24.dp)) {
-        drawRoundRect(
-            color = color,
-            topLeft = Offset(0f, size.height * 0.14f),
-            size = size,
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
-        )
-    }
-}
-
-@Composable
-private fun FileGlyph(label: String, color: Color) {
-    Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(24.dp)) {
-            drawRoundRect(
-                color = color.copy(alpha = 0.85f),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
-            )
-        }
-        Text(label, color = FileTheme.panel, fontSize = 8.sp, maxLines = 1)
     }
 }

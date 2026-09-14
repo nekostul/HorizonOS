@@ -3,6 +3,10 @@ package ru.nekostul.horizonos
 import android.os.Bundle
 import android.os.Build
 import android.os.SystemClock
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -19,9 +23,13 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import ru.nekostul.horizonos.ui.home.HorizonHome
+import ru.nekostul.horizonos.ui.HorizonNavigation
+import ru.nekostul.horizonos.ui.lockscreen.HorizonLock
+import ru.nekostul.horizonos.ui.lockscreen.UnlockScreen
 import ru.nekostul.horizonos.ui.theme.HorizonOSTheme
 import android.content.pm.ActivityInfo
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
@@ -29,12 +37,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import ru.nekostul.horizonos.ui.settings.LauncherSettings
 import ru.nekostul.horizonos.ui.settings.LauncherSettingsRepository
 import ru.nekostul.horizonos.ui.settings.LanguageManager
 import ru.nekostul.horizonos.ui.home.HorizonStartupAnimation
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -92,8 +105,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var runtimePermissionLauncher: ActivityResultLauncher<Array<String>>
-    private lateinit var gameFolderLauncher: ActivityResultLauncher<Uri?>
-    private var pendingGameFolderResult: ((Uri?) -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,12 +112,6 @@ class MainActivity : ComponentActivity() {
         runtimePermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { }
-        gameFolderLauncher = registerForActivityResult(
-            ActivityResultContracts.OpenDocumentTree()
-        ) { uri ->
-            pendingGameFolderResult?.invoke(uri)
-            pendingGameFolderResult = null
-        }
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
@@ -138,9 +143,47 @@ class MainActivity : ComponentActivity() {
         setContent {
             val repository = remember { LauncherSettingsRepository(this@MainActivity) }
             val settings by repository.settings.collectAsState(initial = LauncherSettings())
+            val locked by HorizonLock.locked.collectAsState()
             var showStartupAnimation by remember { mutableStateOf(true) }
+            var unlocking by remember { mutableStateOf(false) }
+            // Drives the unlock transition: the scrim, the blurred Home and the
+            // unlock button all fade together.
+            val unlockProgress by animateFloatAsState(
+                targetValue = if (unlocking) 1f else 0f,
+                animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+                label = "unlockProgress"
+            )
+            LaunchedEffect(unlockProgress, unlocking) {
+                if (unlocking && unlockProgress >= 1f) {
+                    HorizonLock.unlock()
+                    unlocking = false
+                    showStartupAnimation = false
+                }
+            }
             val localizedContext = remember(settings.language) {
                 LanguageManager.localizedContext(this@MainActivity, settings.language)
+            }
+            // Lock HorizonOS when the device screen turns off, so waking the
+            // screen shows the unlock screen instead of the Home screen.
+            DisposableEffect(Unit) {
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(ctx: Context?, intent: Intent?) {
+                        if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                            HorizonLock.lock()
+                        }
+                    }
+                }
+                val filter = IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
+                }
+                ContextCompat.registerReceiver(
+                    this@MainActivity,
+                    receiver,
+                    filter,
+                    ContextCompat.RECEIVER_NOT_EXPORTED
+                )
+                onDispose { this@MainActivity.unregisterReceiver(receiver) }
             }
             // Let the scan coordinator reach the app context as early as possible.
             LaunchedEffect(Unit) {
@@ -159,6 +202,20 @@ class MainActivity : ComponentActivity() {
                     runtimePermissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                 }
             }
+            // The file manager and the built-in ROM folder picker need full
+            // storage access. On Android 11+ this is granted through the
+            // system "All files access" screen.
+            LaunchedEffect(Unit) {
+                val legacy = ru.nekostul.horizonos.ui.files.StorageAccess
+                    .missingLegacyPermissions(this@MainActivity)
+                if (legacy.isNotEmpty()) {
+                    runtimePermissionLauncher.launch(legacy)
+                }
+                if (!ru.nekostul.horizonos.ui.files.StorageAccess.hasAllFilesAccess()) {
+                    ru.nekostul.horizonos.ui.files.StorageAccess
+                        .requestAllFilesAccess(this@MainActivity)
+                }
+            }
             CompositionLocalProvider(
                 LocalContext provides localizedContext,
             ) {
@@ -173,19 +230,37 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(LocalHorizonColors.current.background)
                     ) {
-                        if (showStartupAnimation) {
-                            HorizonStartupAnimation()
-                        } else {
-                            HorizonHome(
-                                onRequestPermissions = { permissions ->
-                                    if (permissions.isNotEmpty()) {
-                                        runtimePermissionLauncher.launch(permissions)
+                        // The Home content stays composed underneath the lock
+                        // screen and is blurred while locked, so the unlock
+                        // screen shows the console behind it. The blur fades out
+                        // smoothly during the unlock animation.
+                        val blurRadius = if (locked) 20f * (1f - unlockProgress) else 0f
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(
+                                    if (blurRadius > 0.4f) Modifier.blur(blurRadius.dp)
+                                    else Modifier
+                                )
+                        ) {
+                            if (showStartupAnimation && !locked) {
+                                HorizonStartupAnimation()
+                            } else {
+                                HorizonHome(
+                                    onRequestPermissions = { permissions ->
+                                        if (permissions.isNotEmpty()) {
+                                            runtimePermissionLauncher.launch(permissions)
+                                        }
                                     }
-                                },
-                                onOpenGameFolder = { callback ->
-                                    pendingGameFolderResult = callback
-                                    gameFolderLauncher.launch(null)
-                                }
+                                )
+                            }
+                        }
+
+                        if (locked) {
+                            UnlockScreen(
+                                unlockProgress = unlockProgress,
+                                onUnlockStart = { unlocking = true },
+                                pressRequired = if (settings.lockScreenEnabled) 3 else 1
                             )
                         }
                     }
@@ -197,6 +272,25 @@ class MainActivity : ComponentActivity() {
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         // Launcher navigation is handled by the visible overlay or controller.
+    }
+
+    /**
+     * The controller HOME/Xbox button is captured here once for every screen
+     * that lives in the activity window. Dialogs (game screens, overlays) route
+     * the same request through [HorizonOverlay]. Both end up in
+     * [HorizonNavigation], which the root Home screen observes.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN &&
+            HorizonNavigation.isHomeKeyCode(event.keyCode)
+        ) {
+            // HOME/Xbox must never bypass the unlock screen.
+            if (!HorizonLock.locked.value) {
+                HorizonNavigation.requestHome()
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onDestroy() {

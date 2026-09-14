@@ -17,6 +17,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -37,20 +42,47 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
 import ru.nekostul.horizonos.R
+import ru.nekostul.horizonos.ui.HorizonButtonGlyph
+import ru.nekostul.horizonos.ui.HorizonNavigation
+import ru.nekostul.horizonos.ui.HorizonStartGlyph
+import ru.nekostul.horizonos.ui.HorizonXboxGlyph
+import ru.nekostul.horizonos.ui.isExternalGamepadConnected
+import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.settings.*
 
 /**
  * HorizonOS File Manager. Full-screen, gamepad-first, using the shared
  * HorizonOS overlay system. Root-aware reading when running with root;
  * otherwise plain Android storage access.
+ *
+ * [mode] switches between the normal file browser and the ROM folder picker
+ * used by the add-games flow. In pick mode START chooses the current folder.
  */
+enum class FilesMode { BROWSE, PICK_FOLDER, PICK_FILE }
+
 @Composable
-fun FilesScreen(onDismiss: () -> Unit) {
+fun FilesScreen(
+    onDismiss: () -> Unit,
+    mode: FilesMode = FilesMode.BROWSE,
+    onFolderPicked: ((String) -> Unit)? = null,
+    onFilePicked: ((FileEntry) -> Unit)? = null,
+    allowedExtensions: Set<String> = emptySet(),
+    titleOverride: String? = null
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val inputMode = remember { mutableStateOf(SettingsInputMode.TOUCH) }
+    val inputMode = remember {
+        mutableStateOf(
+            if (isExternalGamepadConnected()) SettingsInputMode.GAMEPAD
+            else SettingsInputMode.TOUCH
+        )
+    }
     val listFocusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+    val pickFolderMode = mode == FilesMode.PICK_FOLDER
+    val pickFileMode = mode == FilesMode.PICK_FILE
+    val pickerMode = pickFolderMode || pickFileMode
 
     var currentPath by remember { mutableStateOf<String?>(null) }
     var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
@@ -133,6 +165,80 @@ fun FilesScreen(onDismiss: () -> Unit) {
                 is FileOpenResult.Success -> Unit
                 is FileOpenResult.Failed -> error = result.message
             }
+        }
+    }
+
+    // Moves the selection in the grid and scrolls by the minimum amount needed
+    // to keep the focused tile fully inside the viewport.
+    fun moveGridFocus(columns: Int, deltaRows: Int = 0, deltaColumns: Int = 0) {
+        if (entries.isEmpty()) return
+        val next = (focusedIndex + deltaRows * columns + deltaColumns)
+            .coerceIn(0, entries.lastIndex)
+        focusedIndex = next
+        val info = gridState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == next }
+        if (item == null) {
+            scope.launch { gridState.animateScrollToItem(next) }
+            return
+        }
+        val top = item.offset.y
+        val height = item.size.height
+        val delta = when {
+            top < info.viewportStartOffset -> top - info.viewportStartOffset
+            top + height > info.viewportEndOffset -> top + height - info.viewportEndOffset
+            else -> 0
+        }
+        if (delta != 0) scope.launch { gridState.animateScrollBy(delta.toFloat()) }
+    }
+
+    /** Picks the folder currently open (ROM pick mode, START button). */
+    fun pickCurrentFolder() {
+        val path = currentPath ?: return
+        onFolderPicked?.invoke(path)
+        onDismiss()
+    }
+
+    fun goUp() {
+        val path = currentPath
+        if (path == null || path == "/" || path == "/storage/emulated/0") {
+            onDismiss()
+        } else {
+            val parent = File(path).parent
+            if (parent != null) {
+                currentPath = parent
+                focusedIndex = 0
+                scope.launch {
+                    loadEntries()
+                    gridState.scrollToItem(0)
+                }
+            } else onDismiss()
+        }
+    }
+
+    fun pickFocusedFile() {
+        val e = entries.getOrNull(focusedIndex) ?: return
+        if (e.isDirectory) return
+        // Only files the selected platform can actually open may be chosen.
+        if (allowedExtensions.isNotEmpty() && e.extension.lowercase() !in allowedExtensions) return
+        onFilePicked?.invoke(e)
+    }
+
+    fun isSelectableFile(entry: FileEntry): Boolean =
+        !entry.isDirectory &&
+            (allowedExtensions.isEmpty() || entry.extension.lowercase() in allowedExtensions)
+
+    fun activateFocused() {
+        if (entries.isEmpty() || focusedIndex !in entries.indices) return
+        val e = entries[focusedIndex]
+        inputMode.value = SettingsInputMode.GAMEPAD
+        when {
+            selected.isNotEmpty() -> selected =
+                if (e.path in selected) selected - e.path else selected + e.path
+            e.isDirectory -> openEntry(e)
+            pickFileMode -> pickFocusedFile()
+            // Folder pick mode: a file cannot be entered, only folders can.
+            pickFolderMode -> Unit
+            else -> openFile(e)
         }
     }
 
@@ -224,11 +330,22 @@ fun FilesScreen(onDismiss: () -> Unit) {
         }
     }
 
-    // Initial load
+    // Initial load. Focus the first item as soon as the grid has content so
+    // the controller can act immediately without a directional press first.
     LaunchedEffect(Unit) {
         val roots = File("/storage/emulated/0")
         currentPath = if (roots.exists()) "/storage/emulated/0" else "/"
         loadEntries()
+        delay(40)
+        listFocusRequester.requestFocus()
+    }
+
+    // When the folder changes, put the selection back on the first entry and
+    // keep the focus on the grid.
+    LaunchedEffect(currentPath, entries) {
+        if (searching) return@LaunchedEffect
+        focusedIndex = focusedIndex.coerceIn(0, (entries.size - 1).coerceAtLeast(0))
+        delay(30)
         listFocusRequester.requestFocus()
     }
 
@@ -239,18 +356,7 @@ fun FilesScreen(onDismiss: () -> Unit) {
             searching -> { searching = false; query = "" }
             showNewMenu -> showNewMenu = false
             selected.isNotEmpty() -> selected = emptySet()
-            else -> {
-                val path = currentPath
-                if (path == null || path == "/" || path == "/storage/emulated/0") onDismiss()
-                else {
-                    val parent = File(path).parent
-                    if (parent != null) {
-                        currentPath = parent
-                        focusedIndex = 0
-                        scope.launch { loadEntries() }
-                    } else onDismiss()
-                }
-            }
+            else -> goUp()
         }
     }
 
@@ -260,6 +366,14 @@ fun FilesScreen(onDismiss: () -> Unit) {
                 .fillMaxSize()
                 .background(FileTheme.background)
                 .focusable()
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown &&
+                        HorizonNavigation.isHomeKeyCode(event.nativeKeyEvent.keyCode)
+                    ) {
+                        HorizonNavigation.requestHome()
+                        true
+                    } else false
+                }
         ) {
             Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
                 Spacer(Modifier.height(16.dp))
@@ -268,7 +382,7 @@ fun FilesScreen(onDismiss: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(R.string.files_title),
+                        text = titleOverride ?: stringResource(R.string.files_title),
                         color = FileTheme.text,
                         fontSize = 25.sp
                     )
@@ -332,78 +446,76 @@ fun FilesScreen(onDismiss: () -> Unit) {
                         }
                     }
                 } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(listFocusRequester)
-                            .focusable()
-                            .onKeyEvent { event ->
-                                if (event.type != KeyEventType.KeyDown) false
-                                else when (event.key) {
-                                    Key.DirectionDown -> {
-                                        if (entries.isNotEmpty()) {
-                                            focusedIndex = (focusedIndex + 1).coerceAtMost(entries.lastIndex)
-                                            scope.launch { listState.animateScrollToItem(focusedIndex) }
-                                        }
+                    BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                        val cellMinWidth = 160.dp
+                        val columns = (maxWidth / cellMinWidth).toInt().coerceAtLeast(1)
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(columns),
+                            state = gridState,
+                            contentPadding = PaddingValues(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .focusRequester(listFocusRequester)
+                                .focusable()
+                                .onKeyEvent { event ->
+                                    if (event.type != KeyEventType.KeyDown) false
+                                    else if (isHorizonConfirmKey(event)) {
+                                        activateFocused()
                                         true
-                                    }
-                                    Key.DirectionUp -> {
-                                        focusedIndex = (focusedIndex - 1).coerceAtLeast(0)
-                                        scope.launch { listState.animateScrollToItem(focusedIndex) }
-                                        true
-                                    }
-                                    Key.ButtonA -> {
-                                        if (entries.isNotEmpty() && focusedIndex in entries.indices) {
-                                            val e = entries[focusedIndex]
-                                            inputMode.value = SettingsInputMode.GAMEPAD
-                                            if (selected.isNotEmpty()) toggleSelect(e)
-                                            else if (e.isDirectory) openEntry(e)
-                                            else openFile(e)
-                                        }
-                                        true
-                                    }
-                                    Key.ButtonX -> {
-                                        if (entries.isNotEmpty() && focusedIndex in entries.indices) {
-                                            toggleSelect(entries[focusedIndex])
-                                        }
-                                        true
-                                    }
-                                    Key.ButtonB -> {
-                                        if (selected.isNotEmpty()) selected = emptySet()
-                                        else {
-                                            val path = currentPath
-                                            if (path == null || path == "/" || path == "/storage/emulated/0") onDismiss()
-                                            else {
-                                                val parent = File(path).parent
-                                                if (parent != null) { currentPath = parent; focusedIndex = 0; scope.launch { loadEntries() } }
+                                    } else when (event.key) {
+                                        Key.DirectionRight -> { moveGridFocus(columns, deltaColumns = 1); true }
+                                        Key.DirectionLeft -> { moveGridFocus(columns, deltaColumns = -1); true }
+                                        Key.DirectionDown -> { moveGridFocus(columns, deltaRows = 1); true }
+                                        Key.DirectionUp -> { moveGridFocus(columns, deltaRows = -1); true }
+                                        Key.ButtonX -> {
+                                            if (!pickerMode && entries.isNotEmpty() && focusedIndex in entries.indices) {
+                                                inputMode.value = SettingsInputMode.GAMEPAD
+                                                toggleSelect(entries[focusedIndex])
                                             }
+                                            true
                                         }
-                                        true
+                                        Key.ButtonB -> {
+                                            if (selected.isNotEmpty()) selected = emptySet() else goUp()
+                                            true
+                                        }
+                                        Key.ButtonStart -> {
+                                            if (pickFolderMode) pickCurrentFolder()
+                                            else if (pickFileMode) pickFocusedFile()
+                                            true
+                                        }
+                                        else -> false
                                     }
-                                    else -> false
                                 }
+                        ) {
+                            gridItemsIndexed(entries, key = { _, entry -> entry.path }) { index, entry ->
+                                FileGridItem(
+                                    entry = entry,
+                                    selected = entry.path in selected,
+                                    focused = focusedIndex == index,
+                                    inputMode = inputMode.value,
+                                    onClick = {
+                                        inputMode.value = SettingsInputMode.TOUCH
+                                        when {
+                                            !pickerMode && selected.isNotEmpty() -> toggleSelect(entry)
+                                            entry.isDirectory -> openEntry(entry)
+                                            pickFileMode -> {
+                                                // Unsupported files just get focused and
+                                                // show the "not supported" hint.
+                                                if (isSelectableFile(entry)) onFilePicked?.invoke(entry)
+                                            }
+                                            pickerMode -> Unit
+                                            else -> openFile(entry)
+                                        }
+                                    },
+                                    onFocus = { focusedIndex = index }
+                                )
                             }
-                    ) {
-                        itemsIndexed(entries) { index, entry ->
-                            val sel = entry.path in selected
-                            FileRow(
-                                entry = entry,
-                                selected = sel,
-                                focused = focusedIndex == index && inputMode.value == SettingsInputMode.GAMEPAD,
-                                inputMode = inputMode.value,
-                                subtitle = entry.sizeLabel(),
-                                onClick = {
-                                    inputMode.value = SettingsInputMode.TOUCH
-                                    if (selected.isNotEmpty()) toggleSelect(entry)
-                                    else if (entry.isDirectory) openEntry(entry)
-                                    else openFile(entry)
-                                },
-                                onFocus = { focusedIndex = index }
-                            )
                         }
                     }
                 }
+
 
                 // Bottom action bar
                 Row(
@@ -412,6 +524,7 @@ fun FilesScreen(onDismiss: () -> Unit) {
                         .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (!pickerMode) {
                     if (selected.isNotEmpty()) {
                         Text(
                             text = "${selected.size}",
@@ -451,6 +564,51 @@ fun FilesScreen(onDismiss: () -> Unit) {
                             Text("ROOT", color = FileTheme.accent, fontSize = 12.sp)
                         }
                     }
+                    }
+                    val focusedEntry = entries.getOrNull(focusedIndex)
+                    if (pickFileMode && focusedEntry != null &&
+                        !focusedEntry.isDirectory && !isSelectableFile(focusedEntry)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.games_rom_unsupported),
+                            color = Color(0xFFFF6070),
+                            fontSize = 14.sp,
+                            maxLines = 1
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (pickFolderMode) {
+                        FileFooterAction(
+                            glyph = { HorizonStartGlyph(size = 18.dp, fill = FileTheme.text, contentColor = FileTheme.background) },
+                            label = stringResource(R.string.files_pick_folder),
+                            onClick = { pickCurrentFolder() }
+                        )
+                        Spacer(Modifier.width(16.dp))
+                    } else if (pickFileMode && focusedEntry != null && isSelectableFile(focusedEntry)) {
+                        FileFooterAction(
+                            glyph = { HorizonStartGlyph(size = 18.dp, fill = FileTheme.text, contentColor = FileTheme.background) },
+                            label = stringResource(R.string.files_pick_rom),
+                            onClick = { pickFocusedFile() }
+                        )
+                        Spacer(Modifier.width(16.dp))
+                    }
+                    FileFooterAction(
+                        glyph = { HorizonButtonGlyph("B", size = 18.dp, fill = FileTheme.text, contentColor = FileTheme.background) },
+                        label = stringResource(R.string.settings_action_back),
+                        onClick = { goUp() }
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    FileFooterAction(
+                        glyph = { HorizonButtonGlyph("A", size = 18.dp, fill = FileTheme.text, contentColor = FileTheme.background) },
+                        label = stringResource(R.string.action_ok),
+                        onClick = { activateFocused() }
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    FileFooterAction(
+                        glyph = { HorizonXboxGlyph(size = 18.dp, fill = FileTheme.text, contentColor = FileTheme.background) },
+                        label = stringResource(R.string.files_home_hint),
+                        onClick = { HorizonNavigation.requestHome() }
+                    )
                 }
             }
 
@@ -594,5 +752,29 @@ fun FilesScreen(onDismiss: () -> Unit) {
             Text(msg, color = FileTheme.text, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
             HorizonOverlayChoice(title = stringResource(R.string.action_ok), selected = true, onClick = { error = null })
         }
+    }
+}
+
+/** A controller hint at the bottom-right of the file manager. */
+@Composable
+private fun FileFooterAction(
+    glyph: @Composable () -> Unit,
+    label: String,
+    onClick: () -> Unit
+) {
+    val inputMode = LocalSettingsInputMode.current
+    Row(
+        modifier = Modifier
+            .height(40.dp)
+            .clickable {
+                inputMode?.value = SettingsInputMode.TOUCH
+                onClick()
+            }
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        glyph()
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = FileTheme.text, fontSize = 14.sp)
     }
 }

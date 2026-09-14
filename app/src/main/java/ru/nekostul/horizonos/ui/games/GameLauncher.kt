@@ -8,6 +8,7 @@ import ru.nekostul.horizonos.ui.games.emulators.DuckStationLauncher
 import ru.nekostul.horizonos.ui.games.emulators.EmulatorGameLauncher
 import ru.nekostul.horizonos.ui.games.emulators.NetherSx2Launcher
 import ru.nekostul.horizonos.ui.games.emulators.PpssppLauncher
+import ru.nekostul.horizonos.ui.games.emulators.SwitchEmulatorLauncher
 
 class GameLauncher(
     launchers: List<EmulatorGameLauncher> = listOf(
@@ -15,6 +16,9 @@ class GameLauncher(
         PpssppLauncher(),
         NetherSx2Launcher(),
         DolphinLauncher(),
+        SwitchEmulatorLauncher(Emulator.EDEN),
+        SwitchEmulatorLauncher(Emulator.YUZU),
+        SwitchEmulatorLauncher(Emulator.SUDACHI),
         AndroidAppLauncher()
     )
 ) {

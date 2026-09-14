@@ -38,14 +38,19 @@ object FolderRescan {
         }
         val library = GameLibrary(context)
         val scanner = GameScanner(context)
+        val deleted = DeletedRomRepository(context).all()
         val seen = library.games.first().mapTo(mutableSetOf()) { it.identityKey }
         val added = mutableListOf<Game>()
 
         folders.forEach { folder ->
             val scan = runCatching {
-                scanner.scanWithDetails(folder.path, folder.platform, folder.emulator)
+                if (folder.path.startsWith("content://")) {
+                    scanner.scanWithDetails(folder.path, folder.platform, folder.emulator)
+                } else {
+                    scanner.scanDirectory(java.io.File(folder.path), folder.platform, folder.emulator)
+                }
             }.getOrNull() ?: return@forEach
-            val fresh = scan.games.filter { it.identityKey !in seen }
+            val fresh = scan.games.filter { it.identityKey !in seen && it.romUri !in deleted }
             if (fresh.isNotEmpty()) {
                 library.addAll(fresh)
                 fresh.forEach { seen.add(it.identityKey) }

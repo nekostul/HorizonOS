@@ -29,6 +29,7 @@ class TheGamesDbSource : GameMetadataSource {
         Platform.PSP to listOf(13),
         Platform.PLAYSTATION_2 to listOf(11),
         Platform.GAMECUBE_WII to listOf(2, 9),
+        Platform.NINTENDO_SWITCH to listOf(4971),
         Platform.ANDROID to listOf(4916)
     )
 

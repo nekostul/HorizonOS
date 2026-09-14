@@ -31,6 +31,7 @@ class IgdbSource : GameMetadataSource {
         Platform.PSP to listOf(38),
         Platform.PLAYSTATION_2 to listOf(8),
         Platform.GAMECUBE_WII to listOf(21, 5),
+        Platform.NINTENDO_SWITCH to listOf(130),
         Platform.ANDROID to listOf(34)
     )
 

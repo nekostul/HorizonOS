@@ -26,6 +26,10 @@ enum class Platform(
         titleRes = R.string.games_platform_gamecube_wii,
         romExtensions = setOf("iso", "gcm", "rvz", "gcz", "ciso", "wbfs", "wad")
     ),
+    NINTENDO_SWITCH(
+        titleRes = R.string.games_platform_switch,
+        romExtensions = setOf("nsp", "xci", "nro", "nca", "nso")
+    ),
     ANDROID(
         titleRes = R.string.games_platform_android,
         romExtensions = emptySet()

@@ -24,10 +24,20 @@ internal fun launchRomIntent(
     packageName: String,
     activityName: String,
     intent: Intent
-): GameLaunchResult {    val uri = Uri.parse(game.romUri)
-    val readable = runCatching {
-        context.contentResolver.openFileDescriptor(uri, "r")?.use { } != null
-    }.getOrDefault(false)
+): GameLaunchResult {
+    // Games can come from either a SAF tree (content://) or the built-in file
+    // manager (plain file path). Support both so the internal picker keeps
+    // launching working exactly like the document picker did.
+    val isContentUri = game.romUri.startsWith("content://")
+    val localFile = if (isContentUri) null else java.io.File(game.romUri)
+    val uri = if (isContentUri) Uri.parse(game.romUri) else Uri.fromFile(localFile)
+    val readable = if (isContentUri) {
+        runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { } != null
+        }.getOrDefault(false)
+    } else {
+        localFile?.canRead() == true
+    }
 
     if (!readable) {
         return GameLaunchResult.Failed(
@@ -62,11 +72,13 @@ internal fun launchRomIntent(
     }
 
     runCatching {
-        context.grantUriPermission(
-            packageName,
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-        )
+        if (isContentUri) {
+            context.grantUriPermission(
+                packageName,
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
         context.startActivity(explicitIntent)
         // Suppress the native activity-open animation.
         (context as? Activity)?.overridePendingTransition(0, 0)

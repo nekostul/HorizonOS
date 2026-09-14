@@ -78,6 +78,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
@@ -119,7 +120,10 @@ import ru.nekostul.horizonos.ui.settings.LauncherSettingsScreen
 import ru.nekostul.horizonos.ui.settings.LauncherSettings
 import ru.nekostul.horizonos.ui.settings.LauncherSettingsRepository
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
+import ru.nekostul.horizonos.ui.HorizonNavigation
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
+import ru.nekostul.horizonos.ui.user.UserPageScreen
+import ru.nekostul.horizonos.ui.user.UserProfileRepository
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLaunchResult
@@ -129,6 +133,7 @@ import ru.nekostul.horizonos.ui.games.GamesScreen
 import ru.nekostul.horizonos.ui.games.FolderRescan
 import ru.nekostul.horizonos.ui.games.NewGamesNotifier
 import ru.nekostul.horizonos.ui.games.NewGamesAddedOverlay
+import ru.nekostul.horizonos.ui.lockscreen.HorizonLock
 import ru.nekostul.horizonos.ui.home.status.StatusAirplaneIcon
 import ru.nekostul.horizonos.ui.home.status.StatusBatteryIcon
 import ru.nekostul.horizonos.ui.home.status.StatusClock
@@ -166,6 +171,40 @@ private val HorizonWhite: Color
 private val HorizonGray: Color
     @Composable get() = LocalHorizonColors.current.mutedText
 private const val HomeCardSlotCount = 12
+
+/**
+ * Small in-memory cache of decoded, down-scaled backdrop screenshots. The
+ * backdrop is blurred anyway, so decoding at a reduced resolution keeps the
+ * carousel smooth while the gamepad changes games quickly.
+ */
+private object BackdropCache {
+    private const val MAX_DIMENSION = 1024
+
+    private val cache = android.util.LruCache<String, ImageBitmap>(3)
+
+    fun get(path: String): ImageBitmap? = cache.get(path)
+
+    fun load(path: String): ImageBitmap? {
+        cache.get(path)?.let { return it }
+        val bitmap = decodeSampled(path) ?: return null
+        cache.put(path, bitmap)
+        return bitmap
+    }
+
+    private fun decodeSampled(path: String): ImageBitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outWidth / sample > MAX_DIMENSION &&
+            bounds.outHeight / sample > MAX_DIMENSION
+        ) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        return BitmapFactory.decodeFile(path, options)?.asImageBitmap()
+    }
+}
 
 private fun launchStaggerProgress(
     totalProgress: Float,
@@ -225,8 +264,7 @@ private fun ExternalGamepadConnected(): Boolean {
 
 @Composable
 fun HorizonHome(
-    onRequestPermissions: (Array<String>) -> Unit = {},
-    onOpenGameFolder: (((android.net.Uri?) -> Unit) -> Unit) = {}
+    onRequestPermissions: (Array<String>) -> Unit = {}
 ) {
 
     val context = LocalContext.current
@@ -278,6 +316,19 @@ fun HorizonHome(
         mutableIntStateOf(0)
     }
 
+    // Index used for the blurred screenshot backdrop. It follows explicit
+    // selection only, so swiping through the carousel does not change the
+    // background.
+    var backgroundGameIndex by remember {
+        mutableIntStateOf(0)
+    }
+
+    // Update the backdrop whenever a card becomes selected (tap or gamepad),
+    // but never while merely scrolling/swiping (tappedGameIndex = -1).
+    LaunchedEffect(tappedGameIndex) {
+        if (tappedGameIndex >= 0) backgroundGameIndex = tappedGameIndex
+    }
+
     var gamepadNavigationRequest by remember {
         mutableIntStateOf(0)
     }
@@ -318,6 +369,30 @@ fun HorizonHome(
         mutableStateOf(false)
     }
 
+    var showUserPage by remember {
+        mutableStateOf(false)
+    }
+
+    var profileFocused by remember {
+        mutableStateOf(false)
+    }
+
+    val userProfileRepository = remember { UserProfileRepository(context) }
+    val userProfile by userProfileRepository.profile.collectAsState()
+
+    // Global HOME/Xbox button: closes whatever internal screen is open and
+    // returns to the Home Screen, without doing a normal Back.
+    val homeRequests by HorizonNavigation.requests.collectAsState()
+    LaunchedEffect(homeRequests) {
+        if (homeRequests > 0) {
+            showGames = false
+            showFiles = false
+            showLauncherSettings = false
+            showUserPage = false
+            profileFocused = false
+        }
+    }
+
     // Ghost launch animation layer (null when inactive).
     var launchGhost by remember {
         mutableStateOf<LaunchGhostData?>(null)
@@ -328,6 +403,10 @@ fun HorizonHome(
     val scanning by ScanCoordinator.scanning.collectAsState()
     val scanProgress by ScanCoordinator.progress.collectAsState()
     val scanHint by ScanCoordinator.hint.collectAsState()
+
+    // While the lock screen is up the Home content must not take focus, so the
+    // gamepad keeps controlling the unlock screen instead of launching games.
+    val locked by HorizonLock.locked.collectAsState()
 
     // While the launch sequence runs, the Home content zooms toward the
     // player and dims, mirroring the console's fade into the loading screen.
@@ -529,6 +608,15 @@ fun launchGame(game: Game) {
         }
     }
 
+    // Pre-decode the current and neighbouring backdrops so switching games
+    // with the gamepad does not stutter on the (blurred) backdrop change.
+    LaunchedEffect(selectedGame, visibleGames, launcherSettings.screenshotBackgroundEnabled) {
+        if (!launcherSettings.screenshotBackgroundEnabled) return@LaunchedEffect
+        val paths = listOf(-1, 0, 1, 2)
+            .mapNotNull { offset -> visibleGames.getOrNull(selectedGame + offset)?.screenshotPath }
+        withContext(Dispatchers.IO) { paths.forEach { BackdropCache.load(it) } }
+    }
+
     val newGamePlatforms by NewGamesNotifier.platforms.collectAsState()
     if (newGamePlatforms.isNotEmpty()) {
         NewGamesAddedOverlay(
@@ -537,9 +625,19 @@ fun launchGame(game: Game) {
         )
     }
 
+    if (showUserPage) {
+        UserPageScreen(
+            repository = userProfileRepository,
+            onBack = {
+                showUserPage = false
+                clearHomeSelection()
+            }
+        )
+        return
+    }
+
     if (showGames) {
         GamesScreen(
-            onOpenFolder = onOpenGameFolder,
             onDismiss = {
                 showGames = false
                 clearHomeSelection()
@@ -581,11 +679,30 @@ fun launchGame(game: Game) {
                 alpha = 1f - 0.45f * zoom
             }
             .focusRequester(homeFocusRequester)
+            .focusProperties { canFocus = !locked }
             .focusable()
             .onPreviewKeyEvent { event ->
 
                 if (event.type != KeyEventType.KeyDown) {
                     return@onPreviewKeyEvent false
+                }
+
+                // The profile button is selected; A opens the user page, down
+                // or B returns to the games strip.
+                if (profileFocused) {
+                    when {
+                        isHorizonConfirmKey(event) -> {
+                            profileFocused = false
+                            showUserPage = true
+                        }
+                        event.key == Key.DirectionDown ||
+                            event.key == Key.ButtonB ||
+                            event.key == Key.Back -> {
+                            profileFocused = false
+                            tappedGameIndex = selectedGame
+                        }
+                    }
+                    return@onPreviewKeyEvent true
                 }
 
 if (isHorizonConfirmKey(event)) {
@@ -625,6 +742,11 @@ if (isHorizonConfirmKey(event)) {
                     Key.DirectionUp -> {
                         if (menuSelectionArmed) {
                             moveUpToGames()
+                        } else {
+                            // Move the whole selection frame off the game card
+                            // and onto the profile button.
+                            clearHomeSelection()
+                            profileFocused = true
                         }
                         true
                     }
@@ -644,7 +766,7 @@ if (isHorizonConfirmKey(event)) {
         // Blurred screenshot of the selected game as a living backdrop.
         if (launcherSettings.screenshotBackgroundEnabled) {
             GameScreenshotBackground(
-                screenshotPath = visibleGames.getOrNull(selectedGame)?.screenshotPath
+                screenshotPath = visibleGames.getOrNull(backgroundGameIndex)?.screenshotPath
             )
         }
 
@@ -679,7 +801,31 @@ if (isHorizonConfirmKey(event)) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ProfileIcon(size = h * 0.082f)
+                Box {
+                    HomeProfileButton(
+                        avatarPath = userProfile.avatarPath,
+                        size = h * 0.082f,
+                        focused = profileFocused,
+                        onClick = {
+                            profileFocused = false
+                            showUserPage = true
+                        }
+                    )
+                    if (profileFocused) {
+                        // Same label style as the Home menu buttons. It is an
+                        // overlay, so nothing moves when it appears.
+                        Text(
+                            text = stringResource(R.string.user_page_title),
+                            color = HorizonBlue,
+                            fontSize = 18.sp,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .offset(y = h * 0.082f + 4.dp)
+                                .wrapContentWidth(unbounded = true)
+                        )
+                    }
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -897,6 +1043,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
 
     LaunchedEffect(slotCount) {
         selectedGame = selectedGame.coerceIn(0, slotCount - 1)
+        backgroundGameIndex = backgroundGameIndex.coerceIn(0, slotCount - 1)
         if (tappedGameIndex >= slotCount) tappedGameIndex = -1
     }
 
@@ -908,6 +1055,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             selectedGame = 0
             homeScrollPositionPx = 0f
             tappedGameIndex = 0
+            if (locked) return@LaunchedEffect
             withFrameNanos { }
             homeFocusRequester.requestFocus()
         }
@@ -918,6 +1066,15 @@ LaunchedEffect(showGames) {
             selectedGame = 0
             homeScrollPositionPx = 0f
             tappedGameIndex = 0
+            if (locked) return@LaunchedEffect
+            withFrameNanos { }
+            homeFocusRequester.requestFocus()
+        }
+    }
+
+    // After the lock screen closes, Home must take focus back for the gamepad.
+    LaunchedEffect(locked) {
+        if (!locked) {
             withFrameNanos { }
             homeFocusRequester.requestFocus()
         }
@@ -1188,6 +1345,14 @@ private fun HorizonGameCarousel(
     var flingVelocityPx by remember { mutableFloatStateOf(0f) }
     var bringIntoViewJob by remember { mutableStateOf<Job?>(null) }
 
+    // Spread the entrance stagger so the very last card still finishes entering
+    // within the home-entry animation, no matter how many cards there are.
+    val entryStagger = if (slotCount > 1) {
+        (0.58f / (slotCount - 1)).coerceAtLeast(0.0001f)
+    } else {
+        0f
+    }
+
     val contentWidthPx = slotCount * cardSizePx + (slotCount - 1).coerceAtLeast(0) * gapPx
     val contentWidth = with(density) { contentWidthPx.toDp() }
     val maximumScrollPx = (startOffsetPx + contentWidthPx - viewportWidthPx)
@@ -1339,7 +1504,7 @@ private fun HorizonGameCarousel(
                                 entryProgress,
                                 index = index,
                                 firstDelay = 0.08f,
-                                stagger = 0.035f,
+                                stagger = entryStagger,
                                 duration = 0.34f
                             )
                             alpha = entry
@@ -1670,17 +1835,20 @@ private fun rememberCoverBitmap(coverPath: String?): ImageBitmap? {
  */
 @Composable
 private fun GameScreenshotBackground(screenshotPath: String?) {
-    var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    // Show an already-decoded backdrop immediately (no flash) and finish
+    // decoding on IO only when it is not cached yet.
+    var bitmap by remember(screenshotPath) {
+        mutableStateOf(
+            screenshotPath
+                ?.takeIf { it.isNotBlank() }
+                ?.let { BackdropCache.get(it) }
+        )
+    }
     LaunchedEffect(screenshotPath) {
         bitmap = if (screenshotPath.isNullOrBlank()) {
             null
         } else {
-            withContext(Dispatchers.IO) {
-                val file = File(screenshotPath)
-                if (file.exists()) {
-                    BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
-                } else null
-            }
+            withContext(Dispatchers.IO) { BackdropCache.load(screenshotPath) }
         }
     }
 

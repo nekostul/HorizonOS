@@ -176,8 +176,8 @@
     <string name="settings_bluetooth_permission">Bluetooth requires the BLUETOOTH_CONNECT permission. Changing system state requires a system role or privilege.</string>
     <string name="settings_bluetooth_missing">Bluetooth is not available on this device.</string>
     <string name="settings_lock_title">Lock Screen</string>
-    <string name="settings_auto_lock">Automatic Lock</string>
-    <string name="settings_auto_lock_description">Automatic lock inside HorizonOS.</string>
+    <string name="settings_auto_lock">Screen lock</string>
+    <string name="settings_auto_lock_description">After the console wakes from sleep, press the same button three times to use the console.</string>
     <string name="settings_lock_after">Lock after: %1$s</string>
     <string name="settings_lock_capability">Global Android screen timeout requires WRITE_SETTINGS. These values control HorizonOS behavior.</string>
     <string name="settings_wifi_title">Wi-Fi</string>
@@ -322,6 +322,16 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_delete_description">The game files will stay on the device.</string>
     <string name="games_removed">Game removed from HorizonOS.</string>
     <string name="games_already_added">This game is already in the library.</string>
+    <string name="games_none_found">No new games were found in this folder.</string>
+    <string name="games_add_rom">Add ROM</string>
+    <string name="games_add_rom_description">Pick a single ROM file through the built-in file manager.</string>
+    <string name="games_rom_confirm_title">Add this ROM?</string>
+    <string name="games_rom_confirm_message">You selected:\n%1$s\nAdd it to the library?</string>
+    <string name="games_rom_already_added">This ROM is already in the library, so it will not be added again.</string>
+    <string name="games_rom_unsupported">This ROM type is not supported by the selected platform.</string>
+    <string name="games_rom_error_title">Add ROM</string>
+    <string name="games_confirm_yes">Yes</string>
+    <string name="games_confirm_no">No</string>
     <string name="games_added_count">Added games: %1$d</string>
     <string name="games_unsupported_rom">This ROM extension is not supported for the selected platform.</string>
     <string name="games_selected_folder">Selected folder</string>
@@ -329,11 +339,15 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_platform_psp">PSP</string>
     <string name="games_platform_ps2">PlayStation 2</string>
     <string name="games_platform_gamecube_wii">GameCube / Wii</string>
+    <string name="games_platform_switch">Nintendo Switch</string>
     <string name="games_platform_android">Android</string>
     <string name="games_emulator_duckstation">DuckStation</string>
     <string name="games_emulator_ppsspp">PPSSPP</string>
     <string name="games_emulator_nethersx2">NetherSX2</string>
     <string name="games_emulator_dolphin">Dolphin</string>
+    <string name="games_emulator_eden">Eden</string>
+    <string name="games_emulator_yuzu">Yuzu</string>
+    <string name="games_emulator_sudachi">Sudachi</string>
     <string name="games_selection_summary">%1$s · %2$s</string>
     <string name="games_choose_file">Choose ROM file</string>
     <string name="games_choose_file_description">Select one supported ROM through Android Files.</string>
@@ -391,6 +405,12 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_bios_warning_description">%1$s needs a BIOS file. The game will not start until a BIOS is added in the emulator settings.</string>
     <string name="games_bios_warning_continue">Understood, continue</string>
     <string name="games_bios_warning_continue_description">Do not show this warning again for this emulator.</string>
+    <string name="games_config_warning_title">Set up the emulator</string>
+    <string name="games_config_warning_description">The %1$s emulator must be configured first. Without setup the games will not launch.</string>
+    <string name="games_config_now">Set up now</string>
+    <string name="games_config_later">Set up later</string>
+    <string name="games_config_not_installed">The emulator is not installed yet. Install it, then open it to complete the setup.</string>
+    <string name="games_error_switch_not_installed">The Nintendo Switch emulator is not installed.</string>
     <string name="games_error_unsupported_emulator">There is no supported emulator for this game.</string>
     <string name="games_error_file_unavailable">The game file is unavailable. Check permission to access the ROM.</string>
     <string name="games_error_emulator_not_installed">Emulator is not installed: %1$s</string>
@@ -433,5 +453,18 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="files_root_warning_title">System folder</string>
     <string name="files_root_warning_body">You are entering a system folder. Changing files here may make Android unstable.</string>
     <string name="files_root_warning_go">Continue</string>
+    <string name="files_pick_folder">Select folder</string>
+    <string name="files_pick_rom">Select ROM</string>
+    <string name="files_home_hint">Exit to Home Screen</string>
+    <string name="user_page_title">User page</string>
+    <string name="user_page_profile">Profile</string>
+    <string name="user_page_online">Online</string>
+    <string name="user_page_offline">Offline</string>
+    <string name="user_page_edit_nick">Change nickname</string>
+    <string name="user_page_nick_hint">Nickname</string>
+    <string name="user_page_avatar_pick">Choose avatar</string>
+    <string name="unlock_launch">Launch</string>
+    <string name="home_profile_label_none">user profile</string>
+    <string name="home_profile_label_nick">User profile * %1$s *</string>
 
 </resources>

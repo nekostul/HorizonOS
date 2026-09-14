@@ -14,6 +14,103 @@ class GameScanner(private val context: Context) {
     fun scan(folderUri: String, platform: Platform, emulator: Emulator): List<Game> =
         scanWithDetails(folderUri, platform, emulator).games
 
+    /**
+     * Scans a local directory (picked through the built-in HorizonOS file
+     * manager) for games. Mirrors [scanWithDetails] but works with plain
+     * java.io.File paths instead of SAF tree URIs.
+     */
+    fun scanDirectory(root: java.io.File, platform: Platform, emulator: Emulator): ScanResult {
+        if (!root.exists() || !root.isDirectory) return ScanResult(emptyList(), emptySet())
+        val files = collectLocalFiles(root)
+        val playlists = files.filter { it.file.name.substringAfterLast('.', "").lowercase(Locale.ROOT) == "m3u" }
+        val playlistMembers = playlists
+            .flatMap { playlist -> readLocalPlaylistMembers(playlist, files) }
+            .toSet()
+
+        val games = files
+            .asSequence()
+            .filter { it.file.isFile && platform.supportsFileName(it.file.name) }
+            .filter { scanned ->
+                scanned.relativePath !in playlistMembers ||
+                    scanned.file.name.substringAfterLast('.', "").lowercase(Locale.ROOT) == "m3u"
+            }
+            .map { scanned ->
+                val name = scanned.file.name
+                Game.fromRom(
+                    title = name.substringBeforeLast('.', name),
+                    platform = platform,
+                    emulator = emulator,
+                    romUri = scanned.file.absolutePath,
+                    romName = name
+                )
+            }
+            .distinctBy { it.identityKey }
+            .toList()
+        val playlistMemberUris = files
+            .filter { it.relativePath in playlistMembers }
+            .mapTo(mutableSetOf()) { it.file.absolutePath }
+        return ScanResult(games, playlistMemberUris)
+    }
+
+    private data class ScannedLocalFile(
+        val file: java.io.File,
+        val relativePath: String
+    )
+
+    private fun collectLocalFiles(
+        directory: java.io.File,
+        parentPath: String = ""
+    ): List<ScannedLocalFile> = buildList {
+        val children = runCatching { directory.listFiles()?.toList() ?: emptyList() }
+            .getOrDefault(emptyList())
+        children.forEach { child ->
+            val name = child.name ?: return@forEach
+            val relativePath = joinPath(parentPath, name)
+            if (child.isDirectory) {
+                addAll(collectLocalFiles(child, relativePath))
+            } else if (child.isFile) {
+                add(ScannedLocalFile(child, relativePath))
+            }
+        }
+    }
+
+    private fun readLocalPlaylistMembers(
+        playlist: ScannedLocalFile,
+        files: List<ScannedLocalFile>
+    ): Set<String> {
+        val playlistParent = playlist.relativePath.substringBeforeLast('/', "")
+        val lines = runCatching {
+            playlist.file.bufferedReader().useLines { sequence -> sequence.toList() }
+        }.getOrDefault(emptyList())
+
+        val members = mutableSetOf<String>()
+        lines.forEach { rawLine ->
+            val entry = rawLine.trim()
+            if (entry.isBlank() || entry.startsWith("#")) return@forEach
+
+            val normalizedEntry = normalizePlaylistPath(entry)
+            val resolvedPath = normalizePlaylistPath(
+                if (normalizedEntry.startsWith('/')) {
+                    normalizedEntry.removePrefix("/")
+                } else {
+                    joinPath(playlistParent, normalizedEntry)
+                }
+            )
+
+            files.firstOrNull { file ->
+                file.relativePath.equals(resolvedPath, ignoreCase = true)
+            }?.let { members += it.relativePath }
+
+            if (members.none { it.equals(resolvedPath, ignoreCase = true) }) {
+                val filename = normalizedEntry.substringAfterLast('/')
+                files.filter { file ->
+                    file.file.isFile && file.file.name.equals(filename, ignoreCase = true)
+                }.forEach { members += it.relativePath }
+            }
+        }
+        return members
+    }
+
     fun scanWithDetails(folderUri: String, platform: Platform, emulator: Emulator): ScanResult {
         val tree = DocumentFile.fromTreeUri(context, android.net.Uri.parse(folderUri))
             ?: return ScanResult(emptyList(), emptySet())

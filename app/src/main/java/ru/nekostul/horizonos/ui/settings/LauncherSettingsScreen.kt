@@ -113,12 +113,13 @@ fun LauncherSettingsScreen(
     var wifiActivationRequest by remember { mutableIntStateOf(0) }
     var sleepActivationRequest by remember { mutableIntStateOf(0) }
     var bluetoothItemCount by remember { mutableIntStateOf(2) }
+    var sliderEditing by remember { mutableStateOf(false) }
 
     fun optionCount(category: Int): Int = when (category) {
         0 -> if (settings.airplaneMode) 3 else 1
         1 -> 2
         2 -> bluetoothItemCount
-        3 -> 6
+        3 -> 1
         4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context).availableNetworkNames().size + 3
         5 -> 10
         6 -> 2
@@ -130,9 +131,49 @@ fun LauncherSettingsScreen(
         else -> 8
     }
 
+    fun controllerCount(): Int = ControllerManager.connectedControllers().size
+
+    /** Categories/options that are sliders and can be driven by the gamepad. */
+    fun isSliderOption(category: Int, option: Int): Boolean = when (category) {
+        1 -> option == 1
+        9 -> option == controllerCount() + 2 || option == controllerCount() + 3
+        else -> false
+    }
+
+    fun sliderValue(category: Int, option: Int): Float = when (category) {
+        1 -> settings.brightness
+        9 -> if (option == controllerCount() + 2) {
+            ((settings.controllerSensitivity - 0.5f) / 1.5f).coerceIn(0f, 1f)
+        } else {
+            (settings.controllerDeadZone / 0.5f).coerceIn(0f, 1f)
+        }
+        else -> 0f
+    }
+
+    fun setSliderValue(category: Int, option: Int, normalized: Float) {
+        val value = normalized.coerceIn(0f, 1f)
+        scope.launch {
+            when (category) {
+                1 -> {
+                    repository.setBrightness(value)
+                    runCatching {
+                        ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
+                            .setGlobalBrightness(value)
+                    }
+                }
+                9 -> if (option == controllerCount() + 2) {
+                    repository.setControllerSensitivity(0.5f + value * 1.5f)
+                } else {
+                    repository.setControllerDeadZone(value * 0.5f)
+                }
+            }
+        }
+    }
+
     LaunchedEffect(selectedCategory) {
         selectedOption = 0
         rightFocus = false
+        sliderEditing = false
     }
 
     fun requestRuntimePermissions(category: Int) {
@@ -168,14 +209,8 @@ fun LauncherSettingsScreen(
                     val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
                     controller.setEnabled(controller.enabled() != true)
                 }
-                3 -> when (selectedOption) {
-                    0 -> repository.setLockScreenEnabled(!settings.lockScreenEnabled)
-                    in 1..5 -> {
-                        val timeout = listOf(0, 1, 5, 10, 30)[selectedOption - 1]
-                        repository.setLockScreenTimeoutMinutes(timeout)
-                        ru.nekostul.horizonos.ui.settings.lockscreen.LockScreenController(context)
-                            .setSystemTimeout(timeout * 60 * 1000)
-                    }
+                3 -> if (selectedOption == 0) {
+                    repository.setLockScreenEnabled(!settings.lockScreenEnabled)
                 }
                 4 -> when (selectedOption) {
                     0 -> {
@@ -205,7 +240,9 @@ fun LauncherSettingsScreen(
     LaunchedEffect(selectedCategory) {
         selectedOption = 0
         rightFocus = false
-        leftListState.animateScrollToItem(selectedCategory)
+        sliderEditing = false
+        val visible = leftListState.layoutInfo.visibleItemsInfo.any { it.index == selectedCategory }
+        if (!visible) leftListState.animateScrollToItem(selectedCategory)
         requestRuntimePermissions(selectedCategory)
     }
     LaunchedEffect(Unit) {
@@ -217,7 +254,8 @@ fun LauncherSettingsScreen(
 
     CompositionLocalProvider(
         LocalSettingsOverlayVisible provides overlayVisible,
-        LocalSettingsInputMode provides inputMode
+        LocalSettingsInputMode provides inputMode,
+        LocalSliderEditing provides sliderEditing
     ) {
     // Only the controller B button navigates back. Native Android Back is
     // consumed by MainActivity and never reaches this screen.
@@ -227,6 +265,7 @@ fun LauncherSettingsScreen(
             dismissOverlay()
         } else if (rightFocus) {
             rightFocus = false
+            sliderEditing = false
         } else {
             onBack()
         }
@@ -243,8 +282,34 @@ fun LauncherSettingsScreen(
         .onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         inputMode.value = SettingsInputMode.GAMEPAD
+
+        // The slider row is selected: A grabs the thumb, directions change the
+        // value, A confirms the position and B resets it (leaves the thumb).
+        if (sliderEditing) {
+            when {
+                event.key == Key.DirectionRight || event.key == Key.DirectionUp -> {
+                    val next = (sliderValue(selectedCategory, selectedOption) + 0.05f)
+                        .coerceIn(0f, 1f)
+                    setSliderValue(selectedCategory, selectedOption, next)
+                }
+                event.key == Key.DirectionLeft || event.key == Key.DirectionDown -> {
+                    val next = (sliderValue(selectedCategory, selectedOption) - 0.05f)
+                        .coerceIn(0f, 1f)
+                    setSliderValue(selectedCategory, selectedOption, next)
+                }
+                isHorizonConfirmKey(event) || event.key == Key.ButtonB -> sliderEditing = false
+            }
+            return@onPreviewKeyEvent true
+        }
+
         if (isHorizonConfirmKey(event)) {
-            if (rightFocus) activateOption() else rightFocus = true
+            if (rightFocus && isSliderOption(selectedCategory, selectedOption)) {
+                sliderEditing = true
+            } else if (rightFocus) {
+                activateOption()
+            } else {
+                rightFocus = true
+            }
             return@onPreviewKeyEvent true
         }
 
@@ -374,7 +439,7 @@ private fun SettingsContent(
             val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
             controller.setEnabled(controller.enabled() != true)
         }
-        3 -> LockScreenScreen(context, settings, selectedOption, { onOptionSelected(0) }, { timeout -> scope.launch { repository.setLockScreenTimeoutMinutes(timeout) } })
+        3 -> LockScreenScreen(settings, selectedOption) { onOptionSelected(0) }
         4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiScreen(
             selectedIndex = selectedOption,
             onSelect = onOptionSelected,

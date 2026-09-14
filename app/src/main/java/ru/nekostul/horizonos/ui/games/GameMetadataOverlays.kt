@@ -53,6 +53,7 @@ private fun platformNames(platforms: List<Platform>): String {
             Platform.PSP -> stringResource(R.string.games_platform_psp)
             Platform.PLAYSTATION_2 -> stringResource(R.string.games_platform_ps2)
             Platform.GAMECUBE_WII -> stringResource(R.string.games_platform_gamecube_wii)
+            Platform.NINTENDO_SWITCH -> stringResource(R.string.games_platform_switch)
             Platform.ANDROID -> stringResource(R.string.games_platform_android)
         }
     }

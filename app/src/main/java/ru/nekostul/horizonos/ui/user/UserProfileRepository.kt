@@ -1,0 +1,51 @@
+package ru.nekostul.horizonos.ui.user
+
+import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/** Persisted user profile shown on the user page. */
+data class UserProfile(
+    val nick: String,
+    val avatarPath: String?
+) {
+    /** The nick when the user has actually changed it, otherwise null. */
+    val configuredNick: String?
+        get() = nick.takeIf { it.isNotBlank() && it != UserProfileRepository.DEFAULT_NICK }
+}
+
+/**
+ * Stores the launcher user profile (nickname and avatar path) in
+ * SharedPreferences. Shared by Home (avatar button) and the user page so both
+ * stay in sync through [profile].
+ */
+class UserProfileRepository(context: Context) {
+
+    private val prefs = context.applicationContext
+        .getSharedPreferences("user_profile", Context.MODE_PRIVATE)
+
+    private val _profile = MutableStateFlow(read())
+    val profile: StateFlow<UserProfile> = _profile.asStateFlow()
+
+    fun setNick(value: String) {
+        prefs.edit().putString(KEY_NICK, value.trim()).apply()
+        _profile.value = read()
+    }
+
+    fun setAvatar(path: String) {
+        prefs.edit().putString(KEY_AVATAR, path).apply()
+        _profile.value = read()
+    }
+
+    private fun read(): UserProfile = UserProfile(
+        nick = prefs.getString(KEY_NICK, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_NICK,
+        avatarPath = prefs.getString(KEY_AVATAR, null)?.takeIf { it.isNotBlank() }
+    )
+
+    companion object {
+        const val DEFAULT_NICK = "HorizonOS"
+        private const val KEY_NICK = "nick"
+        private const val KEY_AVATAR = "avatar"
+    }
+}
