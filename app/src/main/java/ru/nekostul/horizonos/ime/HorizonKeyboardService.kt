@@ -52,11 +52,6 @@ class HorizonKeyboardService : InputMethodService() {
 
     override fun onEvaluateFullscreenMode(): Boolean = false
 
-    /**
-     * InputMethodService receives controller events at the IME window level.
-     * Forward them explicitly because the editor behind the IME otherwise
-     * consumes DPAD/buttons before the keyboard view can see them.
-     */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         return keyboardView?.onKeyDown(keyCode, event) == true || super.onKeyDown(keyCode, event)
     }

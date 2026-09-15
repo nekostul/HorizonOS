@@ -19,12 +19,6 @@ import ru.nekostul.horizonos.ui.isExternalGamepadConnected
 import ru.nekostul.horizonos.ui.keyboard.KeyboardLanguage
 import kotlin.math.max
 
-/**
- * The system IME must not depend on a Dialog/Compose window hierarchy: Samsung's
- * InputMethodService window has no ViewTreeLifecycleOwner on its parentPanel.
- * This small legacy View keeps the selectable system keyboard crash-free while
- * the in-launcher keyboard continues to use the full Compose implementation.
- */
 internal class HorizonKeyboardImeView(
     context: Context,
     private val onAction: (Action) -> Unit
@@ -151,7 +145,6 @@ internal class HorizonKeyboardImeView(
         KeyEvent.KEYCODE_BUTTON_THUMBR
     )
 
-    /** Keep the IME dock-sized instead of allowing the service window to fill the screen. */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val measuredWidth = MeasureSpec.getSize(widthMeasureSpec).takeIf { it > 0 }
             ?: resources.displayMetrics.widthPixels

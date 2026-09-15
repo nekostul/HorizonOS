@@ -48,7 +48,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -93,10 +92,6 @@ private fun isOnline(context: Context): Boolean = runCatching {
     caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
 }.getOrDefault(false)
 
-/**
- * HorizonOS user page. Mirrors the settings layout: a left navigation rail and
- * a right content area. Kept in its own module rather than inside Home.
- */
 @Composable
 fun UserPageScreen(
     repository: UserProfileRepository,
@@ -174,7 +169,6 @@ fun UserPageScreen(
                     .fillMaxSize()
                     .padding(horizontal = 30.dp, vertical = 18.dp)
             ) {
-                // Header: small round avatar without a frame + page title.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     UserAvatar(avatarPath = profile.avatarPath, size = 34.dp)
                     Spacer(Modifier.width(15.dp))
@@ -189,7 +183,6 @@ fun UserPageScreen(
                 Spacer(Modifier.height(12.dp))
 
                 Row(Modifier.fillMaxWidth().weight(1f)) {
-                    // Left navigation rail, matching the settings layout.
                     Column(
                         Modifier
                             .fillMaxHeight()
@@ -204,7 +197,6 @@ fun UserPageScreen(
                     }
                     Spacer(Modifier.width(24.dp))
 
-                    // Right content.
                     Row(
                         Modifier.fillMaxHeight().weight(0.66f),
                         verticalAlignment = Alignment.CenterVertically
@@ -411,7 +403,6 @@ private fun UserNavRow(text: String, focused: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Pulsing selection frame matching the rest of the HorizonOS settings UI. */
 @Composable
 private fun UserFocusFrame(
     active: Boolean,
@@ -463,7 +454,6 @@ private fun UserFooterButton(
     }
 }
 
-/** Circular pencil button matching the nick editor icon. */
 @Composable
 private fun PencilButton(
     focused: Boolean,
@@ -499,14 +489,12 @@ private fun PencilButton(
     }
 }
 
-/** Simple diagonal pencil, shared by both edit buttons. */
 @Composable
 private fun PencilGlyph(color: Color, size: Dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
         val stroke = w * 0.16f
-        // Pencil body.
         drawLine(
             color = color,
             start = Offset(w * 0.20f, h * 0.80f),
@@ -514,7 +502,6 @@ private fun PencilGlyph(color: Color, size: Dp) {
             strokeWidth = stroke,
             cap = StrokeCap.Round
         )
-        // Tip.
         val tip = Path().apply {
             moveTo(w * 0.14f, h * 0.86f)
             lineTo(w * 0.30f, h * 0.82f)

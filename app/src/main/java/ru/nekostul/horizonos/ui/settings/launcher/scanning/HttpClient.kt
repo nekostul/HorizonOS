@@ -7,7 +7,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/** Minimal HTTP helper shared by every scraper source (no third-party deps). */
 internal object HttpClient {
     private const val CONNECT_TIMEOUT = 10_000
     private const val READ_TIMEOUT = 15_000
@@ -64,10 +63,6 @@ internal object HttpClient {
 
     fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
 
-    /**
-     * Returns true when we can reach any host (any HTTP status counts).
-     * Used to distinguish "source has no data" from "device is offline".
-     */
     suspend fun isNetworkReachable(): Boolean = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {

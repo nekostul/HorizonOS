@@ -3,7 +3,6 @@ package ru.nekostul.horizonos.ui.games
 import android.content.Context
 import kotlinx.coroutines.flow.Flow
 
-/** Small facade used by Home and the Games window; persistence stays in GameRepository. */
 class GameLibrary(context: Context) {
     private val repository = GameRepository(context)
 

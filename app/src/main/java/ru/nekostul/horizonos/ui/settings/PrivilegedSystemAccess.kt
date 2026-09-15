@@ -1,17 +1,9 @@
 package ru.nekostul.horizonos.ui.settings
 
-import android.content.Context
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
-/**
- * Optional bridge for a rooted/system HorizonOS build.
- *
- * This is deliberately isolated from Compose. A normal APK simply gets null
- * results; no fake state is exposed to the UI. A system build may replace this
- * implementation with framework Binder calls without changing screens.
- */
 object PrivilegedSystemAccess {
     @Volatile
     private var cachedRootAccess: Boolean? = null

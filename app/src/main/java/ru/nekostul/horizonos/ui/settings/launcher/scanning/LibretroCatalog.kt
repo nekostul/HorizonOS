@@ -3,19 +3,12 @@ package ru.nekostul.horizonos.ui.settings.launcher.scanning
 import java.net.URLDecoder
 import java.net.URLEncoder
 
-/**
- * Libretro thumbnail CDN exposes Apache directory listings without any
- * authentication. This catalog downloads a system listing once, caches it,
- * and matches the game title against the real No-Intro file names, which is
- * required because the CDN does not accept partial names.
- */
 internal object LibretroCatalog {
 
     data class Entry(val displayName: String, val href: String)
 
     private val cache = mutableMapOf<String, List<Entry>>()
 
-    /** Best matches for [query], highest score first, with region/disc preference. */
     suspend fun matches(system: String, type: String, query: String, limit: Int = 12): List<Entry> {
         val entries = listing(system, type) ?: return emptyList()
         return entries
@@ -34,7 +27,6 @@ internal object LibretroCatalog {
 
     private data class Scored(val entry: Entry, val score: Int, val preference: Int)
 
-    /** Higher is better: prefer common regions and single-disc, non-revision files. */
     private fun preference(name: String): Int {
         var result = 0
         val lower = name.lowercase()

@@ -14,11 +14,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/**
- * Xbox HOME button glyph. Drawn in code so no bitmap asset is needed; the
- * filled circle matches the other [HorizonButtonGlyph] buttons used across
- * HorizonOS.
- */
 @Composable
 fun HorizonXboxGlyph(
     size: Dp = 22.dp,
@@ -31,9 +26,9 @@ fun HorizonXboxGlyph(
         val stroke = d * 0.11f
         val path = Path().apply {
             moveTo(d * 0.30f, d * 0.30f)
-            quadraticBezierTo(d * 0.40f, d * 0.55f, d * 0.70f, d * 0.70f)
+            quadraticTo(d * 0.40f, d * 0.55f, d * 0.70f, d * 0.70f)
             moveTo(d * 0.70f, d * 0.30f)
-            quadraticBezierTo(d * 0.60f, d * 0.55f, d * 0.30f, d * 0.70f)
+            quadraticTo(d * 0.60f, d * 0.55f, d * 0.30f, d * 0.70f)
         }
         drawPath(
             path = path,
@@ -43,7 +38,6 @@ fun HorizonXboxGlyph(
     }
 }
 
-/** Gamepad START button glyph: a filled button with three horizontal bars. */
 @Composable
 fun HorizonStartGlyph(
     size: Dp = 22.dp,

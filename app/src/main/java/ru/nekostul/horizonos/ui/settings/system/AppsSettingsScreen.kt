@@ -1,6 +1,5 @@
 package ru.nekostul.horizonos.ui.settings.system
 
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer

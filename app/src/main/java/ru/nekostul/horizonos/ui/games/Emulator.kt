@@ -6,7 +6,6 @@ enum class Emulator(
     val titleRes: Int,
     val platform: Platform,
     val requiresBios: Boolean = false,
-    /** Switch emulators need a first-run setup before games can boot. */
     val requiresConfiguration: Boolean = false
 ) {
     DUCKSTATION(R.string.games_emulator_duckstation, Platform.PLAYSTATION_1, requiresBios = true),

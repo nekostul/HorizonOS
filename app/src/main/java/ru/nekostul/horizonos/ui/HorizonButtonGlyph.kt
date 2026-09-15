@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Compact controller glyph matching the filled-button style used by HorizonOS. */
 @Composable
 fun HorizonButtonGlyph(
     label: String,

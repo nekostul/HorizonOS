@@ -13,10 +13,6 @@ import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperSourceId
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.TitleMatcher
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.searchName
 
-/**
- * TheGamesDB — requires a free apikey.
- * v1 search: GET /v1/Games/ByGameName. Images: GET /v1/Games/Images.
- */
 class TheGamesDbSource : GameMetadataSource {
 
     override val id = ScraperSourceId.THE_GAMES_DB
@@ -57,7 +53,6 @@ class TheGamesDbSource : GameMetadataSource {
     private suspend fun searchBest(game: Game, settings: ScraperSettings): SearchHit? {
         if (!isAvailable(settings)) return null
         val platforms = platformId[game.platform] ?: return null
-        // Combined platforms (GameCube/Wii) try every platform until a hit is found.
         for (platform in platforms) {
             val searchUrl = "https://api.thegamesdb.net/v1/Games/ByGameName?apikey=" +
                 "${HttpClient.encode(settings.theGamesDbApiKey)}" +
@@ -68,8 +63,6 @@ class TheGamesDbSource : GameMetadataSource {
             val root = runCatching { JSONObject(raw) }.getOrNull() ?: continue
             val data = root.optJSONObject("data") ?: continue
 
-            // v1 returns data.games as a JSON array; older/edge cases as an
-            // object keyed by game id. Support both.
             val candidates = mutableListOf<GameCandidate>()
             val gamesArray = data.optJSONArray("games")
             if (gamesArray != null) {
@@ -103,7 +96,6 @@ class TheGamesDbSource : GameMetadataSource {
         return null
     }
 
-    /** Games/Images returns { data: { base_url, images } } (array or keyed by id). */
     private suspend fun loadImages(settings: ScraperSettings, gameId: String): List<MediaVariant> {
         val imagesUrl = "https://api.thegamesdb.net/v1/Games/Images?apikey=" +
             "${HttpClient.encode(settings.theGamesDbApiKey)}&games_id=$gameId"
@@ -118,7 +110,6 @@ class TheGamesDbSource : GameMetadataSource {
                 val fileName = image.optString("filename").takeIf { it.isNotBlank() } ?: continue
                 val type = when (image.optString("type")) {
                     "boxart" -> {
-                        // Never use the back cover as the game cover.
                         if (image.optString("side") == "back") continue
                         MediaType.COVER
                     }
@@ -156,7 +147,6 @@ class TheGamesDbSource : GameMetadataSource {
             if (entry.optString("type") != "boxart") continue
             val fileName = entry.optString("filename").takeIf { it.isNotBlank() } ?: continue
             val url = baseUrl + fileName
-            // Prefer the front cover; keep the first entry as a fallback.
             if (entry.optString("side") == "front") return url
             if (fallback == null) fallback = url
         }

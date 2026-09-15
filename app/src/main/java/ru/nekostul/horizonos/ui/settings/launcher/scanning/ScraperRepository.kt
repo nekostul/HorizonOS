@@ -2,10 +2,6 @@ package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
 import android.content.Context
 
-/**
- * Persists scraper source toggles and API secrets. Secrets are encrypted
- * via the Android Keystore (SecretCipher) before being stored.
- */
 class ScraperRepository(private val context: Context) {
 
     private val preferences =

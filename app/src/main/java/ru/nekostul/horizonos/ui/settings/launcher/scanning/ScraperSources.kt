@@ -7,10 +7,6 @@ import ru.nekostul.horizonos.ui.settings.launcher.scanning.sources.ScreenScraper
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.sources.SteamGridDbSource
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.sources.TheGamesDbSource
 
-/**
- * Single registry of scraper sources. The list order is the fixed scraping
- * priority order: ScreenScraper -> Libretro -> TheGamesDB -> IGDB -> SteamGridDB.
- */
 internal object ScraperSources {
     val ordered: List<GameMetadataSource> = listOf(
         ScreenScraperSource(),

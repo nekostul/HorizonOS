@@ -7,10 +7,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 
-/**
- * Android gamepads do not all expose the confirm button through the same
- * Compose key. Some send ButtonA, while others send DPAD_CENTER or ENTER.
- */
 internal fun isHorizonConfirmKey(event: KeyEvent): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
 

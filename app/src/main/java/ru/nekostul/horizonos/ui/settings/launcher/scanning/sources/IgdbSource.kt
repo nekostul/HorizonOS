@@ -13,10 +13,6 @@ import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperSourceId
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.TitleMatcher
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.searchName
 
-/**
- * IGDB.com — requires a Twitch OAuth2 app (Client ID + Client Secret).
- * POST /v4/games with an apicalypse-style body; images built from image_id.
- */
 class IgdbSource : GameMetadataSource {
 
     override val id = ScraperSourceId.IGDB

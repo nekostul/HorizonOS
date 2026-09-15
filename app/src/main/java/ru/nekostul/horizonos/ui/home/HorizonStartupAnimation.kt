@@ -138,7 +138,6 @@ private fun HorizonLogoMark(modifier: Modifier) {
             center = center
         )
 
-        // A quiet star field gives the mark depth without competing with the H.
         listOf(
             Offset(0.28f, 0.29f),
             Offset(0.70f, 0.24f),
@@ -152,7 +151,6 @@ private fun HorizonLogoMark(modifier: Modifier) {
             )
         }
 
-        // Rising sun, cut cleanly by the horizon line.
         drawCircle(
             color = Color(0xFFFF8A65).copy(alpha = 0.20f),
             radius = radius * 0.37f,
@@ -166,7 +164,6 @@ private fun HorizonLogoMark(modifier: Modifier) {
             center = Offset(center.x, horizon - radius * 0.34f)
         )
 
-        // Latitude lines turn the lower half into a stylised horizon globe.
         for (index in 1..3) {
             val y = horizon + radius * index * 0.16f
             val halfWidth = radius * (0.72f - index * 0.11f)
@@ -187,7 +184,6 @@ private fun HorizonLogoMark(modifier: Modifier) {
             cap = StrokeCap.Round
         )
 
-        // HorizonOS monogram: two pillars and a bright crossing horizon.
         val hTop = horizon - radius * 0.31f
         val hBottom = horizon + radius * 0.39f
         val hLeft = center.x - radius * 0.33f
@@ -196,7 +192,6 @@ private fun HorizonLogoMark(modifier: Modifier) {
         drawLine(Color.White, Offset(hRight, hTop), Offset(hRight, hBottom), strokeWidth = stroke.width, cap = StrokeCap.Round)
         drawLine(Color.White, Offset(hLeft, horizon + radius * 0.03f), Offset(hRight, horizon + radius * 0.03f), strokeWidth = stroke.width, cap = StrokeCap.Round)
 
-        // Small orbit ticks echo the navigation ring around the logo.
         repeat(4) { index ->
             val angle = index * PI / 2.0 + PI / 4.0
             val inner = radius * 1.02f

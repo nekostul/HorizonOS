@@ -13,9 +13,6 @@ object LanguageManager {
     fun effectiveLanguage(context: Context, preference: String): String {
         if (preference == ENGLISH || preference == RUSSIAN) return preference
         val locale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // A Configuration can legitimately contain an empty LocaleList
-            // while Android is restoring or recreating an activity. Indexing
-            // it directly crashes the launcher before Compose can render.
             context.resources.configuration.locales
                 .takeUnless { it.isEmpty() }
                 ?.get(0)

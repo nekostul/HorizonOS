@@ -12,10 +12,6 @@ import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperSourceId
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.TitleMatcher
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.searchName
 
-/**
- * ScreenScraper.fr — requires a developer account (devid/devpassword).
- * Search: GET /api2/jeuRecherche.php. Media types: box-2D (cover), ss (screenshot).
- */
 class ScreenScraperSource : GameMetadataSource {
 
     override val id = ScraperSourceId.SCREEN_SCRAPER
@@ -51,7 +47,6 @@ class ScreenScraperSource : GameMetadataSource {
     private suspend fun bestMatch(game: Game, settings: ScraperSettings): JSONObject? {
         if (!isAvailable(settings)) return null
         val systemeIds = platformSystemeId[game.platform] ?: return null
-        // Combined platforms (GameCube/Wii) try every system until a hit is found.
         for (systemeId in systemeIds) {
             val query = "devid=${HttpClient.encode(settings.screenScraperDevId)}" +
                 "&devpassword=${HttpClient.encode(settings.screenScraperDevPassword)}" +
@@ -75,7 +70,6 @@ class ScreenScraperSource : GameMetadataSource {
         return null
     }
 
-    /** jeuRecherche returns `response.jeux`; jeuInfos returns `response.jeu`. */
     private fun parseGames(raw: String): List<JSONObject> = runCatching {
         val root = JSONObject(raw)
         val response = root.optJSONObject("response") ?: root
@@ -102,7 +96,6 @@ class ScreenScraperSource : GameMetadataSource {
         return jeu.optString("nom").takeIf { it.isNotBlank() }
     }
 
-    /** Collects every media entry of the requested types. */
     private fun mediaUrls(
         jeu: JSONObject,
         types: List<String>,

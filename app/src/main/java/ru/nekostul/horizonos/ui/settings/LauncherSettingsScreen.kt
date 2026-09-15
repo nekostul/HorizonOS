@@ -133,7 +133,6 @@ fun LauncherSettingsScreen(
 
     fun controllerCount(): Int = ControllerManager.connectedControllers().size
 
-    /** Categories/options that are sliders and can be driven by the gamepad. */
     fun isSliderOption(category: Int, option: Int): Boolean = when (category) {
         1 -> option == 1
         9 -> option == controllerCount() + 2 || option == controllerCount() + 3
@@ -257,8 +256,6 @@ fun LauncherSettingsScreen(
         LocalSettingsInputMode provides inputMode,
         LocalSliderEditing provides sliderEditing
     ) {
-    // Only the controller B button navigates back. Native Android Back is
-    // consumed by MainActivity and never reaches this screen.
     fun handleControllerBack() {
         val dismissOverlay = overlayBackHandlers.lastOrNull()
         if (dismissOverlay != null) {
@@ -283,8 +280,6 @@ fun LauncherSettingsScreen(
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         inputMode.value = SettingsInputMode.GAMEPAD
 
-        // The slider row is selected: A grabs the thumb, directions change the
-        // value, A confirms the position and B resets it (leaves the thumb).
         if (sliderEditing) {
             when {
                 event.key == Key.DirectionRight || event.key == Key.DirectionUp -> {

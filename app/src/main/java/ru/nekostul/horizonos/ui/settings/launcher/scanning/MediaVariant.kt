@@ -1,6 +1,5 @@
 package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
-/** A single selectable image returned by a source. */
 data class MediaVariant(
     val url: String,
     val source: ScraperSourceId,

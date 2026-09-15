@@ -4,10 +4,6 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * Recursive, cancellable search over a readable subtree. Always bounded in
- * depth and result count so huge trees never freeze the device.
- */
 object FileSearch {
 
     data class SearchHit(
@@ -30,7 +26,7 @@ object FileSearch {
         fun walk(dir: File, depth: Int) {
             if (tooMany || out.size >= maxResults) { tooMany = true; return }
             val children = dir.listFiles() ?: return
-            if (children.size > 5000) return // avoid pathological dirs
+            if (children.size > 5000) return
             children.forEach { child ->
                 if (tooMany) return
                 visited++

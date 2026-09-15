@@ -1,9 +1,5 @@
 package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
-/**
- * Order of the enum entries is the scraping priority order. Do not reorder
- * without updating the UI, which mirrors this order exactly.
- */
 enum class ScraperSourceId(val storageKey: String) {
     SCREEN_SCRAPER("screen_scraper"),
     LIBRETRO("libretro"),

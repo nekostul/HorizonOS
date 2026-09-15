@@ -1,7 +1,6 @@
 package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
 import android.content.Context
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
@@ -18,12 +17,8 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.R
-import ru.nekostul.horizonos.ui.games.GameLibrary
 import ru.nekostul.horizonos.ui.settings.HorizonOverlay
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayTextField
@@ -34,10 +29,6 @@ import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
 private enum class EditorTarget { SCREEN_SCRAPER, THE_GAMES_DB, IGDB, STEAM_GRID_DB }
 
-/**
- * "Scanning" screen. Sources are always shown in [ScraperSourceId] order,
- * which is also the scraping priority order.
- */
 @Composable
 fun ScanningSettingsScreen(
     context: Context,
@@ -47,7 +38,6 @@ fun ScanningSettingsScreen(
     var settings by remember { mutableStateOf(repository.load()) }
     val scope = rememberCoroutineScope()
 
-    // 0..4 sources, 5 ScreenScraper, 6 TheGamesDB, 7 IGDB, 8 SteamGridDB, 9 run
     var selectedIndex by remember { mutableIntStateOf(0) }
     var editor by remember { mutableStateOf<EditorTarget?>(null) }
 

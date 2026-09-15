@@ -14,10 +14,6 @@ import ru.nekostul.horizonos.ui.settings.LauncherSettings
 import ru.nekostul.horizonos.ui.settings.SettingsToggleRow
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
 
-/**
- * Lock screen section. A single on/off switch; the actual lock behaviour is
- * implemented elsewhere.
- */
 @Composable
 fun LockScreenScreen(
     settings: LauncherSettings,

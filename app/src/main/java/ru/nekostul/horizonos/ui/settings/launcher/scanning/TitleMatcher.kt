@@ -2,17 +2,8 @@ package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
 import java.util.Locale
 
-/**
- * Normalizes ROM file names and compares them with scraped titles.
- *
- * ROM names carry service tags that must never reach a search request or a
- * comparison: [RUS], (USA), [Rev 1], [v1.1], [!], [Disc 1] and similar.
- * The normalizer strips only recognized tags, so meaningful parts of the
- * title stay intact ("Final Fantasy VII [Disc 1]" -> "Final Fantasy VII").
- */
 internal object TitleMatcher {
 
-    /** Region / language tokens that may appear inside (...) tags. */
     private val regionTokens = setOf(
         "rus", "russian", "usa", "us", "u", "eur", "europe", "eu", "e",
         "jpn", "japan", "jp", "j", "pal", "ntsc", "ntscu", "ntscj",
@@ -26,7 +17,6 @@ internal object TitleMatcher {
         "multi8", "m5", "m6", "m7", "m8", "en"
     )
 
-    /** Revision / build / release tokens. */
     private val statusTokens = setOf(
         "rev", "revision", "version", "ver", "beta", "proto", "prototype",
         "demo", "sample", "alpha", "final", "fixed", "fix", "patch", "unk",
@@ -35,7 +25,6 @@ internal object TitleMatcher {
         "hack", "translation", "trans", "fan", "sub", "dub", "eur", "usa"
     )
 
-    /** Disc / media tokens. */
     private val discTokens = setOf(
         "disc", "disk", "cd", "dvd", "side", "tape", "cart", "part", "vol",
         "volume", "chapter"
@@ -44,10 +33,6 @@ internal object TitleMatcher {
     private val versionPattern = Regex("^v\\d+(\\.\\d+)*$")
     private val romanPattern = Regex("^[ivx]{2,4}$")
 
-    /**
-     * Builds a clean search query from a raw ROM file name.
-     * "Driver 2 [RUS].cue" -> "Driver 2"
-     */
     fun searchQuery(romName: String): String {
         val withoutExtension = stripExtension(romName)
         val cleaned = withoutExtension
@@ -62,7 +47,6 @@ internal object TitleMatcher {
         }
     }
 
-    /** Comparison key: lowercase alphanumeric tokens, leading "the" removed. */
     fun normalize(value: String): List<String> {
         val tokens = value
             .lowercase(Locale.ROOT)
@@ -80,11 +64,6 @@ internal object TitleMatcher {
         return roman?.toString() ?: token
     }
 
-    /**
-     * 100 when equal, 98 when equal ignoring order, otherwise a symmetric
-     * token-coverage score with a penalty when numeric tokens differ. This
-     * prevents "Driver 2" from matching a plain "Driver".
-     */
     fun matchScore(query: String, candidate: String): Int {
         val a = normalize(query)
         val b = normalize(candidate)
@@ -107,10 +86,6 @@ internal object TitleMatcher {
         return score.coerceIn(0, 100)
     }
 
-    /**
-     * Picks the best candidate above [minScore]. Candidates that only share a
-     * partial prefix are rejected by the numeric-mismatch penalty.
-     */
     fun best(query: String, candidates: List<String>, minScore: Int = 70): Int? =
         candidates.indices
             .map { index -> index to matchScore(query, candidates[index]) }

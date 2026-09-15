@@ -80,6 +80,12 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <provider
+            android:name=".ui.games.emulators.RomContentProvider"
+            android:authorities="ru.nekostul.horizonos.romprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <service
             android:name=".ui.settings.launcher.scanning.ScanService"
             android:exported="false"

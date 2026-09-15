@@ -6,12 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.nekostul.horizonos.ui.settings.HorizonOverlay
@@ -20,7 +17,6 @@ import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
-/** Small circular icon button in the top toolbar. */
 @Composable
 fun HorizonFilesIconButton(
     label: String,
@@ -42,7 +38,6 @@ fun HorizonFilesIconButton(
     }
 }
 
-/** Label button in the bottom action bar. */
 @Composable
 fun HorizonFilesTextButton(
     label: String,
@@ -64,7 +59,6 @@ fun HorizonFilesTextButton(
     }
 }
 
-/** Sorting options overlay. */
 @Composable
 fun SortOverlay(
     current: FileSortMode,
@@ -86,7 +80,6 @@ fun SortOverlay(
     }
 }
 
-/** New-item menu overlay (folder or file). */
 @Composable
 fun NewItemOverlay(
     title: String,
@@ -101,7 +94,6 @@ fun NewItemOverlay(
     }
 }
 
-/** Text input overlay used for renaming and creating items. */
 @Composable
 fun TextInputOverlay(
     title: String,

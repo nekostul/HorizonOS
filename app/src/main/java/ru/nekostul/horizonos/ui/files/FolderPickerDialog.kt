@@ -13,10 +13,6 @@ import androidx.compose.ui.window.DialogWindowProvider
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.settings.hideDialogSystemBars
 
-/**
- * Full-screen ROM folder picker built on the internal HorizonOS file manager.
- * Used by the add-games flow instead of the native Android document picker.
- */
 @Composable
 fun FolderPickerDialog(
     onDismiss: () -> Unit,

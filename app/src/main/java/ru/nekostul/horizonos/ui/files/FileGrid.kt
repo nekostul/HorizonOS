@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,13 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 
-/**
- * One tile of the file-manager grid. Keeps the HorizonOS focus frame and the
- * selected highlight identical to the rest of the launcher.
- */
 @Composable
 internal fun FileGridItem(
     entry: FileEntry,
@@ -110,10 +103,6 @@ internal fun FileGridItem(
     }
 }
 
-/**
- * Shared icon for a file entry. Folders get a real folder shape (a back tab
- * plus a front cover) instead of a plain rounded square.
- */
 @Composable
 fun FileEntryIcon(
     entry: FileEntry,
@@ -146,7 +135,6 @@ fun FileEntryIcon(
     }
 }
 
-/** A recognisable folder: a back tab behind a rounded front cover. */
 @Composable
 fun FolderGlyph(
     modifier: Modifier = Modifier,
@@ -155,14 +143,12 @@ fun FolderGlyph(
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        // Back tab.
         drawRoundRect(
             color = color.copy(alpha = 0.55f),
             topLeft = Offset(w * 0.10f, h * 0.14f),
             size = Size(w * 0.80f, h * 0.34f),
             cornerRadius = CornerRadius(w * 0.05f, w * 0.05f)
         )
-        // Front cover.
         drawRoundRect(
             color = color,
             topLeft = Offset(w * 0.06f, h * 0.28f),
@@ -172,7 +158,6 @@ fun FolderGlyph(
     }
 }
 
-/** A document sheet with a folded corner and an extension label. */
 @Composable
 private fun FileSheetGlyph(
     modifier: Modifier = Modifier,
@@ -195,7 +180,6 @@ private fun FileSheetGlyph(
                 close()
             }
             drawPath(path = body, color = color.copy(alpha = 0.9f))
-            // Folded corner.
             val corner = Path().apply {
                 moveTo(w - fold, h * 0.06f)
                 lineTo(w - w * 0.10f, h * 0.06f + fold)

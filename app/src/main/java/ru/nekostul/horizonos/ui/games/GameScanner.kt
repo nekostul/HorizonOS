@@ -14,11 +14,6 @@ class GameScanner(private val context: Context) {
     fun scan(folderUri: String, platform: Platform, emulator: Emulator): List<Game> =
         scanWithDetails(folderUri, platform, emulator).games
 
-    /**
-     * Scans a local directory (picked through the built-in HorizonOS file
-     * manager) for games. Mirrors [scanWithDetails] but works with plain
-     * java.io.File paths instead of SAF tree URIs.
-     */
     fun scanDirectory(root: java.io.File, platform: Platform, emulator: Emulator): ScanResult {
         if (!root.exists() || !root.isDirectory) return ScanResult(emptyList(), emptySet())
         val files = collectLocalFiles(root)
@@ -125,8 +120,6 @@ class GameScanner(private val context: Context) {
             .asSequence()
             .filter { it.file.isFile && platform.supportsFileName(it.file.name) }
             .filter { scanned ->
-                // The playlist is the game entry. Its referenced discs are
-                // implementation details and must not become separate cards.
                 scanned.relativePath !in playlistMembers ||
                     scanned.file.name.extensionLowercase() == "m3u"
             }
@@ -199,8 +192,6 @@ class GameScanner(private val context: Context) {
                 file.relativePath.equals(resolvedPath, ignoreCase = true)
             }?.let { members += it.relativePath }
 
-            // Some playlists contain only a filename while the referenced
-            // disc sits in a nested folder. Keep a safe filename fallback.
             if (members.none { it.equals(resolvedPath, ignoreCase = true) }) {
                 val filename = normalizedEntry.substringAfterLast('/')
                 files.filter { file ->

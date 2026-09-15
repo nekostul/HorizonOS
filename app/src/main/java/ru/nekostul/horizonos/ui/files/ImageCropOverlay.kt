@@ -68,11 +68,6 @@ import java.io.FileOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/**
- * Square image cropper used for covers and avatars. The user can zoom and pan
- * the image with the gamepad or touch, then confirm with A or cancel with B.
- * The resulting 1:1 PNG is written to the cache and returned through [onConfirm].
- */
 @Composable
 internal fun ImageCropOverlay(
     sourcePath: String,

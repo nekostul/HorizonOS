@@ -4,7 +4,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Shared UI helpers for the file manager: labels and formatting. */
 
 fun FileEntry.sizeLabel(): String {
     if (isDirectory) return when (kind) {

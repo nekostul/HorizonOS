@@ -5,21 +5,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Persisted user profile shown on the user page. */
 data class UserProfile(
     val nick: String,
     val avatarPath: String?
 ) {
-    /** The nick when the user has actually changed it, otherwise null. */
     val configuredNick: String?
         get() = nick.takeIf { it.isNotBlank() && it != UserProfileRepository.DEFAULT_NICK }
 }
 
-/**
- * Stores the launcher user profile (nickname and avatar path) in
- * SharedPreferences. Shared by Home (avatar button) and the user page so both
- * stay in sync through [profile].
- */
 class UserProfileRepository(context: Context) {
 
     private val prefs = context.applicationContext

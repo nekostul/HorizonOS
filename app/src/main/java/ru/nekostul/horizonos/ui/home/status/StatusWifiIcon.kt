@@ -24,7 +24,6 @@ private fun isWifiEnabled(context: Context): Boolean = runCatching {
     (context.getSystemService(Context.WIFI_SERVICE) as WifiManager).isWifiEnabled
 }.getOrDefault(false)
 
-/** Tracks whether Wi-Fi is currently enabled. */
 @Composable
 fun rememberWifiEnabled(): Boolean {
     val context = LocalContext.current
@@ -38,7 +37,6 @@ fun rememberWifiEnabled(): Boolean {
     return enabled
 }
 
-/** iOS-style Wi-Fi: three nested arcs above a dot. */
 @Composable
 fun StatusWifiIcon(
     color: Color,

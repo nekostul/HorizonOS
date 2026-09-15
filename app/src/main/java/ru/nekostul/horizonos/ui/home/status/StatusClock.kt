@@ -16,7 +16,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Reference status-bar clock: always uses the 24-hour HH:mm format. */
 @Composable
 fun StatusClock(
     color: Color,

@@ -2,13 +2,11 @@ package ru.nekostul.horizonos.ui.files
 
 import java.io.File
 
-/** Type of a file entry, used to pick icons and the correct open/preview action. */
 enum class FileKind {
     FOLDER, APK, AZW, RAR, ZIP, SEVEN_ZIP, TAR, GZIP, BZIP, ISO, BIN_CUE,
     CHD, ROM, IMAGE, VIDEO, AUDIO, TEXT, PDF, DB, CONFIG, UNKNOWN
 }
 
-/** A single entry in the file manager. */
 data class FileEntry(
     val name: String,
     val path: String,
@@ -27,7 +25,6 @@ data class FileEntry(
     val isRoot: Boolean get() = path == "/"
 }
 
-/** Converts a java.io.File into a FileEntry snapshot. */
 fun File.toEntry(): FileEntry {
     val nm = name ?: path
     return FileEntry(

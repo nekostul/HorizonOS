@@ -11,14 +11,6 @@ import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLaunchResult
 import java.io.File
 
-/**
- * Launches Nintendo Switch titles in Eden / Yuzu / Sudachi.
- *
- * Yuzu and its forks expose a dedicated `EmulationActivity`. Front-ends such as
- * ES-DE start it explicitly with the `android.nfc.action.TECH_DISCOVERED` action
- * and the ROM as data, so the emulator boots straight into the game instead of
- * its main menu.
- */
 class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLauncher {
 
     override fun launch(context: Context, game: Game): GameLaunchResult {
@@ -41,7 +33,6 @@ class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLaun
             )
         }
 
-        // Preferred: the emulator's own emulation activity, as ES-DE does it.
         val explicit = Intent(ACTION_TECH_DISCOVERED).apply {
             component = ComponentName(target.packageName, target.activity)
             setDataAndType(uri, "*/*")
@@ -53,7 +44,6 @@ class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLaun
         }
         if (startSafely(context, explicit)) return GameLaunchResult.Launched
 
-        // Fallback: implicit VIEW for the package (works on some forks).
         val implicit = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "*/*")
             setPackage(target.packageName)
@@ -65,7 +55,6 @@ class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLaun
         }
         if (startSafely(context, implicit)) return GameLaunchResult.Launched
 
-        // Last resort: open the emulator itself so the user is not stuck.
         return if (openSettings(context, emulator)) {
             GameLaunchResult.Launched
         } else {
@@ -100,8 +89,6 @@ class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLaun
 
         private data class Target(val packageName: String, val activity: String)
 
-        // Activity names follow the Yuzu fork layout. The EA build keeps the base
-        // package for the activity class.
         private val TARGETS: Map<Emulator, List<Target>> = mapOf(
             Emulator.EDEN to listOf(
                 Target("dev.eden.eden_emulator", "dev.eden.eden_emulator.activities.EmulationActivity"),
@@ -122,7 +109,6 @@ class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLaun
                     .getOrDefault(false)
             }
 
-        /** Opens the emulator's own UI so the user can finish its setup. */
         fun openSettings(context: Context, emulator: Emulator): Boolean {
             val target = findInstalledTarget(context, emulator) ?: return false
             val intent = context.packageManager.getLaunchIntentForPackage(target.packageName)

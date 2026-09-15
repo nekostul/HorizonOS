@@ -8,7 +8,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.alpha
@@ -42,7 +39,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -71,26 +67,15 @@ internal val SettingsTrack: Color
 internal val SettingsThumb: Color
     @Composable get() = SettingsGray
 
-// Selection is deliberately blue while the launcher text keeps its normal
-// color. The shorter cycle makes focus easier to see than on the Home screen.
 internal val SelectionFrameBlue = Color(0xFF08A8E6)
 internal const val SelectionPulseDurationMillis = 560
 
-// Console teal used for the active value and the highlighted choice text.
 internal val SettingsAccentTeal = Color(0xFF00B180)
 
 internal val LocalSettingsRightMenuFocused = compositionLocalOf { false }
 
-/**
- * True while the gamepad has grabbed the currently selected slider, so the
- * slider row can highlight its thumb.
- */
 internal val LocalSliderEditing = compositionLocalOf { false }
 
-/**
- * Touch interaction should be direct and visually quiet.  The selection frame
- * is reserved for navigation driven by a physical controller.
- */
 internal enum class SettingsInputMode { TOUCH, GAMEPAD }
 
 internal val LocalSettingsInputMode =

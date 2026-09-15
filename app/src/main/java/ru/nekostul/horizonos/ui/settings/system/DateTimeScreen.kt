@@ -18,8 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Text
 import androidx.compose.ui.viewinterop.AndroidView
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -31,7 +29,6 @@ import ru.nekostul.horizonos.ui.settings.HorizonOverlay
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
 import ru.nekostul.horizonos.ui.settings.SettingsCapabilitiesNote
 import ru.nekostul.horizonos.ui.settings.SettingsToggleRow
-import ru.nekostul.horizonos.ui.settings.SettingsWhite
 
 @Composable
 fun DateTimeScreen() {

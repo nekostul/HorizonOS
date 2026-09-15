@@ -2,26 +2,15 @@ package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
 import java.io.File
 import java.io.FileOutputStream
 
-/**
- * Downloads and normalizes scraped images.
- * - Covers are forced to 1:1 via center crop (never stretched).
- * - Screenshots keep their native aspect ratio.
- */
 class ImageProcessor(
     private val cacheDir: File
 ) {
     private val coverDir = File(cacheDir, "covers").apply { mkdirs() }
     private val screenshotDir = File(cacheDir, "screenshots").apply { mkdirs() }
 
-    /**
-     * Downloads [url] and stores a 1:1 cover for [gameId]. Returns the local
-     * path, or null when the download or the decode fails.
-     */
     suspend fun storeCover(gameId: String, url: String): String? {
         val bytes = HttpClient.getBytes(url) ?: return null
         val square = toSquare(bytes, maxSize = 512) ?: return null
@@ -30,10 +19,6 @@ class ImageProcessor(
         return target.absolutePath
     }
 
-    /**
-     * Downloads [url] and stores a screenshot preserving aspect ratio.
-     * Returns the local path, or null on failure.
-     */
     suspend fun storeScreenshot(gameId: String, url: String): String? {
         val bytes = HttpClient.getBytes(url) ?: return null
         val bitmap = decode(bytes) ?: return null
@@ -42,10 +27,6 @@ class ImageProcessor(
         return target.absolutePath
     }
 
-    /**
-     * Copies a user-selected local image and stores a 1:1 cover for [gameId].
-     * Proportions are preserved via center crop; nothing is stretched.
-     */
     suspend fun storeLocalCover(gameId: String, sourcePath: String): String? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val source = BitmapFactory.decodeFile(sourcePath) ?: return@withContext null
@@ -59,10 +40,6 @@ class ImageProcessor(
             target.absolutePath
         }
 
-    /**
-     * Copies a user-selected local image as a screenshot, preserving the
-     * original aspect ratio.
-     */
     suspend fun storeLocalScreenshot(gameId: String, sourcePath: String): String? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val bitmap = BitmapFactory.decodeFile(sourcePath) ?: return@withContext null
@@ -76,10 +53,6 @@ class ImageProcessor(
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
         }
 
-    /**
-     * Downloads a small preview for the manual picker. Returns null when the
-     * image cannot be downloaded or decoded (e.g. a dead Libretro URL).
-     */
     suspend fun loadThumbnail(url: String, maxSize: Int = 256): Bitmap? {
         val bytes = HttpClient.getBytes(url) ?: return null
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -110,10 +83,6 @@ class ImageProcessor(
         }
     }
 
-    /**
-     * Center-crops the bitmap to a square and downscales to [maxSize].
-     * Proportions are preserved — nothing is stretched.
-     */
     private suspend fun toSquare(bytes: ByteArray, maxSize: Int): Bitmap? =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val source = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@withContext null

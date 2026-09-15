@@ -20,16 +20,11 @@ class NetherSx2Launcher : EmulatorGameLauncher {
             game = game,
             packageName = packageName,
             activityName = "$packageName.EmulationActivity",
-            intent = Intent(Intent.ACTION_MAIN).apply {
-                putExtra("bootPath", game.romUri)
-                putExtra("resumeState", false)
-            }
+            intent = Intent(Intent.ACTION_VIEW)
         )
     }
 
     private companion object {
-        // NetherSX2 keeps the AetherSX2 application id. The turnip variants
-        // are included because they use the same documented launch activity.
         val PACKAGES = listOf(
             "xyz.aethersx2.android",
             "xyz.aethersx2.tturnip",

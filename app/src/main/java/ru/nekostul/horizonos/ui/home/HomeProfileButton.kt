@@ -20,10 +20,6 @@ import androidx.compose.ui.unit.dp
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 import ru.nekostul.horizonos.ui.user.UserAvatar
 
-/**
- * Top-left Home element. Opens the user page and, when selected with the
- * gamepad, uses the same pulsing circular frame as the Home menu buttons.
- */
 @Composable
 fun HomeProfileButton(
     avatarPath: String?,

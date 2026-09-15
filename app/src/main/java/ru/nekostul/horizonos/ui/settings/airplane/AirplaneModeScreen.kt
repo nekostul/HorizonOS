@@ -3,7 +3,6 @@ package ru.nekostul.horizonos.ui.settings.airplane
 import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.settings.LauncherSettings

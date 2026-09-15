@@ -40,9 +40,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -55,14 +53,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.key.Key
@@ -141,9 +137,6 @@ internal fun HorizonOverlay(
     val overlayBackHandlers = LocalSettingsOverlayBackHandlers.current
     val latestControllerBack = rememberUpdatedState(onControllerBack)
     val inputMode = LocalSettingsInputMode.current
-    // Dialog creates a new Android window and its LocalContext otherwise
-    // falls back to the device locale. Keep using the already localized
-    // context from the parent window for every string inside the dialog.
     val localizedContext = LocalContext.current
 
     fun dismissAnimated() {
@@ -180,8 +173,6 @@ internal fun HorizonOverlay(
             }
         },
         properties = DialogProperties(
-            // Route Back through the visible page first. This keeps the
-            // overlay open while nested pages move one step back.
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
             usePlatformDefaultWidth = false,
@@ -313,14 +304,8 @@ internal fun HorizonOverlay(
 
             LaunchedEffect(window, onControllerBack) {
             overlayFocusRequester.requestFocus()
-            // The generic settings dialogs use focusable rows rather than a
-            // screen-specific index. Move focus into the first row so the
-            // D-pad can traverse those rows normally.
             if (onControllerBack == null) {
                 delay(40)
-                // Enter the focus group explicitly. A spatial Down search
-                // from the full-screen container can skip the dialog's
-                // first choice on Android TV-style layouts.
                 focusManager.moveFocus(FocusDirection.Enter)
             }
             }
@@ -341,8 +326,6 @@ internal fun HorizonOverlay(
                     } else {
                         inputMode?.value = SettingsInputMode.GAMEPAD
                         if (HorizonNavigation.isHomeKeyCode(event.nativeKeyEvent.keyCode)) {
-                            // HOME/Xbox always returns to the Home Screen, even
-                            // from any nested overlay.
                             HorizonNavigation.requestHome()
                             true
                         } else if (event.key == Key.ButtonB || event.key == Key.Back) {
@@ -368,8 +351,6 @@ internal fun HorizonOverlay(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    // Keep the launcher visible above the panel, as in the
-                    // original HorizonOS layout.
                     .fillMaxHeight(0.825f)
             ) {
                 AnimatedVisibility(
@@ -388,8 +369,6 @@ internal fun HorizonOverlay(
                         Modifier
                             .fillMaxSize()
                             .background(SettingsOverlayPanel)
-                            // Consume taps inside the panel without making
-                            // empty space behave like a button.
                             .pointerInput(Unit) {
                                 detectTapGestures(onTap = {
                                     inputMode?.value = SettingsInputMode.TOUCH
@@ -588,9 +567,6 @@ internal fun HorizonOverlayChoice(
         ),
         label = "overlayChoiceSelectionPulseValue"
     )
-    // The selected state is the single source of truth for the controller
-    // frame. Compose focus is still used for scrolling, but it can briefly
-    // lag during recomposition and must not leave a second frame behind.
     val active = inputMode?.value == SettingsInputMode.GAMEPAD && selected && enabled
     LaunchedEffect(hasFocus) {
         if (hasFocus) bringIntoViewRequester.bringIntoView()

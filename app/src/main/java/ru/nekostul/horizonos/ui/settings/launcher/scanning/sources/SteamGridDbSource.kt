@@ -12,11 +12,6 @@ import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperSourceId
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.TitleMatcher
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.searchName
 
-/**
- * SteamGridDB — requires a free API key (Authorization: Bearer).
- * Search: GET /search/autocomplete/{term}. Cover: GET /grids/game/{id}.
- * No screenshot endpoint exists; the field is left empty here.
- */
 class SteamGridDbSource : GameMetadataSource {
 
     override val id = ScraperSourceId.STEAM_GRID_DB
@@ -59,7 +54,6 @@ class SteamGridDbSource : GameMetadataSource {
         return candidates[matchIndex]
     }
 
-    /** All grids, square (1:1) ones first. */
     private suspend fun grids(gameId: Int, settings: ScraperSettings): List<MediaVariant> {
         val raw = HttpClient.getText(
             url = "https://www.steamgriddb.com/api/v2/grids/game/$gameId",

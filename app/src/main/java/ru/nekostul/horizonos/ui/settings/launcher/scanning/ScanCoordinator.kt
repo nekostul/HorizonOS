@@ -14,12 +14,6 @@ import org.json.JSONArray
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLibrary
 
-/**
- * Application-wide scan queue. It survives leaving Settings and Home and is
- * kept alive in the background by [ScanService]. The position is persisted
- * after every game, so if the process is killed the scan resumes from the
- * same point on the next launch.
- */
 object ScanCoordinator {
 
     private const val TAG = "ScanCoordinator"
@@ -42,7 +36,6 @@ object ScanCoordinator {
     private val _hint = MutableStateFlow<List<String>>(emptyList())
     val hint: StateFlow<List<String>> = _hint.asStateFlow()
 
-    // Ordered ids for the whole run; `done` counts finished ones.
     private val runIds = mutableListOf<String>()
     private val runIdSet = mutableSetOf<String>()
     private var done = 0
@@ -55,15 +48,9 @@ object ScanCoordinator {
         if (!workerRunning) resumeIfNeeded(ctx)
     }
 
-    /**
-     * A game still needs a scan while any metadata field is missing. Fully
-     * resolved games are never queued, so no progress notification is shown
-     * for a scan that would not actually download anything.
-     */
     private val Game.needsScanning: Boolean
         get() = fullTitle == null || coverPath == null || screenshotPath == null
 
-    /** Queue the given games for scanning (used after adding games). */
     fun enqueue(games: List<Game>) {
         val pending = games.filter { it.needsScanning }
         if (pending.isEmpty()) return
@@ -76,7 +63,6 @@ object ScanCoordinator {
         startIfNeeded()
     }
 
-    /** Queue every game currently in the library (manual scan). */
     fun enqueueAll() {
         val ctx = appContext ?: return
         _hint.value = emptyList()
@@ -94,8 +80,6 @@ object ScanCoordinator {
         val ctx = appContext ?: return
         synchronized(this) {
             if (workerRunning) return
-            // Never start the foreground scan notification when there is no
-            // actual metadata left to download.
             if (runIds.isEmpty()) return
             workerRunning = true
         }
@@ -134,7 +118,6 @@ object ScanCoordinator {
 
             finish(ctx, library)
         } catch (error: Throwable) {
-            // A failed worker must never leave an endless "scanning" notification.
             Log.e(TAG, "Metadata scan failed", error)
             abort(ctx)
         }
@@ -146,11 +129,12 @@ object ScanCoordinator {
         val missing = after.filter { it.id in ids && it.coverPath == null }
         if (missing.isNotEmpty()) _hint.value = missing.map { it.displayTitle }
 
-        _progress.value = null
         val more = synchronized(this) {
             workerRunning = false
             if (done >= runIds.size) {
                 clearState()
+                _scanning.value = false
+                _progress.value = null
                 false
             } else {
                 true
@@ -159,19 +143,17 @@ object ScanCoordinator {
         if (more) {
             startIfNeeded()
         } else {
-            _scanning.value = false
             ScanService.stop(ctx)
         }
     }
 
-    /** Clears the queue and removes the progress notification after a failure. */
     private fun abort(ctx: Context) {
         synchronized(this) {
             workerRunning = false
             clearState()
+            _scanning.value = false
+            _progress.value = null
         }
-        _progress.value = null
-        _scanning.value = false
         runCatching { ScanService.stop(ctx) }
     }
 

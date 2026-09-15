@@ -15,14 +15,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import ru.nekostul.horizonos.R
 
-/**
- * Foreground service that keeps the metadata scan alive (and shows progress)
- * while the user browses other apps or leaves HorizonOS in the background.
- */
 class ScanService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -33,10 +29,25 @@ class ScanService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createChannel()
         startForegroundCompat(buildNotification(ScanCoordinator.progress.value))
-        if (observer == null) {
+        if (!ScanCoordinator.scanning.value && ScanCoordinator.progress.value == null) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (observer?.isActive != true) {
             observer = scope.launch {
-                ScanCoordinator.progress.collectLatest { progress ->
-                    notify(buildNotification(progress))
+                combine(
+                    ScanCoordinator.progress,
+                    ScanCoordinator.scanning
+                ) { progress, scanning -> progress to scanning }.collect { (progress, scanning) ->
+                    if (scanning) {
+                        notify(buildNotification(progress))
+                    } else {
+                        observer?.cancel()
+                        observer = null
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
                 }
             }
         }
@@ -88,8 +99,6 @@ class ScanService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .apply {
-                // Only show a progress bar while a game is actually being
-                // scanned; never an endless indeterminate one.
                 if (progress != null) setProgress(progress.total, progress.index, false)
                 if (pending != null) setContentIntent(pending)
             }

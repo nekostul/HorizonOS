@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.sp
 import ru.nekostul.horizonos.ui.settings.HorizonOverlay
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
 
-/** Shows properties (name, type, size, path, modified, etc.) for an entry. */
 @Composable
 fun PropertiesOverlay(
     entry: FileEntry,

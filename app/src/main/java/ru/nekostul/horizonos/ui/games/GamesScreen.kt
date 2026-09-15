@@ -1,7 +1,5 @@
 package ru.nekostul.horizonos.ui.games
 
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -9,7 +7,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,7 +22,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -73,7 +69,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -96,12 +91,7 @@ import ru.nekostul.horizonos.ui.files.FolderPickerDialog
 import ru.nekostul.horizonos.ui.files.FileEntry
 import ru.nekostul.horizonos.ui.files.RomPickerDialog
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.GameMetadataEditor
-import ru.nekostul.horizonos.ui.settings.launcher.scanning.MediaType
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
-import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperRepository
-import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperSettings
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -171,8 +161,6 @@ fun GamesScreen(
         if (detailsGame?.id == updated.id) detailsGame = updated
     }
 
-    // Keep the open details overlay in sync with the library, so a metadata
-    // scan that changes the title/cover is reflected immediately.
     LaunchedEffect(games) {
         val current = detailsGame ?: return@LaunchedEffect
         games.firstOrNull { it.id == current.id }?.let { detailsGame = it }
@@ -213,7 +201,6 @@ fun GamesScreen(
             .apply()
     }
 
-    /** Shows the "configure the emulator first" notice when needed. */
     fun maybeWarnAboutConfiguration() {
         if (selectedEmulator.requiresConfiguration && !isConfigWarningShown(selectedEmulator)) {
             configWarningIndex = 0
@@ -244,9 +231,6 @@ fun GamesScreen(
                     selectedPlatform,
                     selectedEmulator
                 )
-                // Older builds stored every disc referenced by an M3U as a
-                // separate game. Remove those stale entries before adding the
-                // playlist-backed game so rescanning repairs existing data.
                 library.removeByRomUris(result.playlistMemberUris)
                 result
             }
@@ -256,10 +240,6 @@ fun GamesScreen(
                 if (library.addAll(fresh) > 0) fresh else emptyList()
             }
             isWorking = false
-            // Remember the folder even when nothing new was added, so a
-            // subfolder of an already-added folder can still be selected and
-            // tracked. The exact same folder is rejected earlier, in
-            // handleFolderResult, with the dedicated "already added" overlay.
             withContext(Dispatchers.IO) {
                 folderRepository.remember(
                     GameFolderRepository.Folder(
@@ -271,8 +251,6 @@ fun GamesScreen(
                 )
             }
             if (addedGames.isEmpty()) {
-                // Nothing new was found here (all games already known or no
-                // supported ROMs). Stay on the library page with a message.
                 message = context.getString(R.string.games_none_found)
                 page = LibraryPage
                 focusIndex = 0
@@ -280,7 +258,6 @@ fun GamesScreen(
             }
             message = context.getString(R.string.games_added_count, addedGames.size)
             onGamesAdded(addedGames)
-            // Close the Games window and return to the launcher Home screen.
             onDismiss()
         }
     }
@@ -288,7 +265,6 @@ fun GamesScreen(
     fun loadInstalledApps() {
         appsLoading = true
         installedApps = emptyList()
-        // Pre-check applications that are already in the HorizonOS library.
         selectedApps = games.mapNotNull { it.packageName }.toSet()
         scope.launch {
             val apps = withContext(Dispatchers.IO) { androidApps.installedApps() }
@@ -330,15 +306,12 @@ fun GamesScreen(
                 context.getString(R.string.games_added_count, added)
             }
             if (added > 0) onGamesAdded(games)
-            // Close the Games window and return to the launcher Home screen.
             onDismiss()
         }
     }
 
     fun handleFolderResult(path: String?) {
         if (path.isNullOrBlank()) return
-        // Reject a folder that was already added, even under another platform,
-        // so the same games are never imported twice.
         if (folderRepository.load().any { it.path == path }) {
             duplicateFolder = true
             return
@@ -357,9 +330,7 @@ fun GamesScreen(
         message = null
     }
 
-    /** ROM picked from the built-in file manager (single-file add flow). */
     fun handleRomPicked(entry: FileEntry) {
-        // Ask the user to confirm before touching the library.
         romConfirmIndex = 0
         pendingRom = entry
         maybeWarnAboutConfiguration()
@@ -388,7 +359,6 @@ fun GamesScreen(
                     context.getString(R.string.games_rom_already_added)
                 return@launch
             }
-            // A deliberate add clears the "deleted" mark, so the game sticks.
             withContext(Dispatchers.IO) { deletedRoms.clearDeleted(file.absolutePath) }
             showRomPicker = false
             onGamesAdded(listOf(game))
@@ -396,7 +366,6 @@ fun GamesScreen(
         }
     }
 
-    /** Library order used for display and focus: grouped by emulator. */
     fun orderedGames(): List<Game> = games.sortedWith(
         compareBy({ it.emulator.ordinal }, { it.displayTitle.lowercase() })
     )
@@ -428,9 +397,6 @@ fun GamesScreen(
                 val ordered = orderedGames()
                 when {
                     focusIndex < ordered.size -> {
-                        // The library can refresh asynchronously while a key
-                        // event is being delivered. Resolve the item defensively
-                        // so a stale focus index cannot crash the dialog.
                         ordered.getOrNull(focusIndex)?.let { game ->
                             selectedLibraryIndex = focusIndex
                             openGameDetails(game)
@@ -552,19 +518,12 @@ fun GamesScreen(
         return handleBack()
     }
 
-    // Keep Android Back consistent with the controller B button even when
-    // the event is dispatched by the host activity instead of the dialog.
     BackHandler(enabled = true) {
         handleOverlayBack()
     }
 
     LaunchedEffect(page, games.size, focusIndex) {
         focusIndex = focusIndex.coerceIn(0, (currentItemCount() - 1).coerceAtLeast(0))
-        // Scrolling is handled per-row via BringIntoViewRequester, so it only
-        // happens when the focused row is actually outside the viewport.
-        // HorizonOverlay creates a separate Dialog window. Request focus
-        // after that window has attached so controller events reach this
-        // screen instead of the scrim host.
         delay(260)
         focusRequester.requestFocus()
     }
@@ -699,8 +658,6 @@ fun GamesScreen(
             onDelete = {
                 detailsGame = null
                 scope.launch {
-                    // Remember the deletion so the silent folder rescan never
-                    // brings this ROM back on its own.
                     withContext(Dispatchers.IO) { deletedRoms.markDeleted(game.romUri) }
                     library.remove(game)
                     message = context.getString(R.string.games_removed)
@@ -805,8 +762,6 @@ fun GamesScreen(
     if (showRomPicker) {
         RomPickerDialog(
             onDismiss = { showRomPicker = false },
-            // Keep the picker open while the confirmation is shown, so "No"
-            // returns the user exactly where they were.
             onPick = { entry -> handleRomPicked(entry) },
             allowedExtensions = selectedPlatform.romExtensions
         )
@@ -971,7 +926,6 @@ private fun LibraryContent(
     }
 }
 
-/** Visual grouping header for a platform/emulator section in the library. */
 @Composable
 private fun LibrarySectionHeader(title: String, subtitle: String) {
     Row(
@@ -1142,7 +1096,6 @@ private fun AndroidAppRow(
     val active = inputMode?.value == SettingsInputMode.GAMEPAD && focused
     val icon = rememberAppIcon(app.icon)
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    // Scroll minimally only when the focused row is not fully visible.
     LaunchedEffect(focused) {
         if (focused) bringIntoViewRequester.bringIntoView()
     }
@@ -1407,7 +1360,6 @@ private fun platformLabel(platform: Platform): String = when (platform) {
 @Composable
 private fun emulatorLabel(emulator: Emulator): String = stringResource(emulator.titleRes)
 
-/** A deliberately different, compact dialog for per-game actions. */
 @Composable
 private fun GameDetailsOverlay(
     game: Game,
@@ -1421,8 +1373,6 @@ private fun GameDetailsOverlay(
     val detailScrollState = rememberScrollState()
     var focusIndex by remember { mutableIntStateOf(0) }
     val inputMode = LocalSettingsInputMode.current
-    // Compose Dialog uses a separate window context. Preserve the localized
-    // parent context so the title and all action rows use the same language.
     val localizedContext = LocalContext.current
     val rowCount = 4
 

@@ -24,16 +24,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 import java.io.File
 
-/**
- * User avatar. Shows the saved image when present, otherwise a neutral person
- * placeholder. Reused by the Home button, the user page and the editors.
- */
 @Composable
 fun UserAvatar(
     avatarPath: String?,
@@ -79,13 +74,11 @@ private fun PersonGlyph(color: Color, size: Dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
-        // Head.
         drawCircle(
             color = color,
             radius = w * 0.20f,
             center = Offset(w / 2f, h * 0.30f)
         )
-        // Shoulders.
         drawArc(
             color = color,
             startAngle = 180f,

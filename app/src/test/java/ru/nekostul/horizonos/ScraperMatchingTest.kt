@@ -21,7 +21,6 @@ class ScraperMatchingTest {
 
     @Test
     fun matchScore_rejectsSequelMismatch() {
-        // "Driver 2" must not match a plain "Driver"
         assertTrue(TitleMatcher.matchScore("Driver 2", "Driver") < 70)
         assertEquals(100, TitleMatcher.matchScore("Driver 2", "Driver 2"))
     }

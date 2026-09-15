@@ -20,7 +20,6 @@ import kotlinx.coroutines.delay
 private fun isAirplaneModeOn(context: Context): Boolean =
     Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) == 1
 
-/** Tracks whether airplane mode is currently enabled. */
 @Composable
 fun rememberAirplaneModeEnabled(): Boolean {
     val context = LocalContext.current
@@ -34,7 +33,6 @@ fun rememberAirplaneModeEnabled(): Boolean {
     return enabled
 }
 
-/** iOS-style airplane seen from above. */
 @Composable
 fun StatusAirplaneIcon(
     color: Color,

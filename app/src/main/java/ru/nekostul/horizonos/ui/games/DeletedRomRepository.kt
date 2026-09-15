@@ -2,11 +2,6 @@ package ru.nekostul.horizonos.ui.games
 
 import android.content.Context
 
-/**
- * Remembers ROMs the user deleted from the library so the silent folder rescan
- * never brings them back automatically. An explicit "Add ROM" clears the entry
- * again, so the user can always restore a game on purpose.
- */
 class DeletedRomRepository(context: Context) {
 
     private val appContext = context.applicationContext

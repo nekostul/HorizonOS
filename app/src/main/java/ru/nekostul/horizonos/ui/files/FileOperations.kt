@@ -2,18 +2,10 @@ package ru.nekostul.horizonos.ui.files
 
 import java.io.File
 
-/** Result of a file operation that can return partial/failure info. */
 data class OpResult(val ok: Boolean, val message: String = "")
 
-/** How the current directory listing is ordered. */
 enum class FileSortMode { NAME, SIZE, DATE }
 
-/**
- * Performs all file-system operations. When running as root it falls back to
- * shell commands for paths that are not directly writable; otherwise it uses
- * plain java.io.File access (which is fine for user-scoped and removable
- * storage directories).
- */
 object FileOperations {
 
     fun list(parent: File): List<FileEntry> {
@@ -92,7 +84,6 @@ object FileOperations {
         else OpResult(rootRun("touch \"${File(parent, name).absolutePath}\" "))
     }
 
-    /** Runs a root command string; returns true when it succeeded. */
     private fun rootRun(command: String): Boolean {
         if (!RootHelper.isRootAvailable()) return false
         val (code, _) = RootHelper.runRoot(command)
@@ -101,7 +92,6 @@ object FileOperations {
 
     suspend fun exists(path: String): Boolean = io { File(path).exists() }
 
-    /** Total size of a subtree; stops early for huge folders. */
     suspend fun sizeOf(file: File, limitFiles: Int = 200_000): Long = io {
         var total = 0L
         var count = 0

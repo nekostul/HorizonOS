@@ -11,13 +11,6 @@ import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScraperSourceId
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.TitleMatcher
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.searchName
 
-/**
- * Libretro — no public metadata JSON API exists, but the RetroArch thumbnail
- * CDN (thumbnails.libretro.com) is public and needs no authentication. It
- * exposes directory listings with the real No-Intro file names, which this
- * source matches by normalized title. The matched No-Intro name also yields
- * a clean title (e.g. "Driver 2 (USA)" -> "Driver 2").
- */
 class LibretroSource : GameMetadataSource {
 
     override val id = ScraperSourceId.LIBRETRO

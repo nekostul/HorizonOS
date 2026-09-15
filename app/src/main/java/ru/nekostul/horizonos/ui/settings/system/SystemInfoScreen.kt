@@ -2,7 +2,6 @@ package ru.nekostul.horizonos.ui.settings.system
 
 import android.os.Build
 import android.app.ActivityManager
-import android.content.Context
 import android.os.StatFs
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

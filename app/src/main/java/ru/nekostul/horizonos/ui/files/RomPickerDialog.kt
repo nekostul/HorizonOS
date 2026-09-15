@@ -13,10 +13,6 @@ import androidx.compose.ui.window.DialogWindowProvider
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.settings.hideDialogSystemBars
 
-/**
- * Full-screen single-ROM picker built on the internal HorizonOS file manager.
- * Used by the "Add ROM" flow instead of the native Android document picker.
- */
 @Composable
 fun RomPickerDialog(
     onDismiss: () -> Unit,

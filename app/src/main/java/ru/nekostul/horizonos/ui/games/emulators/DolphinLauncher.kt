@@ -15,9 +15,8 @@ class DolphinLauncher : EmulatorGameLauncher {
             game = game,
             packageName = PACKAGE_NAME,
             activityName = "$PACKAGE_NAME.ui.main.MainActivity",
-            intent = Intent(Intent.ACTION_MAIN).apply {
-                putExtra("AutoStartFile", game.romUri)
-            }
+            intent = Intent(Intent.ACTION_MAIN),
+            localFileUri = { file -> RomContentProvider.uriForFile(file) }
         )
     }
 

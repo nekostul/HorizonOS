@@ -21,10 +21,6 @@ import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.games.Platform
 import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
-/**
- * Small notice shown when the silent launch rescan added new games.
- * Names the platforms that gained games.
- */
 @Composable
 fun NewGamesAddedOverlay(
     platforms: List<Platform>,
@@ -61,10 +57,6 @@ private fun platformNames(platforms: List<Platform>): String {
     return names.joinToString(", ")
 }
 
-/**
- * Per-game scan menu. Offers an automatic scan from the configured sources or a
- * fully manual pick of a custom cover/screenshot from local files.
- */
 @Composable
 fun GameScanMenuOverlay(
     game: Game,
@@ -106,7 +98,6 @@ fun GameScanMenuOverlay(
     }
 }
 
-/** Manual title override dialog. The ROM file is never modified. */
 @Composable
 fun GameTitleEditorOverlay(
     game: Game,

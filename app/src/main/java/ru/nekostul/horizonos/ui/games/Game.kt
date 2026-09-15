@@ -23,7 +23,6 @@ data class Game(
     val identityKey: String
         get() = "${emulator.name}|$romUri"
 
-    /** The title to show in UI and use for scraping: manual/scraped name wins. */
     val displayTitle: String
         get() = fullTitle?.takeIf { it.isNotBlank() } ?: title
 
@@ -41,7 +40,6 @@ data class Game(
             return Game(stableId, title, platform, emulator, romUri, romName)
         }
 
-        /** Builds a Game entry for an installed Android application. */
         fun fromAndroidApp(
             label: String,
             packageName: String,

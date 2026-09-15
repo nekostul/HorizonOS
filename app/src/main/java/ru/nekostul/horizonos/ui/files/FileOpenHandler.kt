@@ -7,12 +7,6 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import java.io.File
 
-/**
- * Opens files with the appropriate Android intent. Fallback-safe: any missing
- * handler is reported back instead of crashing. APKs trigger the system
- * package installer; images use a viewer; archives fall back to any app that
- * can handle them.
- */
 object FileOpenHandler {
 
     private const val PROVIDER_AUTHORITY = "ru.nekostul.horizonos.fileprovider"

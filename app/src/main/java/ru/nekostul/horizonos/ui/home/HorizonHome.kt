@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -150,7 +149,6 @@ import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
-import kotlinx.coroutines.flow.first
 import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlin.math.exp
@@ -173,8 +171,6 @@ private val HorizonGray: Color
     @Composable get() = LocalHorizonColors.current.mutedText
 private const val HomeCardSlotCount = 12
 
-// Installed GameSir app package candidates (Google Play build first), and the
-// package used for the "Get it on Google Play" link.
 private val GameSirPackages = listOf(
     "com.xiaoji.xtouch.google",
     "com.xiaoji.gamemiracle",
@@ -183,11 +179,6 @@ private val GameSirPackages = listOf(
 )
 private const val GameSirPlayPackage = "com.xiaoji.xtouch.google"
 
-/**
- * Small in-memory cache of decoded, down-scaled backdrop screenshots. The
- * backdrop is blurred anyway, so decoding at a reduced resolution keeps the
- * carousel smooth while the gamepad changes games quickly.
- */
 private object BackdropCache {
     private const val MAX_DIMENSION = 1024
 
@@ -227,7 +218,6 @@ private fun launchStaggerProgress(
     return ((totalProgress - firstDelay - index * stagger) / duration)
         .coerceIn(0f, 1f)
 }
-
 
 private fun isExternalGamepadConnected(): Boolean {
     return InputDevice.getDeviceIds().any { deviceId ->
@@ -294,8 +284,6 @@ fun HorizonHome(
     )
 
     LaunchedEffect("home-entry") {
-        // Keep the first home frame hidden, then animate every layer from its
-        // actual starting position instead of composing directly at the end.
         withFrameNanos { }
         homeEntryTarget = 1f
     }
@@ -307,35 +295,24 @@ fun HorizonHome(
     val visibleGames = games.filterNot { it.hidden }
     val gameLauncher = remember { GameLauncher() }
 
-    // Keep twelve empty slots as the minimum and extend the strip only when
-    // the saved library grows beyond that initial Home layout.
     val slotCount = maxOf(HomeCardSlotCount, visibleGames.size)
 
     var selectedGame by remember {
         mutableIntStateOf(0)
     }
 
-    // Keep the physical carousel position outside the carousel composable.
-    // The carousel is temporarily removed while Settings is open, but its
-    // position and the page indicator must remain synchronized.
     var homeScrollPositionPx by remember {
         mutableFloatStateOf(0f)
     }
 
     var tappedGameIndex by remember {
-        // The first slot is the initial Home selection, matching the reference.
         mutableIntStateOf(0)
     }
 
-    // Index used for the blurred screenshot backdrop. It follows explicit
-    // selection only, so swiping through the carousel does not change the
-    // background.
     var backgroundGameIndex by remember {
         mutableIntStateOf(0)
     }
 
-    // Update the backdrop whenever a card becomes selected (tap or gamepad),
-    // but never while merely scrolling/swiping (tappedGameIndex = -1).
     LaunchedEffect(tappedGameIndex) {
         if (tappedGameIndex >= 0) backgroundGameIndex = tappedGameIndex
     }
@@ -364,7 +341,6 @@ fun HorizonHome(
         mutableStateOf<Job?>(null)
     }
 
-    // GameSir app ("not installed") notice.
     var gamesirMissing by remember { mutableStateOf(false) }
     var gamesirChoice by remember { mutableIntStateOf(0) }
 
@@ -391,8 +367,6 @@ fun HorizonHome(
     val userProfileRepository = remember { UserProfileRepository(context) }
     val userProfile by userProfileRepository.profile.collectAsState()
 
-    // Global HOME/Xbox button: closes whatever internal screen is open and
-    // returns to the Home Screen, without doing a normal Back.
     val homeRequests by HorizonNavigation.requests.collectAsState()
     LaunchedEffect(homeRequests) {
         if (homeRequests > 0) {
@@ -404,13 +378,10 @@ fun HorizonHome(
         }
     }
 
-    // Ghost launch animation layer (null when inactive).
     var launchGhost by remember {
         mutableStateOf<LaunchGhostData?>(null)
     }
 
-    // Power-off (lock) animation state: a quick fade to black, then the screen
-    // is turned off.
     var poweringOff by remember { mutableStateOf(false) }
     val powerOffProgress = remember { Animatable(0f) }
     LaunchedEffect(poweringOff) {
@@ -421,7 +392,6 @@ fun HorizonHome(
             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
         )
         withContext(Dispatchers.IO) { PowerController.turnOffScreen(context) }
-        // Hold the black frame while the screen powers down, then reset.
         delay(500)
         powerOffProgress.animateTo(
             targetValue = 0f,
@@ -430,18 +400,12 @@ fun HorizonHome(
         poweringOff = false
     }
 
-    // Automatic metadata scan state comes from the app-wide coordinator so the
-    // Home indicator reflects both automatic and manually started scans.
     val scanning by ScanCoordinator.scanning.collectAsState()
     val scanProgress by ScanCoordinator.progress.collectAsState()
     val scanHint by ScanCoordinator.hint.collectAsState()
 
-    // While the lock screen is up the Home content must not take focus, so the
-    // gamepad keeps controlling the unlock screen instead of launching games.
     val locked by HorizonLock.locked.collectAsState()
 
-    // While the launch sequence runs, the Home content zooms toward the
-    // player and dims, mirroring the console's fade into the loading screen.
     val homeLaunchZoom by animateFloatAsState(
         targetValue = if (launchGhost == null) 0f else 1f,
         animationSpec = tween(300, easing = FastOutSlowInEasing),
@@ -492,7 +456,6 @@ fun HorizonHome(
         tappedGameIndex = selectedGame
     }
 
-    /** Opens the GameSir app, or shows the "not installed" notice. */
     fun openGamesir() {
         val launchIntent = GameSirPackages.firstNotNullOfOrNull { packageName ->
             runCatching { context.packageManager.getLaunchIntentForPackage(packageName) }.getOrNull()
@@ -509,7 +472,6 @@ fun HorizonHome(
             }
     }
 
-    /** Sends the user to the GameSir page on Google Play. */
     fun openGamesirStore() {
         gamesirMissing = false
         val market = Intent(
@@ -535,8 +497,6 @@ fun HorizonHome(
             return
         }
 
-        // Let the selected icon finish its entrance animation before opening
-        // the destination screen or external application.
         menuOpeningIndex = index
         menuOpeningJob = coroutineScope.launch {
             delay(640)
@@ -547,27 +507,22 @@ fun HorizonHome(
 
             when (index) {
 
-                // Игры
                 0 -> {
                     showGames = true
                 }
 
-                // Файлы
                 1 -> {
                     showFiles = true
                 }
 
-                // GameSir
                 2 -> {
                     openGamesir()
                 }
 
-                // Настройки лаунчера
                 3 -> {
                     showLauncherSettings = true
                 }
 
-                // Питание
                 4 -> {
                     poweringOff = true
                 }
@@ -586,11 +541,6 @@ fun launchGame(game: Game) {
         }
     }
 
-    /**
-     * Plays the Switch-style launch transition before the real launch. Games
-     * with artwork show their tile on the loading screen; the rest fall back
-     * to a plain title tile so every launch feels the same.
-     */
     fun launchGameWithAnimation(game: Game) {
         if (launchGhost != null) return
         coroutineScope.launch {
@@ -613,11 +563,6 @@ fun launchGame(game: Game) {
         }
     }
 
-    /**
-     * Queues newly added games for automatic metadata/covers scanning. The scan
-     * runs in an app-wide coordinator, so it keeps going after leaving Home or
-     * the Games window, and survives the app being backgrounded.
-     */
     fun enqueueAutoScan(added: List<Game>) {
         ScanCoordinator.init(context)
         ScanCoordinator.consumeHint()
@@ -638,17 +583,12 @@ fun launchGame(game: Game) {
         }
     }
 
-    // Every Home visit starts at slot zero. Keep the selected index and the
-    // physical strip position in sync so a restored/recreated Activity cannot
-    // reopen on a later card while the indicator still points at the first one.
     LaunchedEffect(Unit) {
         selectedGame = 0
         homeScrollPositionPx = 0f
         tappedGameIndex = 0
     }
 
-    // Silently rescan remembered ROM folders once per launch; if new games are
-    // found they are added, scraped and announced with a small notice.
     LaunchedEffect(Unit) {
         if (!FolderRescan.claim()) return@LaunchedEffect
         val result = withContext(Dispatchers.IO) { FolderRescan.rescan(context) }
@@ -659,8 +599,6 @@ fun launchGame(game: Game) {
         }
     }
 
-    // Pre-decode the current and neighbouring backdrops so switching games
-    // with the gamepad does not stutter on the (blurred) backdrop change.
     LaunchedEffect(selectedGame, visibleGames, launcherSettings.screenshotBackgroundEnabled) {
         if (!launcherSettings.screenshotBackgroundEnabled) return@LaunchedEffect
         val paths = listOf(-1, 0, 1, 2)
@@ -777,8 +715,6 @@ fun launchGame(game: Game) {
                     return@onPreviewKeyEvent false
                 }
 
-                // The profile button is selected; A opens the user page, down
-                // or B returns to the games strip.
                 if (profileFocused) {
                     when {
                         isHorizonConfirmKey(event) -> {
@@ -833,8 +769,6 @@ if (isHorizonConfirmKey(event)) {
                         if (menuSelectionArmed) {
                             moveUpToGames()
                         } else {
-                            // Move the whole selection frame off the game card
-                            // and onto the profile button.
                             clearHomeSelection()
                             profileFocused = true
                         }
@@ -849,11 +783,8 @@ if (isHorizonConfirmKey(event)) {
         val h = maxHeight
         val cardSize = h * 0.364f
         val cardGap = h * 0.018f
-        // Match the reference strip: slot 0 begins inside the left margin and
-        // the remaining slots continue beyond the viewport to the right.
         val cardStartOffset = h * 0.114f
 
-        // Blurred screenshot of the selected game as a living backdrop.
         if (launcherSettings.screenshotBackgroundEnabled) {
             GameScreenshotBackground(
                 screenshotPath = visibleGames.getOrNull(backgroundGameIndex)?.screenshotPath
@@ -902,8 +833,6 @@ if (isHorizonConfirmKey(event)) {
                         }
                     )
                     if (profileFocused) {
-                        // Same label style as the Home menu buttons. It is an
-                        // overlay, so nothing moves when it appears.
                         Text(
                             text = stringResource(R.string.user_page_title),
                             color = HorizonBlue,
@@ -1000,7 +929,6 @@ if (isHorizonConfirmKey(event)) {
                 horizontalArrangement = Arrangement.spacedBy(13.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.Top
             ) {
-                // The existing button meanings and actions are intentionally unchanged.
                 HorizonMenuButton(
                     icon = HorizonMenuIconType.GAMES,
                     iconColor = Color(0xFFFF0033),
@@ -1115,7 +1043,6 @@ Row(verticalAlignment = Alignment.CenterVertically) {
         }
     }
 
-    // Ghost launch animation overlays the whole Home when a game is launched.
     launchGhost?.let { ghost ->
         LaunchGhostOverlay(
             ghost = ghost,
@@ -1131,7 +1058,6 @@ Row(verticalAlignment = Alignment.CenterVertically) {
         )
     }
 
-    // Power-off (lock) fade to black.
     if (poweringOff || powerOffProgress.value > 0f) {
         Box(
             modifier = Modifier
@@ -1146,9 +1072,6 @@ Row(verticalAlignment = Alignment.CenterVertically) {
         if (tappedGameIndex >= slotCount) tappedGameIndex = -1
     }
 
-    // Settings temporarily removes the Home content from composition. Start
-    // a fresh Home session at the first card so the physical strip and the
-    // indicator can never reopen on different positions.
     LaunchedEffect(showLauncherSettings) {
         if (!showLauncherSettings) {
             selectedGame = 0
@@ -1171,7 +1094,6 @@ LaunchedEffect(showGames) {
         }
     }
 
-    // After the lock screen closes, Home must take focus back for the gamepad.
     LaunchedEffect(locked) {
         if (!locked) {
             withFrameNanos { }
@@ -1186,10 +1108,6 @@ private data class LaunchGhostData(
     val game: Game
 )
 
-/**
- * Shown after an automatic scan when no cover could be found for the newly
- * added games. Explains how to scan manually and how to fix the title.
- */
 @Composable
 private fun ScanHintOverlay(
     games: List<String>,
@@ -1241,11 +1159,6 @@ private fun ScanHintOverlay(
     }
 }
 
-/**
- * The console-style launch sequence: Home zooms away under a black fade, the
- * game tile then holds centre screen above a spinning loader until the
- * emulator/application window takes over.
- */
 @Composable
 private fun LaunchGhostOverlay(
     ghost: LaunchGhostData,
@@ -1261,8 +1174,6 @@ private fun LaunchGhostOverlay(
         )
     }
 
-    // Hand control to the emulator once the cover has fully approached the
-    // screen, while the layer is still mostly opaque.
     LaunchedEffect(ghost.id) {
         delay(1000)
         onLaunch()
@@ -1275,11 +1186,9 @@ private fun LaunchGhostOverlay(
     val t = progress.value
     val scrimAlpha = FastOutSlowInEasing.transform((t / 0.20f).coerceIn(0f, 1f))
     val iconProgress = FastOutSlowInEasing.transform(((t - 0.05f) / 0.16f).coerceIn(0f, 1f))
-    // Loading holds for ~0.3s; the cover then zooms in and blurs.
     val loadEnd = 0.30f / 1.4f
     val zoomEnd = 1.00f / 1.4f
     val zoomRaw = ((t - loadEnd) / (zoomEnd - loadEnd)).coerceIn(0f, 1f)
-    // Non-linear approach: smoothstep accelerates, then settles at full size.
     val zoom = zoomRaw * zoomRaw * (3f - 2f * zoomRaw)
     val spinnerAlpha = ((t - 0.20f) / 0.14f).coerceIn(0f, 1f) * (1f - zoomRaw)
 
@@ -1293,7 +1202,6 @@ private fun LaunchGhostOverlay(
             .onPreviewKeyEvent { true }
     ) {
         val tile = minOf(maxWidth * 0.16f, maxHeight * 0.27f)
-        // Uniform scale that makes the tile cover the whole screen.
         val fillScale = maxOf(maxWidth.value, maxHeight.value) / tile.value
         val iconScale = 0.93f + 0.07f * iconProgress
         val coverScale = iconScale * (1f + zoom * (fillScale - 1f))
@@ -1324,8 +1232,6 @@ private fun LaunchGhostOverlay(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                // Games without artwork still receive the full transition on
-                // a plain tile carrying their title.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1359,7 +1265,6 @@ private fun LaunchGhostOverlay(
     }
 }
 
-/** The console loader: a white ring of dashes rotating at a steady pace. */
 @Composable
 private fun SwitchLoaderSpinner(
     modifier: Modifier = Modifier,
@@ -1397,11 +1302,6 @@ private fun SwitchLoaderSpinner(
         }
     }
 }
-
-
-// ═══════════════════════════════════════════════════════════════════
-// EMPTY GAME CARD
-// ═══════════════════════════════════════════════════════════════════
 
 @Composable
 private fun HorizonGameCarousel(
@@ -1444,8 +1344,6 @@ private fun HorizonGameCarousel(
     var flingVelocityPx by remember { mutableFloatStateOf(0f) }
     var bringIntoViewJob by remember { mutableStateOf<Job?>(null) }
 
-    // Spread the entrance stagger so the very last card still finishes entering
-    // within the home-entry animation, no matter how many cards there are.
     val entryStagger = if (slotCount > 1) {
         (0.58f / (slotCount - 1)).coerceAtLeast(0.0001f)
     } else {
@@ -1499,9 +1397,6 @@ private fun HorizonGameCarousel(
         }
     }
 
-    // A gamepad changes the logical selection without producing a drag event.
-    // Bring the newly selected card into the viewport when it reaches either
-    // edge of the visible strip.
     LaunchedEffect(gamepadNavigationRequest, viewportWidthPx, maximumScrollPx) {
         if (gamepadNavigationRequest > 0 && viewportWidthPx > 0) {
             bringCardIntoView(selectedIndex)
@@ -1512,9 +1407,6 @@ private fun HorizonGameCarousel(
         onScrollPositionChange(scrollPositionPx.coerceIn(0f, maximumScrollPx))
     }
 
-    // A fling keeps moving freely after the finger leaves the screen. Its
-    // distance is proportional to the swipe velocity, and strong swipes can
-    // reach the end of the fixed 12-card strip.
     LaunchedEffect(flingVelocityPx, maximumScrollPx) {
         var velocity = flingVelocityPx
         if (abs(velocity) < 12f || maximumScrollPx <= 0f) return@LaunchedEffect
@@ -1563,8 +1455,6 @@ private fun HorizonGameCarousel(
                         reportScrollPosition(nextPosition)
                     },
                     onDragEnd = {
-                        // Finger velocity is opposite to the content offset:
-                        // a left swipe increases scrollPositionPx.
                         flingVelocityPx =
                             -velocityTracker.calculateVelocity().x * 2.2f
                     },
@@ -1580,8 +1470,6 @@ private fun HorizonGameCarousel(
                 .requiredHeight(cardSize)
                 .offset {
                     IntOffset(
-                        // Box centers oversized children by default. Cancel
-                        // that centering so slot 0 starts at startOffsetPx.
                         x = (
                             (contentWidthPx - viewportWidthPx) / 2f +
                                     startOffsetPx -
@@ -1683,9 +1571,6 @@ private fun HorizonSelectedGameTitle(
     val cardWidthPx = with(density) { cardWidth.toPx() }
     val overflowPx = (textWidthPx - cardWidthPx).coerceAtLeast(0f)
     val textWidth = with(density) { textWidthPx.toDp() }
-    // requiredWidth reports an oversized child as centered when its parent
-    // cannot accommodate it. Move it by half the overflow so the initial
-    // frame starts at the real beginning of the measured line.
     val initialTextOffsetPx = overflowPx / 2f
     val textOffset = remember(selectionKey, title, cardWidthPx) { Animatable(0f) }
     var marqueeStarted by remember(selectionKey, title, cardWidthPx) {
@@ -1729,8 +1614,6 @@ private fun HorizonSelectedGameTitle(
             softWrap = false,
             modifier = if (overflowPx > 0f) {
                 Modifier
-                    // Keep the full measured line wider than the viewport;
-                    // only the outer card-width window clips it during marquee.
                     .align(Alignment.CenterStart)
                     .requiredWidth(textWidth)
                     .offset {
@@ -1813,11 +1696,6 @@ private fun HorizonEmptyGameCard(
     )
 }
 
-
-// ═══════════════════════════════════════════════════════════════════
-// GAME CARD
-// ═══════════════════════════════════════════════════════════════════
-
 @Composable
 private fun HorizonGameCard(
     game: Game,
@@ -1889,9 +1767,6 @@ private fun HorizonGameCard(
         contentAlignment = Alignment.Center
     ) {
 
-        // The card shows the scraped cover image, or the app icon for Android
-        // applications. The game title is displayed as a separate heading
-        // above the card, not inside it.
         val cover = rememberCoverBitmap(game.coverPath ?: game.iconPath)
         if (cover != null) {
             Image(
@@ -1906,7 +1781,6 @@ private fun HorizonGameCard(
     }
 }
 
-/** Loads the square cover image from the local cache path, if present. */
 @Composable
 private fun rememberCoverBitmap(coverPath: String?): ImageBitmap? {
     var bitmap by remember(coverPath) { mutableStateOf<ImageBitmap?>(null) }
@@ -1926,16 +1800,8 @@ private fun rememberCoverBitmap(coverPath: String?): ImageBitmap? {
     return bitmap
 }
 
-/**
- * Blurred screenshot of the selected game used as the Home backdrop:
- * very light blur, a very slow Ken-Burns drift, a crossfade between games and
- * a soft vignette. In the dark theme it is darkened; in the light theme it is
- * shown plain. When a game has no screenshot the grey Home background remains.
- */
 @Composable
 private fun GameScreenshotBackground(screenshotPath: String?) {
-    // Show an already-decoded backdrop immediately (no flash) and finish
-    // decoding on IO only when it is not cached yet.
     var bitmap by remember(screenshotPath) {
         mutableStateOf(
             screenshotPath
@@ -1953,7 +1819,6 @@ private fun GameScreenshotBackground(screenshotPath: String?) {
 
     val darkTheme = LocalHorizonColors.current.background.luminance() < 0.5f
 
-    // Extremely slow, smooth drift so the backdrop feels alive.
     val drift = rememberInfiniteTransition(label = "homeBackdropDrift")
     val scale by drift.animateFloat(
         initialValue = 1.0f,
@@ -2012,11 +1877,6 @@ private fun GameScreenshotBackground(screenshotPath: String?) {
     }
 }
 
-
-// ═══════════════════════════════════════════════════════════════════
-// PROFILE
-// ═══════════════════════════════════════════════════════════════════
-
 @Composable
 private fun ProfileIcon(
     size: Dp
@@ -2041,11 +1901,6 @@ private fun ProfileIcon(
         )
     }
 }
-
-
-// ═══════════════════════════════════════════════════════════════════
-// SYSTEM MENU BUTTON
-// ═══════════════════════════════════════════════════════════════════
 
 private enum class HorizonMenuIconType {
     GAMES,
@@ -2339,11 +2194,6 @@ private fun HorizonMenuGlyph(
     }
 }
 
-
-// ═══════════════════════════════════════════════════════════════════
-// GAMEPAD INDICATOR
-// ═══════════════════════════════════════════════════════════════════
-
 @Composable
 private fun GamepadIndicator() {
 
@@ -2371,11 +2221,6 @@ private fun GamepadIndicator() {
         }
     }
 }
-
-
-// ═══════════════════════════════════════════════════════════════════
-// CONTROLLER
-// ═══════════════════════════════════════════════════════════════════
 
 @Composable
 private fun ControllerIcon(

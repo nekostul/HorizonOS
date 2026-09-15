@@ -28,7 +28,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
 private val BatteryWhite = Color.White
@@ -99,7 +98,6 @@ fun StatusBatteryIcon(
     val batteryWidth = height * 1.70f
     val terminalWidth = height * 0.16f
     val terminalHeight = height * 0.34f
-    // Keep the percentage immediately before the battery, matching the reference.
     val gap = height * 0.50f
 
     Row(
@@ -125,11 +123,9 @@ fun StatusBatteryIcon(
             val terminalH = terminalHeight.toPx()
             val h = size.height
 
-            // Более толстая рамка, как требуется для референса.
             val stroke = (h * 0.18f).coerceAtLeast(2.2f)
             val radius = (h * 0.06f).coerceAtLeast(1f)
 
-            // Контур батареи.
             drawRoundRect(
                 color = fillColor,
                 topLeft = Offset(stroke / 2f, stroke / 2f),
@@ -141,8 +137,6 @@ fun StatusBatteryIcon(
                 style = Stroke(width = stroke)
             )
 
-            // Внутренний бар заряда. Белый при любом состоянии,
-            // включая зарядку; зарядка не меняет цвет батареи.
             val innerLeft = stroke * 1.45f
             val innerTop = stroke * 1.45f
             val innerRight = bodyWidth - stroke * 1.45f
@@ -168,7 +162,6 @@ fun StatusBatteryIcon(
                 )
             }
 
-            // Контакт справа.
             drawRoundRect(
                 color = fillColor,
                 topLeft = Offset(

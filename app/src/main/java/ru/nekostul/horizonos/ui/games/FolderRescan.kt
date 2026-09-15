@@ -3,10 +3,6 @@ package ru.nekostul.horizonos.ui.games
 import android.content.Context
 import kotlinx.coroutines.flow.first
 
-/**
- * Silently rescans every remembered ROM folder on launch and adds any new
- * games found. Runs at most once per process.
- */
 object FolderRescan {
 
     data class Result(val added: List<Game>, val platforms: List<Platform>)
@@ -17,10 +13,8 @@ object FolderRescan {
     @Volatile
     private var finished = false
 
-    /** Returns true when this process has already started the rescan. */
     fun isClaimed(): Boolean = claimed
 
-    /** Claims the one-shot rescan; returns false when it was already claimed. */
     @Synchronized
     fun claim(): Boolean {
         if (claimed) return false

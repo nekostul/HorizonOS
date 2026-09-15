@@ -23,11 +23,6 @@ import ru.nekostul.horizonos.ui.settings.SettingsToggleRow
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanningSettingsScreen
 
-/**
- * "Launcher Settings" category. Hosts launcher-wide options such as the
- * backdrop behaviour and the scanning data sources screen. Kept separate from
- * the system settings category on purpose.
- */
 @Composable
 fun LauncherSettingsHubScreen(
     settings: LauncherSettings,

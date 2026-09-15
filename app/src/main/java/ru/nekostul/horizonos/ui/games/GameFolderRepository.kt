@@ -4,11 +4,6 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Remembers the ROM folders the user added, together with the platform and
- * emulator they were added for. Used both to reject duplicate folders and to
- * silently rescan for newly added games on every launch.
- */
 class GameFolderRepository(context: Context) {
 
     private val appContext = context.applicationContext

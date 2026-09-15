@@ -35,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
@@ -68,20 +67,10 @@ import ru.nekostul.horizonos.ui.home.status.rememberWifiEnabled
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 
-/** Opacity of the dark scrim over the blurred Home. */
 private const val ScrimAlpha = 0.68f
 
-/** How long a press sequence stays valid before it resets. */
 private const val PRESS_RESET_TIMEOUT_MILLIS = 1500L
 
-/**
- * HorizonOS unlock screen. Shown on launch and after the device wakes from the
- * screen lock. The user must press the house button (or "Launch") once or three
- * times, depending on the "Screen lock" setting.
- *
- * [unlockProgress] is driven by the host and runs 0 -> 1 during the unlock
- * animation, so the scrim and the blurred Home fade away in sync.
- */
 @Composable
 fun UnlockScreen(
     unlockProgress: Float,
@@ -109,7 +98,6 @@ fun UnlockScreen(
         }
         val next = pressCount + 1
         pressCount = next
-        // Restart the idle timer: too slow and the whole sequence resets.
         resetJob?.cancel()
         if (next >= pressRequired) {
             started = true
@@ -126,8 +114,6 @@ fun UnlockScreen(
     }
 
     LaunchedEffect(Unit) {
-        // Grab (and keep) focus so the gamepad controls the lock screen even
-        // though the Home screen is composed behind it.
         repeat(4) {
             focusRequester.requestFocus()
             delay(60)
@@ -137,8 +123,6 @@ fun UnlockScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            // Slightly see-through so the blurred Home shows behind; fades out
-            // together with the unlock animation.
             .background(backgroundColor.copy(alpha = ScrimAlpha * remaining))
             .pointerInput(Unit) { detectTapGestures { } }
             .focusRequester(focusRequester)
@@ -147,7 +131,6 @@ fun UnlockScreen(
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when {
                     isHorizonConfirmKey(event) -> { press(); true }
-                    // B, Back and HOME must not bypass the lock.
                     event.key == Key.ButtonB || event.key == Key.Back ||
                         HorizonNavigation.isHomeKeyCode(event.nativeKeyEvent.keyCode) -> true
                     else -> false
@@ -156,7 +139,6 @@ fun UnlockScreen(
     ) {
         val h = maxHeight
 
-        // Same status icons as the Home screen, top-right.
         val wifiEnabled = rememberWifiEnabled()
         val airplaneEnabled = rememberAirplaneModeEnabled()
         val battery = rememberBatteryState()
@@ -187,14 +169,11 @@ fun UnlockScreen(
             )
         }
 
-        // Central round unlock button with the house silhouette.
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
                 .size(96.dp)
                 .graphicsLayer {
-                    // Gentle "breathing" of the ring on each press, then a
-                    // smooth grow-and-fade during unlock.
                     val scale = pressScale.value * (1f + unlockProgress * 0.6f)
                     scaleX = scale
                     scaleY = scale
@@ -208,7 +187,6 @@ fun UnlockScreen(
                 val stroke = 2.dp.toPx()
                 val radius = (size.minDimension - stroke) / 2f
 
-                // Expanding soft halo during the unlock animation.
                 if (unlockProgress > 0f) {
                     drawCircle(
                         color = Color.White.copy(alpha = 0.30f * (1f - unlockProgress)),
@@ -234,7 +212,6 @@ fun UnlockScreen(
             }
         }
 
-        // Progress dots: how many of the required presses are done.
         Row(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -255,7 +232,6 @@ fun UnlockScreen(
             }
         }
 
-        // "A  Launch" control at the bottom centre (no background plate).
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -277,7 +253,6 @@ fun UnlockScreen(
     }
 }
 
-/** A simple, symmetric white house silhouette with a cut-out door. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHouse(
     left: Float,
     top: Float,
@@ -286,7 +261,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHouse(
 ) {
     val path = Path().apply {
         fillType = PathFillType.EvenOdd
-        // Outer silhouette: roof + walls.
         moveTo(left + box * 0.50f, top + box * 0.06f)
         lineTo(left + box * 0.95f, top + box * 0.46f)
         lineTo(left + box * 0.82f, top + box * 0.46f)
@@ -295,7 +269,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHouse(
         lineTo(left + box * 0.18f, top + box * 0.46f)
         lineTo(left + box * 0.05f, top + box * 0.46f)
         close()
-        // Door / window hole (shows the backdrop through).
         moveTo(left + box * 0.42f, top + box * 0.64f)
         lineTo(left + box * 0.58f, top + box * 0.64f)
         lineTo(left + box * 0.58f, top + box * 0.94f)

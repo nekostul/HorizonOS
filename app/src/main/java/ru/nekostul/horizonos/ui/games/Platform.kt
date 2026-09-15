@@ -2,10 +2,6 @@ package ru.nekostul.horizonos.ui.games
 
 import ru.nekostul.horizonos.R
 
-/**
- * A platform owns the ROM extensions accepted by the scanner. Keeping the
- * list here prevents the picker and the folder scanner from drifting apart.
- */
 enum class Platform(
     val titleRes: Int,
     val romExtensions: Set<String>

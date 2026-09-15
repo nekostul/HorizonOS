@@ -7,14 +7,12 @@ import java.io.File
 
 private const val TAG = "HorizonScraper"
 
-/** Progress emitted while scraping games. */
 data class ScraperProgress(
     val index: Int,
     val total: Int,
     val gameTitle: String
 )
 
-/** Final summary of a scan run. */
 data class ScanSummary(
     val total: Int,
     val updated: Int,
@@ -23,11 +21,6 @@ data class ScanSummary(
     val diagnostics: List<String> = emptyList()
 )
 
-/**
- * Orchestrates scraping. Sources are consulted strictly in priority order.
- * The order is fixed by [ScraperSourceId.entries]; each field is filled once
- * and never overwritten by a lower-priority source.
- */
 class GameMetadataScraper(
     private val gameLibrary: GameLibrary,
     mediaDir: File
@@ -73,19 +66,11 @@ class GameMetadataScraper(
         )
     }
 
-    /**
-     * Scrapes a single game and writes the result back to the library. Returns
-     * true when something changed. Exposed so the scan queue can persist its
-     * position after every game and resume after a restart.
-     */
     suspend fun scrapeSingle(
         settings: ScraperSettings,
         game: Game,
         diag: (String) -> Unit = {}
     ): Boolean {
-        // A field is settled when it already has a value. Android apps created
-        // before scraping support may carry a stale "manual cover" flag with no
-        // actual cover; value-based checks let them be scraped.
         val titleSettled = game.fullTitle != null
         val coverSettled = game.coverPath != null
         val screenshotSettled = game.screenshotPath != null
@@ -114,10 +99,6 @@ class GameMetadataScraper(
         game: Game,
         diag: (String) -> Unit
     ): GameScrapeResult? {
-        // Cache: start from values already stored on the game and only look
-        // for the fields that are still missing. A field is locked only when
-        // it was set manually AND actually has a value, so a stale manual flag
-        // without a value (older Android app records) does not block scraping.
         var fullTitle: String? = game.fullTitle
         var coverPath: String? = game.coverPath
         var screenshotPath: String? = game.screenshotPath
@@ -136,7 +117,6 @@ class GameMetadataScraper(
                 continue
             }
 
-            // Skip sources when every desired field is already filled.
             val titleDone = titleLocked || fullTitle != null
             val coverDone = coverLocked || coverPath != null
             val screenshotDone = screenshotLocked || screenshotPath != null

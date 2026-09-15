@@ -5,11 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -27,18 +24,15 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 import ru.nekostul.horizonos.ui.HorizonNavigation
@@ -49,14 +43,6 @@ import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.settings.*
 import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
-/**
- * HorizonOS File Manager. Full-screen, gamepad-first, using the shared
- * HorizonOS overlay system. Root-aware reading when running with root;
- * otherwise plain Android storage access.
- *
- * [mode] switches between the normal file browser and the ROM folder picker
- * used by the add-games flow. In pick mode START chooses the current folder.
- */
 enum class FilesMode { BROWSE, PICK_FOLDER, PICK_FILE }
 
 @Composable
@@ -96,7 +82,6 @@ fun FilesScreen(
     var clipboard by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var clipboardMove by remember { mutableStateOf(false) }
 
-    // Overlays
     var confirmTitle by remember { mutableStateOf<String?>(null) }
     var confirmMessage by remember { mutableStateOf("") }
     var confirmCall by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -110,7 +95,6 @@ fun FilesScreen(
     var rootWarningShow by remember { mutableStateOf(false) }
     var rootWarningPath by remember { mutableStateOf<String?>(null) }
 
-    // Search
     var searching by remember { mutableStateOf(false) }
     var showSearchKeyboard by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -168,8 +152,6 @@ fun FilesScreen(
         }
     }
 
-    // Moves the selection in the grid and scrolls by the minimum amount needed
-    // to keep the focused tile fully inside the viewport.
     fun moveGridFocus(columns: Int, deltaRows: Int = 0, deltaColumns: Int = 0) {
         if (entries.isEmpty()) return
         val next = (focusedIndex + deltaRows * columns + deltaColumns)
@@ -191,7 +173,6 @@ fun FilesScreen(
         if (delta != 0) scope.launch { gridState.animateScrollBy(delta.toFloat()) }
     }
 
-    /** Picks the folder currently open (ROM pick mode, START button). */
     fun pickCurrentFolder() {
         val path = currentPath ?: return
         onFolderPicked?.invoke(path)
@@ -218,7 +199,6 @@ fun FilesScreen(
     fun pickFocusedFile() {
         val e = entries.getOrNull(focusedIndex) ?: return
         if (e.isDirectory) return
-        // Only files the selected platform can actually open may be chosen.
         if (allowedExtensions.isNotEmpty() && e.extension.lowercase() !in allowedExtensions) return
         onFilePicked?.invoke(e)
     }
@@ -236,7 +216,6 @@ fun FilesScreen(
                 if (e.path in selected) selected - e.path else selected + e.path
             e.isDirectory -> openEntry(e)
             pickFileMode -> pickFocusedFile()
-            // Folder pick mode: a file cannot be entered, only folders can.
             pickFolderMode -> Unit
             else -> openFile(e)
         }
@@ -312,7 +291,6 @@ fun FilesScreen(
         }
     }
 
-    // Search
     LaunchedEffect(query, searching) {
         if (!searching || query.isBlank()) { searchResults = emptyList(); return@LaunchedEffect }
         searchResults = withContext(Dispatchers.IO) {
@@ -320,7 +298,6 @@ fun FilesScreen(
         }
     }
 
-    // Return focus to the list after any overlay closes.
     val overlayOpen = confirmTitle != null || propsEntry != null || showSortOverlay ||
         showNewMenu || createKind != null || renameTarget != null || rootWarningShow || showSearchKeyboard
     LaunchedEffect(overlayOpen) {
@@ -330,8 +307,6 @@ fun FilesScreen(
         }
     }
 
-    // Initial load. Focus the first item as soon as the grid has content so
-    // the controller can act immediately without a directional press first.
     LaunchedEffect(Unit) {
         val roots = File("/storage/emulated/0")
         currentPath = if (roots.exists()) "/storage/emulated/0" else "/"
@@ -340,8 +315,6 @@ fun FilesScreen(
         listFocusRequester.requestFocus()
     }
 
-    // When the folder changes, put the selection back on the first entry and
-    // keep the focus on the grid.
     LaunchedEffect(currentPath, entries) {
         if (searching) return@LaunchedEffect
         focusedIndex = focusedIndex.coerceIn(0, (entries.size - 1).coerceAtLeast(0))
@@ -511,8 +484,6 @@ fun FilesScreen(
                                             !pickerMode && selected.isNotEmpty() -> toggleSelect(entry)
                                             entry.isDirectory -> openEntry(entry)
                                             pickFileMode -> {
-                                                // Unsupported files just get focused and
-                                                // show the "not supported" hint.
                                                 if (isSelectableFile(entry)) onFilePicked?.invoke(entry)
                                             }
                                             pickerMode -> Unit
@@ -526,8 +497,6 @@ fun FilesScreen(
                     }
                 }
 
-
-                // Bottom action bar
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -630,7 +599,6 @@ fun FilesScreen(
         }
     }
 
-    // Root warning overlay
     if (rootWarningShow) {
         HorizonOverlay(
             title = stringResource(R.string.files_root_warning_title),
@@ -664,7 +632,6 @@ fun FilesScreen(
         }
     }
 
-    // Properties overlay
     propsEntry?.let { entry ->
         PropertiesOverlay(
             entry = entry,
@@ -674,7 +641,6 @@ fun FilesScreen(
         )
     }
 
-    // Sorting overlay
     if (showSortOverlay) {
         SortOverlay(
             current = sortMode,
@@ -687,7 +653,6 @@ fun FilesScreen(
         )
     }
 
-    // New item menu
     if (showNewMenu) {
         NewItemOverlay(
             title = stringResource(R.string.files_new_title),
@@ -741,7 +706,6 @@ fun FilesScreen(
         )
     }
 
-    // Confirm overlay
     confirmTitle?.let { title ->
         HorizonOverlay(
             title = title,
@@ -765,7 +729,6 @@ fun FilesScreen(
         }
     }
 
-    // Error overlay
     error?.let { msg ->
         HorizonOverlay(title = stringResource(R.string.files_error_title), onDismiss = { error = null }) {
             Text(msg, color = FileTheme.text, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
@@ -774,7 +737,6 @@ fun FilesScreen(
     }
 }
 
-/** A controller hint at the bottom-right of the file manager. */
 @Composable
 private fun FileFooterAction(
     glyph: @Composable () -> Unit,

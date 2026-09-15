@@ -1,6 +1,5 @@
 package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
-import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -10,10 +9,6 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/**
- * Encrypts/decrypts API secrets with an AES/GCM key held in the Android
- * Keystore, so credentials never live in plain text on disk.
- */
 internal object SecretCipher {
 
     private const val KEY_ALIAS = "horizonos_scraper_secrets"

@@ -4,10 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 
-/**
- * Theme accessors for the file manager, derived from the global HorizonOS
- * theme so it always matches the launcher colors.
- */
 internal object FileTheme {
     val background: Color
         @Composable get() = LocalHorizonColors.current.background

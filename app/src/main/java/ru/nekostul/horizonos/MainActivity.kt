@@ -11,7 +11,6 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
-import android.net.Uri
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
@@ -117,8 +116,6 @@ class MainActivity : ComponentActivity() {
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        // Draw edge-to-edge behind the display cutout on tall (20:9) screens
-        // so no black bar appears next to the front camera.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes = window.attributes.apply {
                 layoutInDisplayCutoutMode =
@@ -146,8 +143,6 @@ class MainActivity : ComponentActivity() {
             val locked by HorizonLock.locked.collectAsState()
             var showStartupAnimation by remember { mutableStateOf(true) }
             var unlocking by remember { mutableStateOf(false) }
-            // Drives the unlock transition: the scrim, the blurred Home and the
-            // unlock button all fade together.
             val unlockProgress by animateFloatAsState(
                 targetValue = if (unlocking) 1f else 0f,
                 animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
@@ -163,8 +158,6 @@ class MainActivity : ComponentActivity() {
             val localizedContext = remember(settings.language) {
                 LanguageManager.localizedContext(this@MainActivity, settings.language)
             }
-            // Lock HorizonOS when the device screen turns off, so waking the
-            // screen shows the unlock screen instead of the Home screen.
             DisposableEffect(Unit) {
                 val receiver = object : BroadcastReceiver() {
                     override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -185,13 +178,10 @@ class MainActivity : ComponentActivity() {
                 )
                 onDispose { this@MainActivity.unregisterReceiver(receiver) }
             }
-            // Let the scan coordinator reach the app context as early as possible.
             LaunchedEffect(Unit) {
                 ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
                     .init(this@MainActivity)
             }
-            // Ask for notification permission so the background scan progress is
-            // visible on Android 13+.
             LaunchedEffect(Unit) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(
@@ -202,9 +192,6 @@ class MainActivity : ComponentActivity() {
                     runtimePermissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                 }
             }
-            // The file manager and the built-in ROM folder picker need full
-            // storage access. On Android 11+ this is granted through the
-            // system "All files access" screen.
             LaunchedEffect(Unit) {
                 val legacy = ru.nekostul.horizonos.ui.files.StorageAccess
                     .missingLegacyPermissions(this@MainActivity)
@@ -230,10 +217,6 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(LocalHorizonColors.current.background)
                     ) {
-                        // The Home content stays composed underneath the lock
-                        // screen and is blurred while locked, so the unlock
-                        // screen shows the console behind it. The blur fades out
-                        // smoothly during the unlock animation.
                         val blurRadius = if (locked) 20f * (1f - unlockProgress) else 0f
                         Box(
                             modifier = Modifier
@@ -271,20 +254,12 @@ class MainActivity : ComponentActivity() {
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
-        // Launcher navigation is handled by the visible overlay or controller.
     }
 
-    /**
-     * The controller HOME/Xbox button is captured here once for every screen
-     * that lives in the activity window. Dialogs (game screens, overlays) route
-     * the same request through [HorizonOverlay]. Both end up in
-     * [HorizonNavigation], which the root Home screen observes.
-     */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN &&
             HorizonNavigation.isHomeKeyCode(event.keyCode)
         ) {
-            // HOME/Xbox must never bypass the unlock screen.
             if (!HorizonLock.locked.value) {
                 HorizonNavigation.requestHome()
             }

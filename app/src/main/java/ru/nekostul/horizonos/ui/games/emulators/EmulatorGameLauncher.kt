@@ -1,15 +1,16 @@
 package ru.nekostul.horizonos.ui.games.emulators
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
 import ru.nekostul.horizonos.ui.games.Emulator
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLaunchResult
 import ru.nekostul.horizonos.R
+import java.io.File
 
 interface EmulatorGameLauncher {
     val emulator: Emulator
@@ -17,28 +18,36 @@ interface EmulatorGameLauncher {
     fun launch(context: Context, game: Game): GameLaunchResult
 }
 
-@Suppress("DEPRECATION")
 internal fun launchRomIntent(
     context: Context,
     game: Game,
     packageName: String,
     activityName: String,
-    intent: Intent
+    intent: Intent,
+    localFileUri: (File) -> Uri? = { file ->
+        FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, file)
+    }
 ): GameLaunchResult {
-    // Games can come from either a SAF tree (content://) or the built-in file
-    // manager (plain file path). Support both so the internal picker keeps
-    // launching working exactly like the document picker did.
     val isContentUri = game.romUri.startsWith("content://")
-    val localFile = if (isContentUri) null else java.io.File(game.romUri)
-    val uri = if (isContentUri) Uri.parse(game.romUri) else Uri.fromFile(localFile)
-    val readable = if (isContentUri) {
-        runCatching {
-            context.contentResolver.openFileDescriptor(uri, "r")?.use { } != null
-        }.getOrDefault(false)
+    val uri = if (isContentUri) {
+        Uri.parse(game.romUri)
     } else {
-        localFile?.canRead() == true
+        val file = File(game.romUri)
+        if (!file.canRead()) return GameLaunchResult.Failed(
+            context.getString(R.string.games_error_file_unavailable)
+        )
+        runCatching { localFileUri(file) }.getOrNull()
+    }
+    if (uri == null) {
+        return GameLaunchResult.Failed(
+            context.getString(R.string.games_error_file_unavailable)
+        )
     }
 
+    val readable = runCatching {
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { } != null ||
+            context.contentResolver.openInputStream(uri)?.use { } != null
+    }.getOrDefault(false)
     if (!readable) {
         return GameLaunchResult.Failed(
             context.getString(R.string.games_error_file_unavailable)
@@ -51,46 +60,45 @@ internal fun launchRomIntent(
             context.getString(R.string.games_error_emulator_not_installed, packageName)
         )
 
-    val component = ComponentName(packageName, activityName)
-    val explicitIntent = intent.setComponent(component)
+    val explicitIntent = intent.setComponent(ComponentName(packageName, activityName))
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
         .apply {
             if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            // Keeping the URI in data gives the target process a temporary
-            // read grant even when the emulator reads its own launch extra.
-            data = uri
+            setDataAndType(uri, type ?: "*/*")
         }
-
-    val canResolve = explicitIntent.resolveActivity(packageManager) != null
-    if (!canResolve && launchIntent.component == null) {
-        return GameLaunchResult.Failed(
-            context.getString(R.string.games_error_emulator_activity_unavailable)
-        )
-    }
 
     runCatching {
-        if (isContentUri) {
-            context.grantUriPermission(
-                packageName,
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        }
-        context.startActivity(explicitIntent)
-        // Suppress the native activity-open animation.
-        (context as? Activity)?.overridePendingTransition(0, 0)
-    }.onFailure { error ->
-        return GameLaunchResult.Failed(
-            if (error is ActivityNotFoundException) {
-                context.getString(R.string.games_error_open_failed, packageName)
-            } else {
-                context.getString(R.string.games_error_launch_failed)
-            }
+        context.grantUriPermission(
+            packageName,
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
         )
     }
 
-    return GameLaunchResult.Launched
+    val started = runCatching {
+        context.startActivity(explicitIntent)
+        (context as? Activity)?.overridePendingTransition(0, 0)
+        true
+    }.getOrDefault(false)
+
+    if (started) return GameLaunchResult.Launched
+
+    return runCatching {
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(launchIntent)
+        true
+    }.getOrDefault(false).let { launched ->
+        if (launched) {
+            GameLaunchResult.Launched
+        } else {
+            GameLaunchResult.Failed(
+                context.getString(R.string.games_error_launch_failed)
+            )
+        }
+    }
 }
+
+private const val FILE_PROVIDER_AUTHORITY = "ru.nekostul.horizonos.fileprovider"

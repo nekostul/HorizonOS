@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,13 +44,6 @@ import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import java.io.File
 
-/**
- * A compact image picker built on the HorizonOS File Manager backend, shown as
- * a HorizonOS overlay. Used to select a custom cover or screenshot.
- *
- * When [cropSquare] is true (covers and avatars) the chosen image opens the
- * square crop editor before it is returned.
- */
 @Composable
 internal fun ImagePickerOverlay(
     title: String,
@@ -127,7 +119,6 @@ internal fun ImagePickerOverlay(
         HorizonOverlay(
             title = title,
             onDismiss = onDismiss,
-            // B returns to the previous folder instead of closing the picker.
             onControllerBack = { goUp(); true },
             onFooterBack = { goUp() }
         ) {
