@@ -113,6 +113,16 @@
     <string name="settings_launcher_scanning_description">Game information sources: title, cover and screenshot.</string>
     <string name="settings_launcher_screenshot_background">Use game screenshots as background</string>
     <string name="settings_launcher_screenshot_background_description">Show the selected game\'s screenshot as the Home background.</string>
+    <string name="settings_launcher_audio_title">Sounds &amp; Feedback</string>
+    <string name="settings_launcher_sound_mode">Sounds</string>
+    <string name="settings_launcher_sound_mode_all">On</string>
+    <string name="settings_launcher_sound_mode_off">Off</string>
+    <string name="settings_launcher_sound_mode_gamepad">Gamepad only</string>
+    <string name="settings_launcher_background_music">Background music</string>
+    <string name="settings_launcher_background_music_volume">Background music volume</string>
+    <string name="settings_launcher_background_music_volume_description">Adjust the background music volume.</string>
+    <string name="settings_launcher_haptic_feedback">Haptic feedback</string>
+    <string name="settings_launcher_audio_hint">Navigation sounds, background music and native-style haptic feedback.</string>
     <string name="settings_scanning_title">Scanning</string>
     <string name="settings_scanning_order_hint">Sources are checked strictly in this order. Each field is filled by the first source that provides it.</string>
     <string name="settings_scraper_screen_scraper">ScreenScraper.fr</string>

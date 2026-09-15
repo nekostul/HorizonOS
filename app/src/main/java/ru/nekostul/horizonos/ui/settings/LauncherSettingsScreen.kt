@@ -77,6 +77,8 @@ import ru.nekostul.horizonos.ui.settings.system.SystemScreen
 import ru.nekostul.horizonos.ui.settings.themes.ThemesScreen
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
+import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
+import ru.nekostul.horizonos.ui.audio.LauncherInputSource
 
 private data class SettingsCategory(val titleRes: Int, val dividerAfter: Boolean = false)
 
@@ -96,6 +98,7 @@ fun LauncherSettingsScreen(
     onRequestPermissions: (Array<String>) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val settingsView = androidx.compose.ui.platform.LocalView.current
     val repository = remember { LauncherSettingsRepository(context) }
     val settings by repository.settings.collectAsState(initial = LauncherSettings())
     val scope = rememberCoroutineScope()
@@ -127,7 +130,7 @@ fun LauncherSettingsScreen(
         8 -> 2
         9 -> ControllerManager.connectedControllers().size + 4
         10 -> 4
-        11 -> 2
+        11 -> 3
         else -> 8
     }
 
@@ -229,8 +232,9 @@ fun LauncherSettingsScreen(
                 9 -> if (selectedOption == 1) repository.setVibrationEnabled(!settings.vibrationEnabled)
                 10 -> systemOverlayRequest = selectedOption
                 11 -> when (selectedOption) {
-                    0 -> repository.setScreenshotBackgroundEnabled(!settings.screenshotBackgroundEnabled)
-                    1 -> launcherOverlayRequest = selectedOption
+                    0 -> launcherOverlayRequest = 0
+                    1 -> repository.setScreenshotBackgroundEnabled(!settings.screenshotBackgroundEnabled)
+                    2 -> launcherOverlayRequest = 2
                 }
             }
         }
@@ -286,34 +290,73 @@ fun LauncherSettingsScreen(
                     val next = (sliderValue(selectedCategory, selectedOption) + 0.05f)
                         .coerceIn(0f, 1f)
                     setSliderValue(selectedCategory, selectedOption, next)
+                    LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                    LauncherAudioManager.performHapticFeedback(settingsView)
                 }
                 event.key == Key.DirectionLeft || event.key == Key.DirectionDown -> {
                     val next = (sliderValue(selectedCategory, selectedOption) - 0.05f)
                         .coerceIn(0f, 1f)
                     setSliderValue(selectedCategory, selectedOption, next)
+                    LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                    LauncherAudioManager.performHapticFeedback(settingsView)
                 }
-                isHorizonConfirmKey(event) || event.key == Key.ButtonB -> sliderEditing = false
+                isHorizonConfirmKey(event) || event.key == Key.ButtonB -> {
+                    LauncherAudioManager.performHapticFeedback(settingsView)
+                    sliderEditing = false
+                }
             }
             return@onPreviewKeyEvent true
         }
 
         if (isHorizonConfirmKey(event)) {
             if (rightFocus && isSliderOption(selectedCategory, selectedOption)) {
+                LauncherAudioManager.performHapticFeedback(settingsView)
                 sliderEditing = true
             } else if (rightFocus) {
+                LauncherAudioManager.playConfirm(LauncherInputSource.GAMEPAD)
+                LauncherAudioManager.performHapticFeedback(settingsView)
                 activateOption()
             } else {
+                LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                LauncherAudioManager.performHapticFeedback(settingsView)
                 rightFocus = true
             }
             return@onPreviewKeyEvent true
         }
 
         when (event.key) {
-            Key.DirectionUp -> { if (rightFocus) selectedOption = (selectedOption - 1).coerceAtLeast(0) else selectedCategory = (selectedCategory - 1).coerceAtLeast(0); true }
-            Key.DirectionDown -> { if (rightFocus) selectedOption = (selectedOption + 1).coerceAtMost(optionCount(selectedCategory) - 1) else selectedCategory = (selectedCategory + 1).coerceAtMost(settingsCategories.lastIndex); true }
-            Key.DirectionRight -> { rightFocus = true; true }
-            Key.DirectionLeft -> { rightFocus = false; true }
-            Key.ButtonB -> { handleControllerBack(); true }
+            Key.DirectionUp -> {
+                if (rightFocus) selectedOption = (selectedOption - 1).coerceAtLeast(0)
+                else selectedCategory = (selectedCategory - 1).coerceAtLeast(0)
+                LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                LauncherAudioManager.performHapticFeedback(settingsView)
+                true
+            }
+            Key.DirectionDown -> {
+                if (rightFocus) selectedOption = (selectedOption + 1).coerceAtMost(optionCount(selectedCategory) - 1)
+                else selectedCategory = (selectedCategory + 1).coerceAtMost(settingsCategories.lastIndex)
+                LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                LauncherAudioManager.performHapticFeedback(settingsView)
+                true
+            }
+            Key.DirectionRight -> {
+                rightFocus = true
+                LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                LauncherAudioManager.performHapticFeedback(settingsView)
+                true
+            }
+            Key.DirectionLeft -> {
+                rightFocus = false
+                LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                LauncherAudioManager.performHapticFeedback(settingsView)
+                true
+            }
+            Key.ButtonB -> {
+                LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.BACK, LauncherInputSource.GAMEPAD)
+                LauncherAudioManager.performHapticFeedback(settingsView)
+                handleControllerBack()
+                true
+            }
             else -> false
         }
     }) {
@@ -372,6 +415,10 @@ fun LauncherSettingsScreen(
                             { launcherOverlayRequest = null },
                             wifiActivationRequest,
                             sleepActivationRequest,
+                            { value -> scope.launch { repository.setSoundMode(value) } },
+                            { value -> scope.launch { repository.setBackgroundMusicEnabled(value) } },
+                            { value -> scope.launch { repository.setBackgroundMusicVolume(value) } },
+                            { value -> scope.launch { repository.setHapticFeedbackEnabled(value) } },
                             { count ->
                                 bluetoothItemCount = count
                                 selectedOption = selectedOption.coerceIn(0, (count - 1).coerceAtLeast(0))
@@ -421,6 +468,10 @@ private fun SettingsContent(
     onLauncherOverlayConsumed: () -> Unit,
     wifiActivationRequest: Int,
     sleepActivationRequest: Int,
+    onSoundModeChange: (String) -> Unit,
+    onMusicEnabledChange: (Boolean) -> Unit,
+    onMusicVolumeChange: (Float) -> Unit,
+    onHapticChange: (Boolean) -> Unit,
     onBluetoothItemCountChange: (Int) -> Unit
 ) {
     when (category) {
@@ -468,6 +519,10 @@ private fun SettingsContent(
             settings = settings,
             selectedIndex = selectedOption,
             onSelect = onOptionSelected,
+            onSoundModeChange = onSoundModeChange,
+            onMusicEnabledChange = onMusicEnabledChange,
+            onMusicVolumeChange = onMusicVolumeChange,
+            onHapticChange = onHapticChange,
             openOverlayIndex = launcherOverlayRequest,
             onOverlayRequestConsumed = onLauncherOverlayConsumed
         )

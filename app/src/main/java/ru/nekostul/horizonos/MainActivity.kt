@@ -11,6 +11,7 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
+import android.os.PowerManager
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
@@ -24,11 +25,10 @@ import androidx.core.view.WindowInsetsControllerCompat
 import ru.nekostul.horizonos.ui.home.HorizonHome
 import ru.nekostul.horizonos.ui.HorizonNavigation
 import ru.nekostul.horizonos.ui.lockscreen.HorizonLock
-import ru.nekostul.horizonos.ui.lockscreen.UnlockScreen
+import ru.nekostul.horizonos.ui.lockscreen.HorizonLockDialog
 import ru.nekostul.horizonos.ui.theme.HorizonOSTheme
 import android.content.pm.ActivityInfo
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,6 +44,9 @@ import ru.nekostul.horizonos.ui.settings.LauncherSettingsRepository
 import ru.nekostul.horizonos.ui.settings.LanguageManager
 import ru.nekostul.horizonos.ui.home.HorizonStartupAnimation
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
+import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
+import ru.nekostul.horizonos.ui.audio.LauncherInputSource
+import ru.nekostul.horizonos.ui.audio.LauncherSound
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -56,6 +59,13 @@ class MainActivity : ComponentActivity() {
 
     private var lastStickHorizontal = 0
     private var lastStickVertical = 0
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                HorizonLock.lock()
+            }
+        }
+    }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
         val source = event.source
@@ -137,6 +147,17 @@ class MainActivity : ComponentActivity() {
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
+        ContextCompat.registerReceiver(
+            this,
+            screenStateReceiver,
+            IntentFilter(Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_EXPORTED
+        )
+
+        if (isSystemKeyguardShowing()) {
+            HorizonLock.lock()
+        }
+
         setContent {
             val repository = remember { LauncherSettingsRepository(this@MainActivity) }
             val settings by repository.settings.collectAsState(initial = LauncherSettings())
@@ -158,29 +179,12 @@ class MainActivity : ComponentActivity() {
             val localizedContext = remember(settings.language) {
                 LanguageManager.localizedContext(this@MainActivity, settings.language)
             }
-            DisposableEffect(Unit) {
-                val receiver = object : BroadcastReceiver() {
-                    override fun onReceive(ctx: Context?, intent: Intent?) {
-                        if (intent?.action == Intent.ACTION_SCREEN_OFF) {
-                            HorizonLock.lock()
-                        }
-                    }
-                }
-                val filter = IntentFilter().apply {
-                    addAction(Intent.ACTION_SCREEN_OFF)
-                    addAction(Intent.ACTION_SCREEN_ON)
-                }
-                ContextCompat.registerReceiver(
-                    this@MainActivity,
-                    receiver,
-                    filter,
-                    ContextCompat.RECEIVER_NOT_EXPORTED
-                )
-                onDispose { this@MainActivity.unregisterReceiver(receiver) }
-            }
             LaunchedEffect(Unit) {
                 ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
                     .init(this@MainActivity)
+            }
+            LaunchedEffect(settings) {
+                LauncherAudioManager.updateSettings(this@MainActivity, settings)
             }
             LaunchedEffect(Unit) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -240,7 +244,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         if (locked) {
-                            UnlockScreen(
+                            HorizonLockDialog(
                                 unlockProgress = unlockProgress,
                                 onUnlockStart = { unlocking = true },
                                 pressRequired = if (settings.lockScreenEnabled) 3 else 1
@@ -256,7 +260,45 @@ class MainActivity : ComponentActivity() {
     override fun onBackPressed() {
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (isSystemKeyguardShowing()) {
+            HorizonLock.lock()
+        }
+        LauncherAudioManager.onForeground(this)
+    }
+
+    override fun onStop() {
+        if (!isDeviceInteractive()) {
+            HorizonLock.lock()
+        }
+        LauncherAudioManager.onBackground()
+        super.onStop()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus && !isDeviceInteractive()) {
+            HorizonLock.lock()
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 && isGamepadEvent(event)) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                    LauncherAudioManager.performHapticFeedback(window.decorView)
+                }
+                KeyEvent.KEYCODE_BUTTON_B -> {
+                    LauncherAudioManager.play(LauncherSound.BACK, LauncherInputSource.GAMEPAD)
+                    LauncherAudioManager.performHapticFeedback(window.decorView)
+                }
+            }
+        }
         if (event.action == KeyEvent.ACTION_DOWN &&
             HorizonNavigation.isHomeKeyCode(event.keyCode)
         ) {
@@ -268,7 +310,22 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    private fun isGamepadEvent(event: KeyEvent): Boolean {
+        val source = event.source
+        return source and InputDevice.SOURCE_GAMEPAD != 0 ||
+            source and InputDevice.SOURCE_JOYSTICK != 0
+    }
+
     override fun onDestroy() {
+        runCatching { unregisterReceiver(screenStateReceiver) }
         super.onDestroy()
     }
+
+    private fun isDeviceInteractive(): Boolean = runCatching {
+        getSystemService(PowerManager::class.java)?.isInteractive == true
+    }.getOrDefault(true)
+
+    private fun isSystemKeyguardShowing(): Boolean = runCatching {
+        getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+    }.getOrDefault(false)
 }

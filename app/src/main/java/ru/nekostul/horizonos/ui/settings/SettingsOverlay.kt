@@ -91,6 +91,9 @@ import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 import ru.nekostul.horizonos.ui.HorizonNavigation
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
+import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
+import ru.nekostul.horizonos.ui.audio.LauncherInputSource
+import ru.nekostul.horizonos.ui.audio.LauncherSound
 
 internal val LocalSettingsOverlayVisible =
     androidx.compose.runtime.compositionLocalOf<androidx.compose.runtime.MutableState<Boolean>?> { null }
@@ -136,6 +139,7 @@ internal fun HorizonOverlay(
     val overlayVisibility = LocalSettingsOverlayVisible.current
     val overlayBackHandlers = LocalSettingsOverlayBackHandlers.current
     val latestControllerBack = rememberUpdatedState(onControllerBack)
+    val latestDirectionalKey = rememberUpdatedState(onDirectionalKey)
     val inputMode = LocalSettingsInputMode.current
     val localizedContext = LocalContext.current
 
@@ -187,6 +191,7 @@ internal fun HorizonOverlay(
             }
 
             val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+            val overlayView = LocalView.current
             DisposableEffect(window) {
             if (window == null) {
                 onDispose { }
@@ -219,7 +224,45 @@ internal fun HorizonOverlay(
                 }
                 val backKeyCallback = previousWindowCallback?.let { previous ->
                     object : Window.Callback by previous {
-                        override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+                                override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+                                    val source = event.source
+                                    val isGamepad = source and InputDevice.SOURCE_GAMEPAD != 0 ||
+                                        source and InputDevice.SOURCE_JOYSTICK != 0
+                                    if (isGamepad && event.action == android.view.KeyEvent.ACTION_DOWN &&
+                                        event.repeatCount == 0
+                                    ) {
+                                        inputMode?.value = SettingsInputMode.GAMEPAD
+                                        when (event.keyCode) {
+                                    android.view.KeyEvent.KEYCODE_DPAD_UP,
+                                    android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+                                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
+                                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                        LauncherAudioManager.play(
+                                            LauncherSound.CLICK,
+                                            LauncherInputSource.GAMEPAD
+                                        )
+                                        LauncherAudioManager.performHapticFeedback(overlayView)
+                                        if (latestControllerBack.value == null) {
+                                            val direction = when (event.keyCode) {
+                                                android.view.KeyEvent.KEYCODE_DPAD_UP -> Key.DirectionUp
+                                                android.view.KeyEvent.KEYCODE_DPAD_DOWN -> Key.DirectionDown
+                                                android.view.KeyEvent.KEYCODE_DPAD_LEFT -> Key.DirectionLeft
+                                                else -> Key.DirectionRight
+                                            }
+                                            if (latestDirectionalKey.value?.invoke(direction) == true) {
+                                                return true
+                                            }
+                                        }
+                                    }
+                                    android.view.KeyEvent.KEYCODE_BUTTON_B -> {
+                                        LauncherAudioManager.play(
+                                            LauncherSound.BACK,
+                                            LauncherInputSource.GAMEPAD
+                                        )
+                                        LauncherAudioManager.performHapticFeedback(overlayView)
+                                    }
+                                }
+                            }
                             if (event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
                                 if (event.action == android.view.KeyEvent.ACTION_UP) {
                                     if (latestControllerBack.value?.invoke() != true) dismissAnimated()
@@ -329,11 +372,19 @@ internal fun HorizonOverlay(
                             HorizonNavigation.requestHome()
                             true
                         } else if (event.key == Key.ButtonB || event.key == Key.Back) {
+                        LauncherAudioManager.play(LauncherSound.BACK, LauncherInputSource.GAMEPAD)
+                        LauncherAudioManager.performHapticFeedback(overlayView)
                         if (onControllerBack?.invoke() != true) {
                             dismissAnimated()
                         }
                         true
                         } else if (onControllerBack == null) {
+                        if (event.key == Key.DirectionUp || event.key == Key.DirectionDown ||
+                            event.key == Key.DirectionLeft || event.key == Key.DirectionRight
+                        ) {
+                            LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                            LauncherAudioManager.performHapticFeedback(overlayView)
+                        }
                         onDirectionalKey?.invoke(event.key) == true || when (event.key) {
                             Key.DirectionDown, Key.DirectionRight -> focusManager.moveFocus(FocusDirection.Next)
                             Key.DirectionUp, Key.DirectionLeft -> focusManager.moveFocus(FocusDirection.Previous)
@@ -557,6 +608,7 @@ internal fun HorizonOverlayChoice(
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val choiceFocusRequester = remember { FocusRequester() }
     val inputMode = LocalSettingsInputMode.current
+    val localView = LocalView.current
     val pulse = rememberInfiniteTransition(label = "overlayChoiceSelectionPulse")
     val pulseValue by pulse.animateFloat(
         initialValue = 0f,
@@ -590,11 +642,15 @@ internal fun HorizonOverlayChoice(
             )
             .clickable(enabled = enabled) {
                 inputMode?.value = SettingsInputMode.TOUCH
+                LauncherAudioManager.playConfirm(LauncherInputSource.TOUCH)
+                LauncherAudioManager.performHapticFeedback(localView)
                 onClick()
             }
             .onKeyEvent { event ->
                 if (enabled && isHorizonConfirmKey(event)) {
                     inputMode?.value = SettingsInputMode.GAMEPAD
+                    LauncherAudioManager.playConfirm(LauncherInputSource.GAMEPAD)
+                    LauncherAudioManager.performHapticFeedback(localView)
                     onClick()
                     true
                 } else false

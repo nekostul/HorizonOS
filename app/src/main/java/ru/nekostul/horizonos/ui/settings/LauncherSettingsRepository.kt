@@ -41,6 +41,18 @@ class LauncherSettingsRepository(
         val interfaceSounds =
             booleanPreferencesKey("interface_sounds")
 
+        val soundMode =
+            stringPreferencesKey("sound_mode")
+
+        val backgroundMusicEnabled =
+            booleanPreferencesKey("background_music_enabled")
+
+        val backgroundMusicVolume =
+            floatPreferencesKey("background_music_volume")
+
+        val hapticFeedbackEnabled =
+            booleanPreferencesKey("haptic_feedback_enabled")
+
         val theme =
             stringPreferencesKey("theme")
 
@@ -92,6 +104,20 @@ class LauncherSettingsRepository(
 
                 interfaceSounds =
                     preferences[Keys.interfaceSounds] ?: true,
+
+                soundMode = preferences[Keys.soundMode]
+                    ?: if (preferences[Keys.interfaceSounds] == false) {
+                        LauncherSoundMode.OFF
+                    } else {
+                        LauncherSoundMode.ALL
+                    },
+
+                backgroundMusicEnabled = preferences[Keys.backgroundMusicEnabled] ?: true,
+
+                backgroundMusicVolume =
+                    (preferences[Keys.backgroundMusicVolume] ?: 0.65f).coerceIn(0f, 1f),
+
+                hapticFeedbackEnabled = preferences[Keys.hapticFeedbackEnabled] ?: true,
 
                 theme =
                     preferences[Keys.theme] ?: "dark",
@@ -159,6 +185,14 @@ class LauncherSettingsRepository(
     suspend fun setInterfaceSounds(value: Boolean) {
         context.launcherSettingsDataStore.edit {
             it[Keys.interfaceSounds] = value
+            it[Keys.soundMode] = if (value) LauncherSoundMode.ALL else LauncherSoundMode.OFF
+        }
+    }
+
+    suspend fun setSoundMode(value: String) {
+        context.launcherSettingsDataStore.edit {
+            it[Keys.soundMode] = value
+            it[Keys.interfaceSounds] = value != LauncherSoundMode.OFF
         }
     }
 
@@ -196,6 +230,11 @@ class LauncherSettingsRepository(
     suspend fun setControllerSensitivity(value: Float) = update { it[Keys.controllerSensitivity] = value.coerceIn(0.5f, 2f) }
     suspend fun setControllerDeadZone(value: Float) = update { it[Keys.controllerDeadZone] = value.coerceIn(0f, 0.5f) }
     suspend fun setScreenshotBackgroundEnabled(value: Boolean) = update { it[Keys.screenshotBackgroundEnabled] = value }
+    suspend fun setBackgroundMusicEnabled(value: Boolean) = update { it[Keys.backgroundMusicEnabled] = value }
+    suspend fun setBackgroundMusicVolume(value: Float) = update {
+        it[Keys.backgroundMusicVolume] = value.coerceIn(0f, 1f)
+    }
+    suspend fun setHapticFeedbackEnabled(value: Boolean) = update { it[Keys.hapticFeedbackEnabled] = value }
 
     private suspend fun update(block: suspend (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.launcherSettingsDataStore.edit(block)

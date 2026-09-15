@@ -40,6 +40,9 @@ import ru.nekostul.horizonos.ui.HorizonStartGlyph
 import ru.nekostul.horizonos.ui.HorizonXboxGlyph
 import ru.nekostul.horizonos.ui.isExternalGamepadConnected
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
+import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
+import ru.nekostul.horizonos.ui.audio.LauncherInputSource
+import ru.nekostul.horizonos.ui.audio.LauncherSound
 import ru.nekostul.horizonos.ui.settings.*
 import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
 
@@ -444,14 +447,23 @@ fun FilesScreen(
                                 .focusable()
                                 .onKeyEvent { event ->
                                     if (event.type != KeyEventType.KeyDown) false
-                                    else if (isHorizonConfirmKey(event)) {
+                                    else if (event.key == Key.DirectionUp || event.key == Key.DirectionDown ||
+                                        event.key == Key.DirectionLeft || event.key == Key.DirectionRight
+                                    ) {
+                                        LauncherAudioManager.play(
+                                            LauncherSound.CLICK,
+                                            LauncherInputSource.GAMEPAD
+                                        )
+                                        when (event.key) {
+                                            Key.DirectionRight -> { moveGridFocus(columns, deltaColumns = 1); true }
+                                            Key.DirectionLeft -> { moveGridFocus(columns, deltaColumns = -1); true }
+                                            Key.DirectionDown -> { moveGridFocus(columns, deltaRows = 1); true }
+                                            else -> { moveGridFocus(columns, deltaRows = -1); true }
+                                        }
+                                    } else if (isHorizonConfirmKey(event)) {
                                         activateFocused()
                                         true
                                     } else when (event.key) {
-                                        Key.DirectionRight -> { moveGridFocus(columns, deltaColumns = 1); true }
-                                        Key.DirectionLeft -> { moveGridFocus(columns, deltaColumns = -1); true }
-                                        Key.DirectionDown -> { moveGridFocus(columns, deltaRows = 1); true }
-                                        Key.DirectionUp -> { moveGridFocus(columns, deltaRows = -1); true }
                                         Key.ButtonX -> {
                                             if (!pickerMode && entries.isNotEmpty() && focusedIndex in entries.indices) {
                                                 inputMode.value = SettingsInputMode.GAMEPAD

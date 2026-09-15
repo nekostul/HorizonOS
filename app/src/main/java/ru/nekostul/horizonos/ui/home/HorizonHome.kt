@@ -84,8 +84,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
@@ -149,6 +148,9 @@ import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
+import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
+import ru.nekostul.horizonos.ui.audio.LauncherInputSource
+import ru.nekostul.horizonos.ui.audio.LauncherSound
 import kotlin.math.roundToInt
 import kotlin.math.abs
 import kotlin.math.exp
@@ -180,7 +182,12 @@ private val GameSirPackages = listOf(
 private const val GameSirPlayPackage = "com.xiaoji.xtouch.google"
 
 private object BackdropCache {
-    private const val MAX_DIMENSION = 1024
+    // The backdrop is intentionally prepared at a smaller size: it is blurred and
+    // shown behind the UI, so extra source pixels only increase upload and GPU cost.
+    private const val MAX_DIMENSION = 720
+    // The source is later enlarged to the display, so a small source-space
+    // radius matches the former 7.dp runtime blur instead of over-softening it.
+    private const val BLUR_RADIUS = 3
 
     private val cache = android.util.LruCache<String, ImageBitmap>(3)
 
@@ -198,13 +205,100 @@ private object BackdropCache {
         BitmapFactory.decodeFile(path, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
-        while (bounds.outWidth / sample > MAX_DIMENSION &&
-            bounds.outHeight / sample > MAX_DIMENSION
-        ) {
+        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > MAX_DIMENSION) {
             sample *= 2
         }
-        val options = BitmapFactory.Options().apply { inSampleSize = sample }
-        return BitmapFactory.decodeFile(path, options)?.asImageBitmap()
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+        }
+        val bitmap = BitmapFactory.decodeFile(path, options) ?: return null
+        val blurred = blur(bitmap, BLUR_RADIUS)
+        if (blurred !== bitmap) bitmap.recycle()
+        return blurred.asImageBitmap()
+    }
+
+    /** Two-pass box blur; it runs once on Dispatchers.IO and keeps every frame cheap. */
+    private fun blur(source: android.graphics.Bitmap, radius: Int): android.graphics.Bitmap {
+        if (radius <= 0) return source
+
+        val width = source.width
+        val height = source.height
+        val input = IntArray(width * height)
+        val horizontal = IntArray(width * height)
+        val output = IntArray(width * height)
+        source.getPixels(input, 0, width, 0, 0, width, height)
+
+        val diameter = radius * 2 + 1
+        for (y in 0 until height) {
+            var red = 0
+            var green = 0
+            var blue = 0
+            var alpha = 0
+            for (offset in -radius..radius) {
+                val x = offset.coerceIn(0, width - 1)
+                val pixel = input[y * width + x]
+                red += pixel shr 16 and 0xFF
+                green += pixel shr 8 and 0xFF
+                blue += pixel and 0xFF
+                alpha += pixel ushr 24
+            }
+            for (x in 0 until width) {
+                horizontal[y * width + x] =
+                    (alpha / diameter shl 24) or
+                        (red / diameter shl 16) or
+                        (green / diameter shl 8) or
+                        (blue / diameter)
+
+                val removeX = (x - radius).coerceAtLeast(0)
+                val addX = (x + radius + 1).coerceAtMost(width - 1)
+                val remove = input[y * width + removeX]
+                val add = input[y * width + addX]
+                red += (add shr 16 and 0xFF) - (remove shr 16 and 0xFF)
+                green += (add shr 8 and 0xFF) - (remove shr 8 and 0xFF)
+                blue += (add and 0xFF) - (remove and 0xFF)
+                alpha += (add ushr 24) - (remove ushr 24)
+            }
+        }
+
+        for (x in 0 until width) {
+            var red = 0
+            var green = 0
+            var blue = 0
+            var alpha = 0
+            for (offset in -radius..radius) {
+                val y = offset.coerceIn(0, height - 1)
+                val pixel = horizontal[y * width + x]
+                red += pixel shr 16 and 0xFF
+                green += pixel shr 8 and 0xFF
+                blue += pixel and 0xFF
+                alpha += pixel ushr 24
+            }
+            for (y in 0 until height) {
+                output[y * width + x] =
+                    (alpha / diameter shl 24) or
+                        (red / diameter shl 16) or
+                        (green / diameter shl 8) or
+                        (blue / diameter)
+
+                val removeY = (y - radius).coerceAtLeast(0)
+                val addY = (y + radius + 1).coerceAtMost(height - 1)
+                val remove = horizontal[removeY * width + x]
+                val add = horizontal[addY * width + x]
+                red += (add shr 16 and 0xFF) - (remove shr 16 and 0xFF)
+                green += (add shr 8 and 0xFF) - (remove shr 8 and 0xFF)
+                blue += (add and 0xFF) - (remove and 0xFF)
+                alpha += (add ushr 24) - (remove ushr 24)
+            }
+        }
+
+        return android.graphics.Bitmap.createBitmap(
+            width,
+            height,
+            android.graphics.Bitmap.Config.ARGB_8888
+        ).apply {
+            setPixels(output, 0, width, 0, 0, width, height)
+        }
     }
 }
 
@@ -233,6 +327,7 @@ private fun isExternalGamepadConnected(): Boolean {
 @Composable
 private fun ExternalGamepadConnected(): Boolean {
     val context = LocalContext.current
+    val homeView = androidx.compose.ui.platform.LocalView.current
     var connected by remember { mutableStateOf(isExternalGamepadConnected()) }
 
     DisposableEffect(context) {
@@ -269,6 +364,7 @@ fun HorizonHome(
 ) {
 
     val context = LocalContext.current
+    val homeView = androidx.compose.ui.platform.LocalView.current
     val coroutineScope = rememberCoroutineScope()
     val homeFocusRequester = remember { FocusRequester() }
 
@@ -433,6 +529,8 @@ fun HorizonHome(
         tappedGameIndex = selectedGame
         gamepadNavigationRequest++
         gameSelectionRevision++
+        LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+        LauncherAudioManager.performHapticFeedback(homeView)
     }
 
     fun moveMenuSelection(direction: Int) {
@@ -440,6 +538,8 @@ fun HorizonHome(
         selectedMenu = (selectedMenu + direction + 5) % 5
         menuSelectionArmed = true
         tappedGameIndex = -1
+        LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+        LauncherAudioManager.performHapticFeedback(homeView)
     }
 
     fun moveDownToMenu() {
@@ -447,6 +547,8 @@ fun HorizonHome(
         selectedMenu = 0
         menuSelectionArmed = true
         tappedGameIndex = -1
+        LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+        LauncherAudioManager.performHapticFeedback(homeView)
     }
 
     fun moveUpToGames() {
@@ -454,21 +556,25 @@ fun HorizonHome(
         selectedMenu = -1
         menuSelectionArmed = false
         tappedGameIndex = selectedGame
+        LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+        LauncherAudioManager.performHapticFeedback(homeView)
     }
 
-    fun openGamesir() {
+    fun openGamesir(source: LauncherInputSource = LauncherInputSource.TOUCH) {
         val launchIntent = GameSirPackages.firstNotNullOfOrNull { packageName ->
             runCatching { context.packageManager.getLaunchIntentForPackage(packageName) }.getOrNull()
         }
         if (launchIntent == null) {
             gamesirChoice = 0
             gamesirMissing = true
+            LauncherAudioManager.playHint(source)
             return
         }
         runCatching { context.startActivity(launchIntent) }
             .onFailure {
                 gamesirChoice = 0
                 gamesirMissing = true
+                LauncherAudioManager.playHint(source)
             }
     }
 
@@ -486,11 +592,16 @@ fun HorizonHome(
             .recoverCatching { context.startActivity(web) }
     }
 
-    fun activateMenu(index: Int) {
+    fun activateMenu(
+        index: Int,
+        source: LauncherInputSource = LauncherInputSource.TOUCH
+    ) {
 
         if (menuOpeningIndex >= 0) return
 
         if (selectedMenu != index || !menuSelectionArmed) {
+            LauncherAudioManager.play(LauncherSound.CLICK, source)
+            LauncherAudioManager.performHapticFeedback(homeView)
             selectedMenu = index
             menuSelectionArmed = true
             tappedGameIndex = -1
@@ -508,41 +619,53 @@ fun HorizonHome(
             when (index) {
 
                 0 -> {
+                    LauncherAudioManager.playConfirm(source)
+                    LauncherAudioManager.performHapticFeedback(homeView)
                     showGames = true
                 }
 
                 1 -> {
+                    LauncherAudioManager.playConfirm(source)
+                    LauncherAudioManager.performHapticFeedback(homeView)
                     showFiles = true
                 }
 
                 2 -> {
-                    openGamesir()
+                    LauncherAudioManager.performHapticFeedback(homeView)
+                    openGamesir(source)
                 }
 
                 3 -> {
+                    LauncherAudioManager.playConfirm(source)
+                    LauncherAudioManager.performHapticFeedback(homeView)
                     showLauncherSettings = true
                 }
 
                 4 -> {
+                    LauncherAudioManager.playConfirm(source)
+                    LauncherAudioManager.performHapticFeedback(homeView)
                     poweringOff = true
                 }
             }
         }
     }
 
-fun launchGame(game: Game) {
+fun launchGame(game: Game, source: LauncherInputSource) {
         when (val result = gameLauncher.launch(context, game)) {
-            GameLaunchResult.Launched -> Unit
-            is GameLaunchResult.Failed -> Toast.makeText(
-                context,
-                result.message,
-                Toast.LENGTH_LONG
-            ).show()
+            GameLaunchResult.Launched -> LauncherAudioManager.playOpenGame(source)
+            is GameLaunchResult.Failed -> {
+                LauncherAudioManager.playGameError(source)
+                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
-    fun launchGameWithAnimation(game: Game) {
+    fun launchGameWithAnimation(
+        game: Game,
+        source: LauncherInputSource = LauncherInputSource.TOUCH
+    ) {
         if (launchGhost != null) return
+        LauncherAudioManager.playLaunchVibration()
         coroutineScope.launch {
             val image = withContext(Dispatchers.IO) {
                 val path = game.coverPath ?: game.iconPath
@@ -558,7 +681,8 @@ fun launchGame(game: Game) {
             launchGhost = LaunchGhostData(
                 id = System.nanoTime(),
                 image = image,
-                game = game
+                game = game,
+                source = source
             )
         }
     }
@@ -571,6 +695,10 @@ fun launchGame(game: Game) {
 
     fun selectGame(index: Int) {
         val wasSelected = selectedGame == index && tappedGameIndex == index
+        if (!wasSelected) {
+            LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.TOUCH)
+        }
+        LauncherAudioManager.performHapticFeedback(homeView)
         selectedGame = index
         selectedMenu = -1
         menuSelectionArmed = false
@@ -579,7 +707,10 @@ fun launchGame(game: Game) {
             gameSelectionRevision++
         }
 
-        if (wasSelected) {            visibleGames.getOrNull(index)?.let { launchGameWithAnimation(it) }
+        if (wasSelected) {
+            visibleGames.getOrNull(index)?.let {
+                launchGameWithAnimation(it, LauncherInputSource.TOUCH)
+            }
         }
     }
 
@@ -607,6 +738,11 @@ fun launchGame(game: Game) {
     }
 
     val newGamePlatforms by NewGamesNotifier.platforms.collectAsState()
+    LaunchedEffect(newGamePlatforms) {
+        if (newGamePlatforms.isNotEmpty()) {
+            LauncherAudioManager.playHint(LauncherInputSource.TOUCH)
+        }
+    }
     if (newGamePlatforms.isNotEmpty()) {
         NewGamesAddedOverlay(
             platforms = newGamePlatforms,
@@ -615,39 +751,42 @@ fun launchGame(game: Game) {
     }
 
     if (gamesirMissing) {
-        HorizonOverlay(
-            title = stringResource(R.string.home_gamesir_missing_title),
-            onDismiss = { gamesirMissing = false },
-            onDirectionalKey = { key ->
-                when (key) {
-                    Key.DirectionDown, Key.DirectionRight -> {
-                        gamesirChoice = (gamesirChoice + 1).coerceAtMost(1)
-                        true
+        val gamesirInputMode = remember { mutableStateOf(SettingsInputMode.GAMEPAD) }
+        CompositionLocalProvider(LocalSettingsInputMode provides gamesirInputMode) {
+            HorizonOverlay(
+                title = stringResource(R.string.home_gamesir_missing_title),
+                onDismiss = { gamesirMissing = false },
+                onDirectionalKey = { key ->
+                    when (key) {
+                        Key.DirectionDown, Key.DirectionRight -> {
+                            gamesirChoice = (gamesirChoice + 1).coerceAtMost(1)
+                            true
+                        }
+                        Key.DirectionUp, Key.DirectionLeft -> {
+                            gamesirChoice = (gamesirChoice - 1).coerceAtLeast(0)
+                            true
+                        }
+                        else -> false
                     }
-                    Key.DirectionUp, Key.DirectionLeft -> {
-                        gamesirChoice = (gamesirChoice - 1).coerceAtLeast(0)
-                        true
-                    }
-                    else -> false
                 }
+            ) {
+                Text(
+                    text = stringResource(R.string.home_gamesir_missing_message),
+                    color = SettingsWhite,
+                    fontSize = 15.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                )
+                HorizonOverlayChoice(
+                    title = stringResource(R.string.home_gamesir_download),
+                    selected = gamesirChoice == 0,
+                    onClick = { openGamesirStore() }
+                )
+                HorizonOverlayChoice(
+                    title = stringResource(R.string.home_gamesir_close),
+                    selected = gamesirChoice == 1,
+                    onClick = { gamesirMissing = false }
+                )
             }
-        ) {
-            Text(
-                text = stringResource(R.string.home_gamesir_missing_message),
-                color = SettingsWhite,
-                fontSize = 15.sp,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-            )
-            HorizonOverlayChoice(
-                title = stringResource(R.string.home_gamesir_download),
-                selected = gamesirChoice == 0,
-                onClick = { openGamesirStore() }
-            )
-            HorizonOverlayChoice(
-                title = stringResource(R.string.home_gamesir_close),
-                selected = gamesirChoice == 1,
-                onClick = { gamesirMissing = false }
-            )
         }
     }
 
@@ -718,12 +857,16 @@ fun launchGame(game: Game) {
                 if (profileFocused) {
                     when {
                         isHorizonConfirmKey(event) -> {
+                            LauncherAudioManager.playConfirm(LauncherInputSource.GAMEPAD)
+                            LauncherAudioManager.performHapticFeedback(homeView)
                             profileFocused = false
                             showUserPage = true
                         }
                         event.key == Key.DirectionDown ||
                             event.key == Key.ButtonB ||
                             event.key == Key.Back -> {
+                            LauncherAudioManager.play(LauncherSound.BACK, LauncherInputSource.GAMEPAD)
+                            LauncherAudioManager.performHapticFeedback(homeView)
                             profileFocused = false
                             tappedGameIndex = selectedGame
                         }
@@ -731,11 +874,14 @@ fun launchGame(game: Game) {
                     return@onPreviewKeyEvent true
                 }
 
-if (isHorizonConfirmKey(event)) {
+                if (isHorizonConfirmKey(event)) {
                     if (menuSelectionArmed && selectedMenu >= 0) {
-                        activateMenu(selectedMenu)
+                        activateMenu(selectedMenu, LauncherInputSource.GAMEPAD)
                     } else {
-                        visibleGames.getOrNull(selectedGame)?.let { launchGameWithAnimation(it) }
+                        LauncherAudioManager.performHapticFeedback(homeView)
+                        visibleGames.getOrNull(selectedGame)?.let {
+                            launchGameWithAnimation(it, LauncherInputSource.GAMEPAD)
+                        }
                     }
                     return@onPreviewKeyEvent true
                 }
@@ -771,6 +917,8 @@ if (isHorizonConfirmKey(event)) {
                         } else {
                             clearHomeSelection()
                             profileFocused = true
+                            LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                            LauncherAudioManager.performHapticFeedback(homeView)
                         }
                         true
                     }
@@ -829,6 +977,7 @@ if (isHorizonConfirmKey(event)) {
                         focused = profileFocused,
                         onClick = {
                             profileFocused = false
+                            LauncherAudioManager.playConfirm(LauncherInputSource.TOUCH)
                             showUserPage = true
                         }
                     )
@@ -939,7 +1088,7 @@ if (isHorizonConfirmKey(event)) {
                     showLabel = menuSelectionArmed && selectedMenu == 0 || menuOpeningIndex == 0,
                     label = stringResource(R.string.home_menu_games),
                     opening = menuOpeningIndex == 0
-                ) { activateMenu(0) }
+                ) { activateMenu(0, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
                     icon = HorizonMenuIconType.FILES,
                     iconColor = Color(0xFF35D060),
@@ -950,7 +1099,7 @@ if (isHorizonConfirmKey(event)) {
                     showLabel = menuSelectionArmed && selectedMenu == 1 || menuOpeningIndex == 1,
                     label = stringResource(R.string.home_menu_files),
                     opening = menuOpeningIndex == 1
-                ) { activateMenu(1) }
+                ) { activateMenu(1, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
                     icon = HorizonMenuIconType.GAMESIR,
                     iconColor = Color(0xFF20BFFF),
@@ -961,7 +1110,7 @@ if (isHorizonConfirmKey(event)) {
                     showLabel = menuSelectionArmed && selectedMenu == 2 || menuOpeningIndex == 2,
                     label = stringResource(R.string.home_menu_gamesir),
                     opening = menuOpeningIndex == 2
-                ) { activateMenu(2) }
+                ) { activateMenu(2, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
                     icon = HorizonMenuIconType.SETTINGS,
                     iconColor = HorizonWhite,
@@ -972,7 +1121,7 @@ if (isHorizonConfirmKey(event)) {
                     showLabel = menuSelectionArmed && selectedMenu == 3 || menuOpeningIndex == 3,
                     label = stringResource(R.string.home_menu_settings),
                     opening = menuOpeningIndex == 3
-                ) { activateMenu(3) }
+                ) { activateMenu(3, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
                     icon = HorizonMenuIconType.POWER,
                     iconColor = HorizonWhite,
@@ -983,7 +1132,7 @@ if (isHorizonConfirmKey(event)) {
                     showLabel = menuSelectionArmed && selectedMenu == 4 || menuOpeningIndex == 4,
                     label = stringResource(R.string.home_menu_power),
                     opening = menuOpeningIndex == 4
-                ) { activateMenu(4) }
+                ) { activateMenu(4, LauncherInputSource.TOUCH) }
             }
 
             Spacer(Modifier.weight(1f))
@@ -1046,12 +1195,15 @@ Row(verticalAlignment = Alignment.CenterVertically) {
     launchGhost?.let { ghost ->
         LaunchGhostOverlay(
             ghost = ghost,
-            onLaunch = { launchGame(ghost.game) },
+            onLaunch = { launchGame(ghost.game, ghost.source) },
             onFinished = { if (launchGhost?.id == ghost.id) launchGhost = null }
         )
     }
 
     if (scanHint.isNotEmpty()) {
+        LaunchedEffect(scanHint) {
+            LauncherAudioManager.playHint(LauncherInputSource.TOUCH)
+        }
         ScanHintOverlay(
             games = scanHint,
             onDismiss = { ScanCoordinator.consumeHint() }
@@ -1105,7 +1257,8 @@ LaunchedEffect(showGames) {
 private data class LaunchGhostData(
     val id: Long,
     val image: ImageBitmap?,
-    val game: Game
+    val game: Game,
+    val source: LauncherInputSource
 )
 
 @Composable
@@ -1324,16 +1477,9 @@ private fun HorizonGameCarousel(
     onSwipe: () -> Unit
 ) {
     val density = LocalDensity.current
-    val selectionTransition = rememberInfiniteTransition(label = "cardSelectionPulse")
-    val selectionPulse by selectionTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1050, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cardSelectionPulseValue"
-    )
+    // Keep the idle Home screen static. A continuously animated pulse on every card
+    // invalidated the whole carousel at 60 fps even when the user was not interacting.
+    val selectionPulse = 1f
     val cardSizePx = with(density) { cardSize.toPx() }
     val gapPx = with(density) { cardGap.toPx() }
     val stepPx = cardSizePx + gapPx
@@ -1506,7 +1652,6 @@ private fun HorizonGameCarousel(
                             HorizonSelectedGameTitle(
                                 title = selectedTitle,
                                 cardWidth = cardSize,
-                                selectionKey = gameSelectionRevision,
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
                                     .offset(y = (-36).dp)
@@ -1548,10 +1693,8 @@ private fun HorizonGameCarousel(
 private fun HorizonSelectedGameTitle(
     title: String,
     cardWidth: Dp,
-    selectionKey: Int,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
     val titleColor = HorizonBlue
     val titleStyle = remember(titleColor) {
         TextStyle(
@@ -1559,71 +1702,21 @@ private fun HorizonSelectedGameTitle(
             fontSize = 23.sp
         )
     }
-    val textMeasurer = rememberTextMeasurer()
-    val textWidthPx = remember(title, titleStyle, density) {
-        textMeasurer.measure(
-            text = AnnotatedString(title),
-            style = titleStyle,
-            maxLines = 1,
-            softWrap = false
-        ).size.width
-    }
-    val cardWidthPx = with(density) { cardWidth.toPx() }
-    val overflowPx = (textWidthPx - cardWidthPx).coerceAtLeast(0f)
-    val textWidth = with(density) { textWidthPx.toDp() }
-    val initialTextOffsetPx = overflowPx / 2f
-    val textOffset = remember(selectionKey, title, cardWidthPx) { Animatable(0f) }
-    var marqueeStarted by remember(selectionKey, title, cardWidthPx) {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(selectionKey, title, cardWidthPx, overflowPx) {
-        marqueeStarted = false
-        textOffset.stop()
-        textOffset.snapTo(0f)
-        if (overflowPx <= 0f) return@LaunchedEffect
-
-        val marqueePauseMillis = 2000L
-        delay(marqueePauseMillis)
-        marqueeStarted = true
-        while (true) {
-            textOffset.animateTo(
-                targetValue = -overflowPx,
-                animationSpec = tween(1900, easing = LinearEasing)
-            )
-            delay(marqueePauseMillis)
-            textOffset.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(1900, easing = LinearEasing)
-            )
-            delay(marqueePauseMillis)
-        }
-    }
 
     Box(
         modifier = modifier
             .requiredWidth(cardWidth)
             .height(30.dp)
             .clipToBounds(),
-        contentAlignment = if (overflowPx <= 0f) Alignment.Center else Alignment.CenterStart
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = title,
             style = titleStyle,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             softWrap = false,
-            modifier = if (overflowPx > 0f) {
-                Modifier
-                    .align(Alignment.CenterStart)
-                    .requiredWidth(textWidth)
-                    .offset {
-                        val visibleOffset = initialTextOffsetPx +
-                                if (marqueeStarted) textOffset.value else 0f
-                        IntOffset(visibleOffset.roundToInt(), 0)
-                    }
-            } else {
-                Modifier
-            }
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -1818,13 +1911,14 @@ private fun GameScreenshotBackground(screenshotPath: String?) {
     }
 
     val darkTheme = LocalHorizonColors.current.background.luminance() < 0.5f
-
+    // Only transform the already-blurred texture. This preserves the slow, fluid
+    // motion without running a blur shader over the full display every frame.
     val drift = rememberInfiniteTransition(label = "homeBackdropDrift")
     val scale by drift.animateFloat(
         initialValue = 1.0f,
         targetValue = 1.075f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 18000, easing = LinearEasing),
+            animation = tween(durationMillis = 18_000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "homeBackdropScale"
@@ -1845,8 +1939,7 @@ private fun GameScreenshotBackground(screenshotPath: String?) {
                         .graphicsLayer {
                             scaleX = scale
                             scaleY = scale
-                        }
-                        .blur(7.dp, BlurredEdgeTreatment.Unbounded),
+                        },
                     contentScale = ContentScale.Crop
                 )
                 if (darkTheme) {
@@ -1923,16 +2016,8 @@ private fun HorizonMenuButton(
     opening: Boolean = false,
     onClick: () -> Unit
 ) {
-    val selectionTransition = rememberInfiniteTransition(label = "menuSelectionPulse")
-    val selectionAlpha by selectionTransition.animateFloat(
-        initialValue = if (selected) 0.45f else 1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(850, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "menuSelectionAlpha"
-    )
+    // The selected frame is static while idle; transitions are reserved for actual actions.
+    val selectionAlpha = 1f
     val iconReveal by animateFloatAsState(
         targetValue = if (opening) 1f else 0f,
         animationSpec = tween(620, easing = FastOutSlowInEasing),

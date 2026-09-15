@@ -6,10 +6,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -106,9 +108,23 @@ fun GameTitleEditorOverlay(
 ) {
       var value by remember { mutableStateOf(game.displayTitle) }
       var showKeyboard by remember { mutableStateOf(false) }
+      var selectedIndex by remember { mutableIntStateOf(0) }
       HorizonOverlay(
         title = stringResource(R.string.games_edit_title),
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        onDirectionalKey = { key ->
+            when (key) {
+                Key.DirectionDown, Key.DirectionRight -> {
+                    selectedIndex = (selectedIndex + 1).coerceAtMost(2)
+                    true
+                }
+                Key.DirectionUp, Key.DirectionLeft -> {
+                    selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                    true
+                }
+                else -> false
+            }
+        }
     ) {
         Text(
             text = stringResource(R.string.games_title_current, game.displayTitle),
@@ -121,27 +137,40 @@ fun GameTitleEditorOverlay(
             value = value,
               onValueChange = { value = it },
               placeholder = stringResource(R.string.games_title_hint),
-              selected = true,
-              onEdit = { showKeyboard = true }
+              selected = selectedIndex == 0,
+              onEdit = {
+                  selectedIndex = 0
+                  showKeyboard = true
+              }
         )
         Spacer(Modifier.height(12.dp))
         HorizonOverlayChoice(
             title = stringResource(R.string.settings_action_save),
-            selected = true,
+            selected = selectedIndex == 1,
             enabled = value.isNotBlank(),
-            onClick = { onSave(value.trim()) }
+            onClick = {
+                selectedIndex = 1
+                onSave(value.trim())
+            }
         )
         HorizonOverlayChoice(
             title = stringResource(R.string.settings_action_cancel),
-            selected = false,
-            onClick = onDismiss
+            selected = selectedIndex == 2,
+            onClick = {
+                selectedIndex = 2
+                onDismiss()
+            }
           )
       }
       if (showKeyboard) {
           HorizonKeyboardDialog(
               title = stringResource(R.string.games_edit_title),
               initialValue = value,
-              onConfirm = { value = it; showKeyboard = false },
+              onConfirm = {
+                  value = it
+                  selectedIndex = 1
+                  showKeyboard = false
+              },
               onCancel = { showKeyboard = false }
           )
       }

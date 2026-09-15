@@ -11,6 +11,10 @@ data class LauncherSettings(
     val rememberLastGame: Boolean = true,
 
     val interfaceSounds: Boolean = true,
+    val soundMode: String = LauncherSoundMode.ALL,
+    val backgroundMusicEnabled: Boolean = true,
+    val backgroundMusicVolume: Float = 0.65f,
+    val hapticFeedbackEnabled: Boolean = true,
 
     val theme: String = "dark",
     val language: String = "system",
@@ -32,3 +36,15 @@ data class LauncherSettings(
     val controllerDeadZone: Float = 0.15f,
     val screenshotBackgroundEnabled: Boolean = true
 )
+
+object LauncherSoundMode {
+    const val OFF = "off"
+    const val ALL = "all"
+    const val GAMEPAD_ONLY = "gamepad_only"
+
+    fun next(value: String): String = when (value) {
+        OFF -> ALL
+        ALL -> GAMEPAD_ONLY
+        else -> OFF
+    }
+}

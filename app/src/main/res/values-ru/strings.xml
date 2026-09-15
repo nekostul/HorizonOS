@@ -113,6 +113,16 @@
     <string name="settings_launcher_scanning_description">Источники информации об играх: название, обложка и скриншот.</string>
     <string name="settings_launcher_screenshot_background">Заменять фон скриншотом игры</string>
     <string name="settings_launcher_screenshot_background_description">Показывать скриншот выбранной игры на фоне главного экрана.</string>
+    <string name="settings_launcher_audio_title">Звуки и отклик</string>
+    <string name="settings_launcher_sound_mode">Звуки</string>
+    <string name="settings_launcher_sound_mode_all">Вкл.</string>
+    <string name="settings_launcher_sound_mode_off">Выкл.</string>
+    <string name="settings_launcher_sound_mode_gamepad">Только геймпадом</string>
+    <string name="settings_launcher_background_music">Фоновая музыка</string>
+    <string name="settings_launcher_background_music_volume">Громкость фоновой музыки</string>
+    <string name="settings_launcher_background_music_volume_description">Настройка громкости фоновой музыки.</string>
+    <string name="settings_launcher_haptic_feedback">Виброотклик</string>
+    <string name="settings_launcher_audio_hint">Навигационные звуки, фоновая музыка и нативный виброотклик.</string>
     <string name="files_title">Файлы</string>
     <string name="files_search_hint">Поиск…</string>
     <string name="files_copy">Копировать</string>

@@ -1,5 +1,9 @@
 package ru.nekostul.horizonos.ui.lockscreen
 
+import android.graphics.Color as AndroidColor
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -46,10 +50,18 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -70,6 +82,69 @@ import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 private const val ScrimAlpha = 0.68f
 
 private const val PRESS_RESET_TIMEOUT_MILLIS = 1500L
+
+/**
+ * Keep the launcher lock screen in its own window so it stays above any
+ * keyboard or launcher dialog that was open when the phone was locked.
+ */
+@Composable
+fun HorizonLockDialog(
+    unlockProgress: Float,
+    onUnlockStart: () -> Unit,
+    pressRequired: Int = 3
+) {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+        val blurRadius = with(LocalDensity.current) { 20.dp.roundToPx() }
+        androidx.compose.runtime.DisposableEffect(window) {
+            if (window == null) {
+                onDispose { }
+            } else {
+                window.setDimAmount(0f)
+                window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                window.setBackgroundDrawable(ColorDrawable(AndroidColor.TRANSPARENT))
+                window.setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val manager = window.context.getSystemService(WindowManager::class.java)
+                    if (manager?.isCrossWindowBlurEnabled == true) {
+                        // Dialogs such as the launcher keyboard are separate windows;
+                        // blur-behind makes the lock screen match the home-screen lock
+                        // even when one of those windows is still open underneath.
+                        window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                        window.setBackgroundBlurRadius(blurRadius)
+                        window.attributes = window.attributes.apply {
+                            blurBehindRadius = blurRadius
+                        }
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                    }
+                }
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+                WindowInsetsControllerCompat(window, window.decorView).apply {
+                    hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+                onDispose { }
+            }
+        }
+        UnlockScreen(
+            unlockProgress = unlockProgress,
+            onUnlockStart = onUnlockStart,
+            pressRequired = pressRequired
+        )
+    }
+}
 
 @Composable
 fun UnlockScreen(

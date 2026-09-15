@@ -42,8 +42,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalView
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
+import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
+import ru.nekostul.horizonos.ui.audio.LauncherInputSource
 import androidx.compose.runtime.LaunchedEffect
 
 internal val SettingsBackground: Color
@@ -109,6 +112,7 @@ internal fun HorizonSettingRow(
         label = "settingsRowSelectionPulseValue"
     )
     val rightMenuFocused = LocalSettingsRightMenuFocused.current
+    val localView = LocalView.current
     val frameActive = inputMode?.value == SettingsInputMode.GAMEPAD &&
         rightMenuFocused && selected
     LaunchedEffect(frameActive) {
@@ -126,6 +130,8 @@ internal fun HorizonSettingRow(
             )
             .clickable(enabled = row.enabled) {
                 inputMode?.value = SettingsInputMode.TOUCH
+                LauncherAudioManager.playConfirm(LauncherInputSource.TOUCH)
+                LauncherAudioManager.performHapticFeedback(localView)
                 onClick()
             }
             .bringIntoViewRequester(bringIntoViewRequester)

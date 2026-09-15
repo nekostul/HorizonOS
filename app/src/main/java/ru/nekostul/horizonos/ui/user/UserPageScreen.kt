@@ -58,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -123,6 +124,17 @@ fun UserPageScreen(
 
     val nick = profile.nick.ifBlank { stringResource(R.string.user_page_title) }
 
+    BackHandler(enabled = !editingNick && !pickingAvatar) {
+        onBack()
+    }
+
+    LaunchedEffect(editingNick, pickingAvatar) {
+        if (!editingNick && !pickingAvatar) {
+            delay(80)
+            focusRequester.requestFocus()
+        }
+    }
+
     fun activateOption() {
         when (selectedOption) {
             0 -> editingNick = true
@@ -159,7 +171,12 @@ fun UserPageScreen(
                         }
                         event.key == Key.DirectionRight -> { rightFocus = true; true }
                         event.key == Key.DirectionLeft -> { rightFocus = false; true }
-                        event.key == Key.ButtonB || event.key == Key.Back -> { onBack(); true }
+                        event.key == Key.ButtonB ||
+                            event.key == Key.Back ||
+                            event.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BUTTON_B -> {
+                            onBack()
+                            true
+                        }
                         else -> false
                     }
                 }
@@ -316,34 +333,55 @@ private fun NickEditorOverlay(
       var value by remember { mutableStateOf(current) }
       var showKeyboard by remember { mutableStateOf(false) }
       var autoOpenField by remember { mutableStateOf(true) }
+      var selectedIndex by remember { mutableIntStateOf(0) }
       if (!showKeyboard) {
           HorizonOverlay(
               title = stringResource(R.string.user_page_edit_nick),
-              onDismiss = onDismiss
+              onDismiss = onDismiss,
+              onDirectionalKey = { key ->
+                  when (key) {
+                      Key.DirectionDown, Key.DirectionRight -> {
+                          selectedIndex = (selectedIndex + 1).coerceAtMost(2)
+                          true
+                      }
+                      Key.DirectionUp, Key.DirectionLeft -> {
+                          selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                          true
+                      }
+                      else -> false
+                  }
+              }
           ) {
               Spacer(Modifier.height(8.dp))
               HorizonOverlayTextField(
                   value = value,
                   onValueChange = { value = it },
                   placeholder = stringResource(R.string.user_page_nick_hint),
-                  selected = true,
+                  selected = selectedIndex == 0,
                   autoEditOnSelection = autoOpenField,
                   onEdit = {
                       autoOpenField = false
+                      selectedIndex = 0
                       showKeyboard = true
                   }
               )
               Spacer(Modifier.height(12.dp))
               ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice(
                   title = stringResource(R.string.settings_action_save),
-                  selected = true,
+                  selected = selectedIndex == 1,
                   enabled = value.isNotBlank(),
-                  onClick = { onSave(value.trim()) }
+                  onClick = {
+                      selectedIndex = 1
+                      onSave(value.trim())
+                  }
               )
               ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice(
                   title = stringResource(R.string.settings_action_cancel),
-                  selected = false,
-                  onClick = onDismiss
+                  selected = selectedIndex == 2,
+                  onClick = {
+                      selectedIndex = 2
+                      onDismiss()
+                  }
               )
           }
       }
@@ -352,7 +390,11 @@ private fun NickEditorOverlay(
               title = stringResource(R.string.user_page_nick_prompt),
               initialValue = value,
               maxLength = 10,
-              onConfirm = { value = it; showKeyboard = false },
+              onConfirm = {
+                  value = it
+                  selectedIndex = 1
+                  showKeyboard = false
+              },
               onCancel = {
                   autoOpenField = false
                   showKeyboard = false

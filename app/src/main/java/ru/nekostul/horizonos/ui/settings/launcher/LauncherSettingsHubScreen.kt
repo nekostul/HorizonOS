@@ -28,15 +28,23 @@ fun LauncherSettingsHubScreen(
     settings: LauncherSettings,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
+    onSoundModeChange: (String) -> Unit,
+    onMusicEnabledChange: (Boolean) -> Unit,
+    onMusicVolumeChange: (Float) -> Unit,
+    onHapticChange: (Boolean) -> Unit,
     openOverlayIndex: Int? = null,
     onOverlayRequestConsumed: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    var showAudio by remember { mutableStateOf(false) }
     var showScanning by remember { mutableStateOf(false) }
 
     LaunchedEffect(openOverlayIndex) {
         openOverlayIndex?.let {
-            showScanning = true
+            when (it) {
+                0 -> showAudio = true
+                2 -> showScanning = true
+            }
             onOverlayRequestConsumed()
         }
     }
@@ -44,23 +52,45 @@ fun LauncherSettingsHubScreen(
     Column {
         Text(stringResource(R.string.settings_category_launcher), color = SettingsWhite, fontSize = 25.sp)
         Spacer(Modifier.height(12.dp))
+        HorizonSettingRow(
+            SettingRow(
+                title = stringResource(R.string.settings_launcher_audio_title),
+                description = stringResource(R.string.settings_launcher_audio_hint)
+            ),
+            selected = selectedIndex == 0,
+            onClick = {
+                onSelect(0)
+                showAudio = true
+            }
+        )
         SettingsToggleRow(
             title = stringResource(R.string.settings_launcher_screenshot_background),
             checked = settings.screenshotBackgroundEnabled,
-            selected = selectedIndex == 0,
+            selected = selectedIndex == 1,
             description = stringResource(R.string.settings_launcher_screenshot_background_description),
-            onClick = { onSelect(0) }
+            onClick = { onSelect(1) }
         )
         HorizonSettingRow(
             SettingRow(
                 title = stringResource(R.string.settings_launcher_scanning),
                 description = stringResource(R.string.settings_launcher_scanning_description)
             ),
-            selected = selectedIndex == 1,
+            selected = selectedIndex == 2,
             onClick = {
-                onSelect(1)
+                onSelect(2)
                 showScanning = true
             }
+        )
+    }
+
+    if (showAudio) {
+        LauncherAudioSettingsScreen(
+            settings = settings,
+            onDismiss = { showAudio = false },
+            onSoundModeChange = onSoundModeChange,
+            onMusicEnabledChange = onMusicEnabledChange,
+            onMusicVolumeChange = onMusicVolumeChange,
+            onHapticChange = onHapticChange
         )
     }
 

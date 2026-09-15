@@ -75,6 +75,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
+import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
+import ru.nekostul.horizonos.ui.audio.LauncherInputSource
+import ru.nekostul.horizonos.ui.audio.LauncherSound
 import ru.nekostul.horizonos.ui.settings.HorizonOverlay
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
 import ru.nekostul.horizonos.ui.settings.SettingsBlue
@@ -544,6 +547,11 @@ fun GamesScreen(
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     inputMode.value = SettingsInputMode.GAMEPAD
+                    if (event.key == Key.DirectionUp || event.key == Key.DirectionDown ||
+                        event.key == Key.DirectionLeft || event.key == Key.DirectionRight
+                    ) {
+                        LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                    }
                     if (isHorizonConfirmKey(event)) {
                         confirmFocusedItem()
                         true
@@ -1457,6 +1465,11 @@ private fun GameDetailsOverlay(
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     inputMode?.value = SettingsInputMode.GAMEPAD
+                    if (event.key == Key.DirectionUp || event.key == Key.DirectionDown ||
+                        event.key == Key.DirectionLeft || event.key == Key.DirectionRight
+                    ) {
+                        LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
+                    }
                     if (isHorizonConfirmKey(event)) {
                         activate(focusIndex)
                         true
