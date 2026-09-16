@@ -83,7 +83,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
@@ -1652,6 +1654,7 @@ private fun HorizonGameCarousel(
                             HorizonSelectedGameTitle(
                                 title = selectedTitle,
                                 cardWidth = cardSize,
+                                selectionKey = gameSelectionRevision,
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
                                     .offset(y = (-36).dp)
@@ -1693,8 +1696,10 @@ private fun HorizonGameCarousel(
 private fun HorizonSelectedGameTitle(
     title: String,
     cardWidth: Dp,
+    selectionKey: Int,
     modifier: Modifier = Modifier
 ) {
+    val density = LocalDensity.current
     val titleColor = HorizonBlue
     val titleStyle = remember(titleColor) {
         TextStyle(
@@ -1702,21 +1707,73 @@ private fun HorizonSelectedGameTitle(
             fontSize = 23.sp
         )
     }
+    val textMeasurer = rememberTextMeasurer()
+    val textWidthPx = remember(title, titleStyle, density) {
+        textMeasurer.measure(
+            text = AnnotatedString(title),
+            style = titleStyle,
+            maxLines = 1,
+            softWrap = false
+        ).size.width
+    }
+    val cardWidthPx = with(density) { cardWidth.toPx() }
+    val overflowPx = (textWidthPx - cardWidthPx).coerceAtLeast(0f)
+    val textWidth = with(density) { textWidthPx.toDp() }
+    // The title is measured before layout, so the marquee only exists for
+    // titles that actually exceed the card viewport.
+    val initialTextOffsetPx = overflowPx / 2f
+    val textOffset = remember(selectionKey, title, cardWidthPx) { Animatable(0f) }
+    var marqueeStarted by remember(selectionKey, title, cardWidthPx) {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(selectionKey, title, cardWidthPx, overflowPx) {
+        marqueeStarted = false
+        textOffset.stop()
+        textOffset.snapTo(0f)
+        if (overflowPx <= 0f) return@LaunchedEffect
+
+        val marqueePauseMillis = 2000L
+        delay(marqueePauseMillis)
+        marqueeStarted = true
+        while (true) {
+            textOffset.animateTo(
+                targetValue = -overflowPx,
+                animationSpec = tween(1900, easing = LinearEasing)
+            )
+            delay(marqueePauseMillis)
+            textOffset.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(1900, easing = LinearEasing)
+            )
+            delay(marqueePauseMillis)
+        }
+    }
 
     Box(
         modifier = modifier
             .requiredWidth(cardWidth)
             .height(30.dp)
             .clipToBounds(),
-        contentAlignment = Alignment.Center
+        contentAlignment = if (overflowPx <= 0f) Alignment.Center else Alignment.CenterStart
     ) {
         Text(
             text = title,
             style = titleStyle,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             softWrap = false,
-            modifier = Modifier.fillMaxWidth()
+            modifier = if (overflowPx > 0f) {
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .requiredWidth(textWidth)
+                    .offset {
+                        val visibleOffset = initialTextOffsetPx +
+                            if (marqueeStarted) textOffset.value else 0f
+                        IntOffset(visibleOffset.roundToInt(), 0)
+                    }
+            } else {
+                Modifier
+            }
         )
     }
 }

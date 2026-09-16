@@ -1,6 +1,7 @@
 package ru.nekostul.horizonos.ui.keyboard
 
 import android.content.Context
+import android.content.ClipboardManager
 import android.hardware.input.InputManager
 import android.os.Handler
 import android.os.Looper
@@ -25,6 +26,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +48,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -57,12 +61,17 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
+import ru.nekostul.horizonos.ui.horizonLongPress
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -214,8 +223,9 @@ fun HorizonKeyboardContent(
 ) {
     val colors = LocalHorizonColors.current
     val keyboardPalette = palette(colors)
+    val context = LocalContext.current
     val systemLanguage = if (
-        LocalContext.current.resources.configuration.locales[0].language == "ru" ||
+        context.resources.configuration.locales[0].language == "ru" ||
         LocalConfiguration.current.locales[0].language == "ru"
     ) KeyboardLanguage.RU else KeyboardLanguage.EN
     val resolvedLanguage = initialLanguage ?: systemLanguage
@@ -267,6 +277,18 @@ fun HorizonKeyboardContent(
             KeyboardAction.SHIFT -> cycleShift()
             KeyboardAction.MODE -> mode = if (mode == KeyboardMode.LETTERS) KeyboardMode.SYMBOLS else KeyboardMode.LETTERS
         }
+    }
+
+    fun pasteClipboard() {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val pasted = clipboard?.primaryClip
+            ?.getItemAt(0)
+            ?.coerceToText(context)
+            ?.toString()
+            ?.replace('\r', ' ')
+            ?.replace('\n', ' ')
+            ?: return
+        if (pasted.isNotEmpty()) insert(pasted)
     }
 
     fun resetKeyboard() {
@@ -335,7 +357,8 @@ fun HorizonKeyboardContent(
                 cursor = cursor,
                 title = title,
                 maxLength = maxLength,
-                palette = keyboardPalette
+                palette = keyboardPalette,
+                onPaste = ::pasteClipboard
             )
         }
         KeyboardSurface(
@@ -376,9 +399,11 @@ private fun KeyboardHeader(
     cursor: Int,
     title: String,
     maxLength: Int?,
-    palette: KeyboardPalette
+    palette: KeyboardPalette,
+    onPaste: () -> Unit
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
+        val density = LocalDensity.current
         val titleStart = maxWidth * 0.10f
         val dividerPadding = maxWidth * 0.022f
         Column(Modifier.fillMaxWidth()) {
@@ -404,7 +429,23 @@ private fun KeyboardHeader(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Bottom
                     ) {
+                        val textStyle = remember(palette.text) {
+                            androidx.compose.ui.text.TextStyle(
+                                color = palette.text,
+                                fontSize = 38.sp
+                            )
+                        }
+                        val textMeasurer = rememberTextMeasurer()
+                        val measuredText = remember(text, textStyle) {
+                            textMeasurer.measure(
+                                text = AnnotatedString(text),
+                                style = textStyle,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                         var textLayout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
+                        val scrollState = rememberScrollState()
                         val blink by rememberInfiniteTransition(label = "keyboardCursor").animateFloat(
                             initialValue = 1f,
                             targetValue = 0.08f,
@@ -414,25 +455,48 @@ private fun KeyboardHeader(
                             ),
                             label = "keyboardCursorAlpha"
                         )
-                        Text(
-                            text = text,
-                            color = palette.text,
-                            fontSize = 38.sp,
-                            maxLines = 1,
+                        BoxWithConstraints(
                             modifier = Modifier
                                 .weight(1f)
-                                .drawBehind {
-                                    textLayout?.getCursorRect(cursor.coerceIn(0, text.length))?.let { rect ->
-                                        drawLine(
-                                            color = palette.text.copy(alpha = blink),
-                                            start = androidx.compose.ui.geometry.Offset(rect.left, rect.top),
-                                            end = androidx.compose.ui.geometry.Offset(rect.left, rect.bottom),
-                                            strokeWidth = 2.dp.toPx()
-                                        )
-                                    }
-                                },
-                            onTextLayout = { textLayout = it }
-                        )
+                                .clipToBounds()
+                                .horizonLongPress(onLongPress = onPaste),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            val viewportWidthPx = with(density) { maxWidth.toPx() }
+                            val cursorRect = measuredText
+                                .getCursorRect(cursor.coerceIn(0, text.length))
+                            LaunchedEffect(text, cursor, viewportWidthPx) {
+                                scrollState.scrollTo(
+                                    (cursorRect.right - viewportWidthPx)
+                                        .coerceAtLeast(0f)
+                                        .roundToInt()
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(scrollState),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                Text(
+                                    text = text,
+                                    style = textStyle,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.drawBehind {
+                                        textLayout?.getCursorRect(cursor.coerceIn(0, text.length))?.let { rect ->
+                                            drawLine(
+                                                color = palette.text.copy(alpha = blink),
+                                                start = androidx.compose.ui.geometry.Offset(rect.left, rect.top),
+                                                end = androidx.compose.ui.geometry.Offset(rect.left, rect.bottom),
+                                                strokeWidth = 2.dp.toPx()
+                                            )
+                                        }
+                                    },
+                                    onTextLayout = { textLayout = it }
+                                )
+                            }
+                        }
                         if (maxLength != null) {
                             Text("${text.length}/$maxLength", color = palette.text, fontSize = 30.sp)
                         }

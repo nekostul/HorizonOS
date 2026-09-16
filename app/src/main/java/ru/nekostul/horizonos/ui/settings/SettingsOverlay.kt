@@ -2,6 +2,7 @@ package ru.nekostul.horizonos.ui.settings
 
 import android.graphics.drawable.ColorDrawable
 import android.content.Context
+import android.content.ClipboardManager
 import android.hardware.input.InputManager
 import android.os.Handler
 import android.os.Looper
@@ -90,6 +91,7 @@ import kotlinx.coroutines.delay
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
 import ru.nekostul.horizonos.ui.HorizonNavigation
+import ru.nekostul.horizonos.ui.horizonLongPress
 import ru.nekostul.horizonos.ui.isHorizonConfirmKey
 import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
 import ru.nekostul.horizonos.ui.audio.LauncherInputSource
@@ -682,11 +684,26 @@ internal fun HorizonOverlayTextField(
     placeholder: String = "",
     selected: Boolean = false,
     onEdit: (() -> Unit)? = null,
-    autoEditOnSelection: Boolean = true
+    autoEditOnSelection: Boolean = true,
+    onPaste: (() -> Unit)? = null
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val fieldFocusRequester = remember { FocusRequester() }
     val inputMode = LocalSettingsInputMode.current
+    val context = LocalContext.current
+    val pasteAction = rememberUpdatedState(
+        onPaste ?: {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            val pasted = clipboard?.primaryClip
+                ?.getItemAt(0)
+                ?.coerceToText(context)
+                ?.toString()
+                ?.replace('\r', ' ')
+                ?.replace('\n', ' ')
+                .orEmpty()
+            if (pasted.isNotEmpty()) onValueChange(pasted)
+        }
+    )
     val pulse = rememberInfiniteTransition(label = "overlayFieldSelectionPulse")
     val pulseValue by pulse.animateFloat(
         initialValue = 0f,
@@ -719,6 +736,9 @@ internal fun HorizonOverlayTextField(
             .bringIntoViewRequester(bringIntoViewRequester)
             .focusRequester(fieldFocusRequester)
             .focusable()
+            .horizonLongPress {
+                pasteAction.value()
+            }
             .clickable {
                 inputMode?.value = SettingsInputMode.TOUCH
                 onEdit?.invoke()
