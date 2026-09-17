@@ -1,6 +1,7 @@
 package ru.nekostul.horizonos.ui.settings
 
 data class LauncherSettings(
+    val firstSetupCompleted: Boolean = false,
     val animations: Boolean = true,
     val interfaceScale: Float = 1.0f,
 

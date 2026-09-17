@@ -54,6 +54,7 @@ object LauncherAudioManager {
     private var musicVolume = 0.65f
     private var settingsReady = false
     private var foreground = false
+    private var onboardingActive = false
     private var currentMusic: MediaPlayer? = null
     private var nextMusic: MediaPlayer? = null
     private var pendingConfirm: Runnable? = null
@@ -102,6 +103,10 @@ object LauncherAudioManager {
         musicVolume = settings.backgroundMusicVolume.coerceIn(0f, 1f)
         settingsReady = true
 
+        if (onboardingActive) {
+            stopMusic()
+            return
+        }
         if (!foreground) return
         if (!musicEnabled) {
             stopMusic()
@@ -115,7 +120,17 @@ object LauncherAudioManager {
     fun onForeground(context: Context) {
         initialize(context)
         foreground = true
-        if (settingsReady && musicEnabled && currentMusic == null) {
+        if (!onboardingActive && settingsReady && musicEnabled && currentMusic == null) {
+            startMusicFromBeginning()
+        }
+    }
+
+    fun setOnboardingActive(active: Boolean) {
+        if (onboardingActive == active) return
+        onboardingActive = active
+        if (active) {
+            stopMusic()
+        } else if (foreground && settingsReady && musicEnabled && currentMusic == null) {
             startMusicFromBeginning()
         }
     }
@@ -209,7 +224,7 @@ object LauncherAudioManager {
     private fun startMusicFromBeginning() {
         val context = appContext ?: return
         stopMusic()
-        if (!foreground || !settingsReady || !musicEnabled) return
+        if (onboardingActive || !foreground || !settingsReady || !musicEnabled) return
 
         val player = createMusicPlayer(context) ?: return
         val generation = musicGeneration

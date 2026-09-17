@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
@@ -64,28 +65,64 @@ fun UserAvatar(
                 contentScale = ContentScale.Crop
             )
         } else {
-            PersonGlyph(color = glyphColor, size = size * 0.52f)
+            CartoonAvatar(
+                accent = LocalHorizonColors.current.accent,
+                lineColor = glyphColor,
+                size = size * 0.78f
+            )
         }
     }
 }
 
 @Composable
-private fun PersonGlyph(color: Color, size: Dp) {
+private fun CartoonAvatar(accent: Color, lineColor: Color, size: Dp) {
     Canvas(modifier = Modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
+        val face = Color(0xFFFFC857)
+        val hair = Color(0xFF263238)
+        val eye = Color(0xFF182026)
+
         drawCircle(
-            color = color,
-            radius = w * 0.20f,
-            center = Offset(w / 2f, h * 0.30f)
+            color = accent.copy(alpha = 0.20f),
+            radius = w * 0.50f,
+            center = Offset(w / 2f, h / 2f)
+        )
+        drawCircle(
+            color = face,
+            radius = w * 0.31f,
+            center = Offset(w / 2f, h * 0.40f)
         )
         drawArc(
-            color = color,
+            color = hair,
             startAngle = 180f,
-            sweepAngle = 180f,
+            sweepAngle = -180f,
             useCenter = true,
-            topLeft = Offset(w * 0.12f, h * 0.52f),
-            size = androidx.compose.ui.geometry.Size(w * 0.76f, h * 0.68f)
+            topLeft = Offset(w * 0.18f, h * 0.13f),
+            size = androidx.compose.ui.geometry.Size(w * 0.64f, h * 0.49f)
+        )
+        drawCircle(eye, w * 0.035f, Offset(w * 0.40f, h * 0.40f))
+        drawCircle(eye, w * 0.035f, Offset(w * 0.60f, h * 0.40f))
+        drawArc(
+            color = lineColor,
+            startAngle = 15f,
+            sweepAngle = 150f,
+            useCenter = false,
+            topLeft = Offset(w * 0.39f, h * 0.43f),
+            size = androidx.compose.ui.geometry.Size(w * 0.22f, h * 0.13f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+        )
+        drawRoundRect(
+            color = accent,
+            topLeft = Offset(w * 0.22f, h * 0.66f),
+            size = androidx.compose.ui.geometry.Size(w * 0.56f, h * 0.30f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.14f, w * 0.14f)
+        )
+        drawLine(
+            color = Color.White.copy(alpha = 0.55f),
+            start = Offset(w * 0.33f, h * 0.76f),
+            end = Offset(w * 0.67f, h * 0.76f),
+            strokeWidth = 2.dp.toPx()
         )
     }
 }

@@ -32,6 +32,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -47,6 +52,9 @@ import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 import ru.nekostul.horizonos.ui.audio.LauncherAudioManager
 import ru.nekostul.horizonos.ui.audio.LauncherInputSource
 import ru.nekostul.horizonos.ui.audio.LauncherSound
+import ru.nekostul.horizonos.ui.onboarding.OnboardingScreen
+import ru.nekostul.horizonos.ui.onboarding.OnboardingSession
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -61,7 +69,7 @@ class MainActivity : ComponentActivity() {
     private var lastStickVertical = 0
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF && !OnboardingSession.active) {
                 HorizonLock.lock()
             }
         }
@@ -114,13 +122,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var runtimePermissionLauncher: ActivityResultLauncher<Array<String>>
+    private val permissionRevision = MutableStateFlow(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         runtimePermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
-        ) { }
+        ) { permissionRevision.value += 1 }
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
@@ -156,11 +165,25 @@ class MainActivity : ComponentActivity() {
 
         if (isSystemKeyguardShowing()) {
             HorizonLock.lock()
+        } else {
+            // HorizonLock starts in the locked state so a screen-off event is
+            // safe before the first activity frame. A normal launch on an
+            // already-unlocked device must not inherit that initial state.
+            HorizonLock.unlock()
         }
 
         setContent {
             val repository = remember { LauncherSettingsRepository(this@MainActivity) }
-            val settings by repository.settings.collectAsState(initial = LauncherSettings())
+            val settingsState by repository.settings.collectAsState(initial = null as LauncherSettings?)
+            val settings = settingsState ?: run {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.ui.graphics.Color.Black)
+                )
+                return@setContent
+            }
+            val permissionRevisionValue by permissionRevision.collectAsState()
             val locked by HorizonLock.locked.collectAsState()
             var showStartupAnimation by remember { mutableStateOf(true) }
             var unlocking by remember { mutableStateOf(false) }
@@ -183,10 +206,19 @@ class MainActivity : ComponentActivity() {
                 ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
                     .init(this@MainActivity)
             }
+            LaunchedEffect(settings.firstSetupCompleted) {
+                OnboardingSession.active = !settings.firstSetupCompleted
+                if (!settings.firstSetupCompleted) {
+                    HorizonLock.unlock()
+                    showStartupAnimation = false
+                }
+            }
             LaunchedEffect(settings) {
+                LauncherAudioManager.setOnboardingActive(!settings.firstSetupCompleted)
                 LauncherAudioManager.updateSettings(this@MainActivity, settings)
             }
-            LaunchedEffect(Unit) {
+            LaunchedEffect(settings.firstSetupCompleted) {
+                if (!settings.firstSetupCompleted) return@LaunchedEffect
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(
                         this@MainActivity,
@@ -196,7 +228,8 @@ class MainActivity : ComponentActivity() {
                     runtimePermissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                 }
             }
-            LaunchedEffect(Unit) {
+            LaunchedEffect(settings.firstSetupCompleted) {
+                if (!settings.firstSetupCompleted) return@LaunchedEffect
                 val legacy = ru.nekostul.horizonos.ui.files.StorageAccess
                     .missingLegacyPermissions(this@MainActivity)
                 if (legacy.isNotEmpty()) {
@@ -221,7 +254,8 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(LocalHorizonColors.current.background)
                     ) {
-                        val blurRadius = if (locked) 20f * (1f - unlockProgress) else 0f
+                        val lockActive = locked && settings.firstSetupCompleted
+                        val blurRadius = if (lockActive) 20f * (1f - unlockProgress) else 0f
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -230,20 +264,38 @@ class MainActivity : ComponentActivity() {
                                     else Modifier
                                 )
                         ) {
-                            if (showStartupAnimation && !locked) {
-                                HorizonStartupAnimation()
-                            } else {
-                                HorizonHome(
-                                    onRequestPermissions = { permissions ->
-                                        if (permissions.isNotEmpty()) {
-                                            runtimePermissionLauncher.launch(permissions)
+                            AnimatedContent(
+                                targetState = settings.firstSetupCompleted,
+                                transitionSpec = {
+                                    fadeIn(tween(720)) togetherWith fadeOut(tween(620))
+                                },
+                                label = "setupToHomeFade"
+                            ) { setupCompleted ->
+                                if (!setupCompleted) {
+                                    OnboardingScreen(
+                                        settings = settings,
+                                        permissionRevision = permissionRevisionValue,
+                                        onRequestPermissions = { permissions ->
+                                            if (permissions.isNotEmpty()) {
+                                                runtimePermissionLauncher.launch(permissions)
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                } else if (showStartupAnimation && !locked) {
+                                    HorizonStartupAnimation()
+                                } else {
+                                    HorizonHome(
+                                        onRequestPermissions = { permissions ->
+                                            if (permissions.isNotEmpty()) {
+                                                runtimePermissionLauncher.launch(permissions)
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
 
-                        if (locked) {
+                        if (locked && settings.firstSetupCompleted) {
                             HorizonLockDialog(
                                 unlockProgress = unlockProgress,
                                 onUnlockStart = { unlocking = true },
@@ -262,14 +314,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (isSystemKeyguardShowing()) {
+        if (isSystemKeyguardShowing() && !OnboardingSession.active) {
             HorizonLock.lock()
         }
         LauncherAudioManager.onForeground(this)
     }
 
     override fun onStop() {
-        if (!isDeviceInteractive()) {
+        if (!isDeviceInteractive() && !OnboardingSession.active) {
             HorizonLock.lock()
         }
         LauncherAudioManager.onBackground()
@@ -278,12 +330,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus && !isDeviceInteractive()) {
+        if (!hasFocus && !isDeviceInteractive() && !OnboardingSession.active) {
             HorizonLock.lock()
         }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (OnboardingSession.active && OnboardingSession.dispatchKeyEvent(event)) {
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 && isGamepadEvent(event)) {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP,
@@ -302,7 +357,7 @@ class MainActivity : ComponentActivity() {
         if (event.action == KeyEvent.ACTION_DOWN &&
             HorizonNavigation.isHomeKeyCode(event.keyCode)
         ) {
-            if (!HorizonLock.locked.value) {
+            if (!HorizonLock.locked.value && !OnboardingSession.active) {
                 HorizonNavigation.requestHome()
             }
             return true
@@ -319,6 +374,11 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         runCatching { unregisterReceiver(screenStateReceiver) }
         super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        permissionRevision.value += 1
     }
 
     private fun isDeviceInteractive(): Boolean = runCatching {

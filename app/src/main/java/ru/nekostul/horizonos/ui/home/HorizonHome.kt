@@ -2074,6 +2074,12 @@ private fun HorizonMenuButton(
     onClick: () -> Unit
 ) {
     // The selected frame is static while idle; transitions are reserved for actual actions.
+    val palette = LocalHorizonColors.current
+    val menuSurface = if (palette.background.luminance() > 0.5f) {
+        Color(0xFFE8EAED)
+    } else {
+        Color(0xFF555555)
+    }
     val selectionAlpha = 1f
     val iconReveal by animateFloatAsState(
         targetValue = if (opening) 1f else 0f,
@@ -2105,7 +2111,7 @@ private fun HorizonMenuButton(
                 .align(Alignment.TopCenter)
                 .requiredSize(size)
                 .clip(CircleShape)
-                .background(Color(0xFF555555))
+                .background(menuSurface)
                 .then(
                     if (selected) {
                         Modifier.border(

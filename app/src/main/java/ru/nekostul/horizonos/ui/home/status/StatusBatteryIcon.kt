@@ -29,8 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import kotlinx.coroutines.delay
-
-private val BatteryWhite = Color.White
+import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 
 data class BatteryState(
     val level: Int,
@@ -38,7 +37,9 @@ data class BatteryState(
     val powerSave: Boolean
 )
 
-fun batteryBarColor(state: BatteryState): Color = BatteryWhite
+@Composable
+@Suppress("UNUSED_PARAMETER")
+fun batteryBarColor(state: BatteryState): Color = LocalHorizonColors.current.text
 
 private fun readBatteryState(context: Context): BatteryState {
     val intent = context.registerReceiver(

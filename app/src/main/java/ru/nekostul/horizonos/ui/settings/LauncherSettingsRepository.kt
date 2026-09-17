@@ -20,6 +20,9 @@ class LauncherSettingsRepository(
 
     private object Keys {
 
+        val firstSetupCompleted =
+            booleanPreferencesKey("first_setup_completed")
+
         val animations =
             booleanPreferencesKey("animations")
 
@@ -84,6 +87,9 @@ class LauncherSettingsRepository(
         context.launcherSettingsDataStore.data.map { preferences ->
 
             LauncherSettings(
+                firstSetupCompleted =
+                    preferences[Keys.firstSetupCompleted] ?: false,
+
                 animations =
                     preferences[Keys.animations] ?: true,
 
@@ -187,6 +193,10 @@ class LauncherSettingsRepository(
             it[Keys.interfaceSounds] = value
             it[Keys.soundMode] = if (value) LauncherSoundMode.ALL else LauncherSoundMode.OFF
         }
+    }
+
+    suspend fun setFirstSetupCompleted(value: Boolean) = update {
+        it[Keys.firstSetupCompleted] = value
     }
 
     suspend fun setSoundMode(value: String) {
