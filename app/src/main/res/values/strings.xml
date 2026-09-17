@@ -350,6 +350,8 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_platform_ps2">PlayStation 2</string>
     <string name="games_platform_gamecube_wii">GameCube / Wii</string>
     <string name="games_platform_switch">Nintendo Switch</string>
+    <string name="games_platform_psvita">PS Vita</string>
+    <string name="games_platform_psvita_description">Scan installed games from the emulator.</string>
     <string name="games_platform_android">Android</string>
     <string name="games_emulator_duckstation">DuckStation</string>
     <string name="games_emulator_ppsspp">PPSSPP</string>
@@ -358,6 +360,13 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_emulator_eden">Eden</string>
     <string name="games_emulator_yuzu">Yuzu</string>
     <string name="games_emulator_sudachi">Sudachi</string>
+    <string name="games_emulator_vita3k">Vita3K</string>
+    <string name="games_emulator_emucorev">EmuCoreV</string>
+    <string name="games_vita_root_required">Root access is required to add Vita games.</string>
+    <string name="games_vita_confirm_title">Add Vita games</string>
+    <string name="games_vita_confirm_hint">Add games in the %1$s emulator first, then HorizonOS will scan the emulator\'s games folder.</string>
+    <string name="games_vita_scan">Scan emulator</string>
+    <string name="games_vita_scan_description">Scan installed games from the emulator and add them to the library.</string>
     <string name="games_selection_summary">%1$s · %2$s</string>
     <string name="games_choose_file">Choose ROM file</string>
     <string name="games_choose_file_description">Select one supported ROM through Android Files.</string>
@@ -429,6 +438,8 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_error_launch_failed">Could not launch the game.</string>
     <string name="games_error_ppsspp_not_installed">PPSSPP emulator is not installed.</string>
     <string name="games_error_nethersx2_not_installed">NetherSX2 emulator is not installed.</string>
+    <string name="games_error_vita3k_not_installed">Vita3K emulator is not installed.</string>
+    <string name="games_error_emucorev_not_installed">EmuCoreV emulator is not installed.</string>
     <string name="games_android_apps_title">Android applications</string>
     <string name="games_android_apps_description">Select the applications to add to HorizonOS.</string>
     <string name="games_android_apps_loading">Loading applications…</string>

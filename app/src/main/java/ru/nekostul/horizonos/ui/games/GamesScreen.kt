@@ -93,6 +93,7 @@ import ru.nekostul.horizonos.ui.settings.hideDialogSystemBars
 import ru.nekostul.horizonos.ui.files.FolderPickerDialog
 import ru.nekostul.horizonos.ui.files.FileEntry
 import ru.nekostul.horizonos.ui.files.RomPickerDialog
+import ru.nekostul.horizonos.ui.files.RootHelper
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.GameMetadataEditor
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
 import androidx.compose.ui.window.Dialog
@@ -106,6 +107,7 @@ private const val SourcePage = 3
 private const val ConfirmPage = 4
 private const val BiosWarningPage = 5
 private const val AndroidAppPage = 6
+private const val VitaConfirmPage = 7
 private const val BiosWarningPreferences = "game_bios_warnings"
 private const val ConfigWarningPreferences = "game_config_warnings"
 
@@ -126,6 +128,7 @@ fun GamesScreen(
     val folderRepository = remember { GameFolderRepository(context) }
     val deletedRoms = remember { DeletedRomRepository(context) }
     val focusRequester = remember { FocusRequester() }
+    val rootAvailable = remember { RootHelper.isRootAvailable() }
 
     var page by remember { mutableIntStateOf(LibraryPage) }
     var focusIndex by remember { mutableIntStateOf(0) }
@@ -265,6 +268,30 @@ fun GamesScreen(
         }
     }
 
+    fun addVitaGames() {
+        if (isWorking) return
+        isWorking = true
+        message = null
+        scope.launch {
+            val scanned = withContext(Dispatchers.IO) { VitaGameScanner().scan(selectedEmulator) }
+            val addedGames = withContext(Dispatchers.IO) {
+                val ignored = deletedRoms.all()
+                val fresh = scanned.filter { it.romUri !in ignored }
+                if (library.addAll(fresh) > 0) fresh else emptyList()
+            }
+            isWorking = false
+            if (addedGames.isEmpty()) {
+                message = context.getString(R.string.games_none_found)
+                page = LibraryPage
+                focusIndex = 0
+                return@launch
+            }
+            message = context.getString(R.string.games_added_count, addedGames.size)
+            onGamesAdded(addedGames)
+            onDismiss()
+        }
+    }
+
     fun loadInstalledApps() {
         appsLoading = true
         installedApps = emptyList()
@@ -381,6 +408,7 @@ fun GamesScreen(
         ConfirmPage -> 2
         BiosWarningPage -> 2
         AndroidAppPage -> installedApps.size + 1
+        VitaConfirmPage -> 2
         else -> 1
     }
 
@@ -416,6 +444,7 @@ fun GamesScreen(
 
             PlatformPage -> {
                 Platform.values().getOrNull(focusIndex)?.let { platform ->
+                    if (platform == Platform.PSVITA && !rootAvailable) return@let
                     selectedPlatform = platform
                     if (platform == Platform.ANDROID) {
                         loadInstalledApps()
@@ -434,7 +463,7 @@ fun GamesScreen(
                 val supported = Emulator.values().filter { it.platform == selectedPlatform }
                 supported.getOrNull(focusIndex)?.let { emulator ->
                     selectedEmulator = emulator
-                    page = SourcePage
+                    page = if (emulator.platform == Platform.PSVITA) VitaConfirmPage else SourcePage
                     focusIndex = 0
                 }
             }
@@ -446,6 +475,16 @@ fun GamesScreen(
                 } else {
                     showRomPicker = true
                 }
+            }
+
+            VitaConfirmPage -> if (focusIndex == 0) {
+                addVitaGames()
+            } else {
+                page = EmulatorPage
+                focusIndex = Emulator.values()
+                    .filter { it.platform == selectedPlatform }
+                    .indexOf(selectedEmulator)
+                    .coerceAtLeast(0)
             }
 
             ConfirmPage -> if (focusIndex == 0) addPendingGame() else {
@@ -508,6 +547,13 @@ fun GamesScreen(
             AndroidAppPage -> {
                 page = PlatformPage
                 focusIndex = selectedPlatform.ordinal
+            }
+            VitaConfirmPage -> {
+                page = EmulatorPage
+                focusIndex = Emulator.values()
+                    .filter { it.platform == selectedPlatform }
+                    .indexOf(selectedEmulator)
+                    .coerceAtLeast(0)
             }
         }
         return true
@@ -585,6 +631,7 @@ fun GamesScreen(
                 PlatformPage -> PlatformContent(
                     focusIndex = focusIndex,
                     selected = selectedPlatform,
+                    rootAvailable = rootAvailable,
                     onSelect = {
                         selectedPlatform = it
                         if (it == Platform.ANDROID) {
@@ -615,9 +662,17 @@ fun GamesScreen(
                     selected = selectedEmulator,
                     onSelect = {
                         selectedEmulator = it
-                        page = SourcePage
+                        page = if (it.platform == Platform.PSVITA) VitaConfirmPage else SourcePage
                         focusIndex = 0
                     }
+                )
+
+                VitaConfirmPage -> VitaConfirmContent(
+                    emulator = selectedEmulator,
+                    focusIndex = focusIndex,
+                    isWorking = isWorking,
+                    onScan = ::addVitaGames,
+                    onCancel = ::handleBack
                 )
 
                 SourcePage -> SourceContent(
@@ -959,18 +1014,22 @@ private fun LibrarySectionHeader(title: String, subtitle: String) {
 private fun PlatformContent(
     focusIndex: Int,
     selected: Platform,
+    rootAvailable: Boolean,
     onSelect: (Platform) -> Unit
 ) {
     Platform.values().forEachIndexed { index, platform ->
+        val disabled = platform == Platform.PSVITA && !rootAvailable
         GameOptionRow(
             title = platformLabel(platform),
-            subtitle = if (platform == Platform.ANDROID) {
-                stringResource(R.string.games_android_apps_description)
-            } else {
-                platform.romExtensions.sorted().joinToString(", ") { ".${it.uppercase()}" }
+            subtitle = when {
+                platform == Platform.ANDROID -> stringResource(R.string.games_android_apps_description)
+                platform == Platform.PSVITA && disabled -> stringResource(R.string.games_vita_root_required)
+                platform == Platform.PSVITA -> stringResource(R.string.games_platform_psvita_description)
+                else -> platform.romExtensions.sorted().joinToString(", ") { ".${it.uppercase()}" }
             },
             selected = selected == platform,
-            focused = focusIndex == index,
+            focused = focusIndex == index && !disabled,
+            enabled = !disabled,
             onClick = { onSelect(platform) }
         )
     }
@@ -1228,6 +1287,44 @@ private fun BiosWarningContent(    emulator: Emulator,
 }
 
 @Composable
+private fun VitaConfirmContent(
+    emulator: Emulator,
+    focusIndex: Int,
+    isWorking: Boolean,
+    onScan: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Text(
+        text = stringResource(R.string.games_vita_confirm_title),
+        color = SettingsBlue,
+        fontSize = 19.sp,
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp)
+    )
+    Text(
+        text = stringResource(R.string.games_vita_confirm_hint, emulatorLabel(emulator)),
+        color = SettingsGray,
+        fontSize = 14.sp,
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+    )
+    GameOptionRow(
+        title = if (isWorking) stringResource(R.string.games_scanning)
+        else stringResource(R.string.games_vita_scan),
+        subtitle = stringResource(R.string.games_vita_scan_description),
+        selected = false,
+        focused = focusIndex == 0,
+        accent = true,
+        onClick = onScan
+    )
+    GameOptionRow(
+        title = stringResource(R.string.games_cancel),
+        subtitle = "",
+        selected = false,
+        focused = focusIndex == 1,
+        onClick = onCancel
+    )
+}
+
+@Composable
 private fun ConfirmContent(
     source: RomSource,
     focusIndex: Int,
@@ -1273,6 +1370,7 @@ private fun GameOptionRow(
     focused: Boolean,
     accent: Boolean = false,
     hidden: Boolean = false,
+    enabled: Boolean = true,
     bringIntoViewWhenFocused: Boolean = true,
     onClick: () -> Unit
 ) {
@@ -1291,7 +1389,7 @@ private fun GameOptionRow(
     LaunchedEffect(focused) {
         if (focused && bringIntoViewWhenFocused) bringIntoViewRequester.bringIntoView()
     }
-    val active = inputMode?.value == SettingsInputMode.GAMEPAD && focused
+    val active = inputMode?.value == SettingsInputMode.GAMEPAD && focused && enabled
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1304,7 +1402,7 @@ private fun GameOptionRow(
                     )
                 } else Modifier
             )
-            .clickable {
+            .clickable(enabled = enabled) {
                 inputMode?.value = SettingsInputMode.TOUCH
                 onClick()
             }
@@ -1314,7 +1412,11 @@ private fun GameOptionRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = title,
-                color = if (accent) SettingsBlue else SettingsWhite,
+                color = when {
+                    !enabled -> SettingsGray
+                    accent -> SettingsBlue
+                    else -> SettingsWhite
+                },
                 fontSize = 16.sp
             )
             Spacer(Modifier.weight(1f))
@@ -1362,6 +1464,7 @@ private fun platformLabel(platform: Platform): String = when (platform) {
     Platform.PLAYSTATION_2 -> stringResource(R.string.games_platform_ps2)
     Platform.GAMECUBE_WII -> stringResource(R.string.games_platform_gamecube_wii)
     Platform.NINTENDO_SWITCH -> stringResource(R.string.games_platform_switch)
+    Platform.PSVITA -> stringResource(R.string.games_platform_psvita)
     Platform.ANDROID -> stringResource(R.string.games_platform_android)
 }
 

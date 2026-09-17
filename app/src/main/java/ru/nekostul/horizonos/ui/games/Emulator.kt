@@ -15,5 +15,7 @@ enum class Emulator(
     EDEN(R.string.games_emulator_eden, Platform.NINTENDO_SWITCH, requiresConfiguration = true),
     YUZU(R.string.games_emulator_yuzu, Platform.NINTENDO_SWITCH, requiresConfiguration = true),
     SUDACHI(R.string.games_emulator_sudachi, Platform.NINTENDO_SWITCH, requiresConfiguration = true),
+    VITA3K(R.string.games_emulator_vita3k, Platform.PSVITA),
+    EMUCOREV(R.string.games_emulator_emucorev, Platform.PSVITA),
     ANDROID(R.string.games_platform_android, Platform.ANDROID)
 }
