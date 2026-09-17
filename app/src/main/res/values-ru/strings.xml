@@ -386,6 +386,8 @@
     <string name="games_platform_ps2">PlayStation 2</string>
     <string name="games_platform_gamecube_wii">GameCube / Wii</string>
     <string name="games_platform_switch">Nintendo Switch</string>
+    <string name="games_platform_psvita">PS Vita</string>
+    <string name="games_platform_psvita_description">Сканировать установленные игры из эмулятора.</string>
     <string name="games_platform_android">Android</string>
     <string name="games_emulator_duckstation">DuckStation</string>
     <string name="games_emulator_ppsspp">PPSSPP</string>
@@ -394,6 +396,13 @@
     <string name="games_emulator_eden">Eden</string>
     <string name="games_emulator_yuzu">Yuzu</string>
     <string name="games_emulator_sudachi">Sudachi</string>
+    <string name="games_emulator_vita3k">Vita3K</string>
+    <string name="games_emulator_emucorev">EmuCoreV</string>
+    <string name="games_vita_root_required">Для добавления игр Vita нужны root-права.</string>
+    <string name="games_vita_confirm_title">Добавление игр Vita</string>
+    <string name="games_vita_confirm_hint">Сначала добавьте игры в эмуляторе %1$s, затем HorizonOS отсканирует папку игр эмулятора.</string>
+    <string name="games_vita_scan">Сканировать эмулятор</string>
+    <string name="games_vita_scan_description">Сканировать установленные игры из эмулятора и добавить их в библиотеку.</string>
     <string name="games_selection_summary">%1$s · %2$s</string>
     <string name="games_choose_file">Выбрать ROM-файл</string>
     <string name="games_choose_file_description">Выберите один поддерживаемый ROM через Файлы Android.</string>
@@ -465,6 +474,8 @@
     <string name="games_error_launch_failed">Не удалось запустить игру.</string>
     <string name="games_error_ppsspp_not_installed">Эмулятор PPSSPP не установлен.</string>
     <string name="games_error_nethersx2_not_installed">Эмулятор NetherSX2 не установлен.</string>
+    <string name="games_error_vita3k_not_installed">Эмулятор Vita3K не установлен.</string>
+    <string name="games_error_emucorev_not_installed">Эмулятор EmuCoreV не установлен.</string>
     <string name="games_android_apps_title">Android-приложения</string>
     <string name="games_android_apps_description">Выберите приложения для добавления в HorizonOS.</string>
     <string name="games_android_apps_loading">Загрузка приложений…</string>

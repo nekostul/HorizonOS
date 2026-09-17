@@ -26,6 +26,10 @@ enum class Platform(
         titleRes = R.string.games_platform_switch,
         romExtensions = setOf("nsp", "xci", "nro", "nca", "nso")
     ),
+    PSVITA(
+        titleRes = R.string.games_platform_psvita,
+        romExtensions = emptySet()
+    ),
     ANDROID(
         titleRes = R.string.games_platform_android,
         romExtensions = emptySet()

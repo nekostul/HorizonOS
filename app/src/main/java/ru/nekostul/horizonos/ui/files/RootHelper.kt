@@ -59,6 +59,21 @@ object RootHelper {
         }
     }
 
+    fun readRootBytes(path: String, timeoutMs: Int = 8000): ByteArray? {
+        return if (cachedRoot ?: isRootAvailable()) {
+            runCatching {
+                val process = ProcessBuilder("su", "-c", "cat \"$path\"")
+                    .redirectErrorStream(true)
+                    .start()
+                val bytes = process.inputStream.readBytes()
+                process.waitFor()
+                if (process.exitValue() == 0) bytes else null
+            }.getOrNull()
+        } else {
+            null
+        }
+    }
+
     fun listRoot(path: String): List<FileEntry> {
         val (code, out) = runRoot(
             "ls -laH \"$path\""

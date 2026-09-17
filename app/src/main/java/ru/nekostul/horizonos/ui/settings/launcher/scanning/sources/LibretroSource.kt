@@ -23,6 +23,7 @@ class LibretroSource : GameMetadataSource {
         Platform.PLAYSTATION_2 -> listOf("Sony - PlayStation 2")
         Platform.GAMECUBE_WII -> listOf("Nintendo - GameCube", "Nintendo - Wii")
         Platform.NINTENDO_SWITCH -> listOf("Nintendo - Nintendo Switch")
+        Platform.PSVITA -> listOf("Sony - PlayStation Vita")
         Platform.ANDROID -> emptyList()
     }
 
