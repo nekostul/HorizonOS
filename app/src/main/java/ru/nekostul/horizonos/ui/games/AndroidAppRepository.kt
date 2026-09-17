@@ -21,7 +21,13 @@ class AndroidAppRepository(private val context: Context) {
 
     private val appIconDir = File(context.filesDir, "app_icons").apply { mkdirs() }
 
-    fun installedApps(): List<InstalledAppInfo> {
+    fun installedApps(): List<InstalledAppInfo> =
+        queryLaunchableApps(includeUsefulSystemApps = false)
+
+    fun launchableApps(): List<InstalledAppInfo> =
+        queryLaunchableApps(includeUsefulSystemApps = true)
+
+    private fun queryLaunchableApps(includeUsefulSystemApps: Boolean): List<InstalledAppInfo> {
         val packageManager = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val resolved = runCatching {
@@ -31,8 +37,12 @@ class AndroidAppRepository(private val context: Context) {
         return resolved
             .asSequence()
             .filter { it.activityInfo != null && it.activityInfo.applicationInfo != null }
-            .filter { !isSystemApp(it.activityInfo.applicationInfo) }
             .filter { it.activityInfo.packageName != context.packageName }
+            .filter { entry ->
+                val info = entry.activityInfo.applicationInfo
+                if (!isSystemApp(info)) return@filter true
+                includeUsefulSystemApps && info.packageName in UsefulSystemApps
+            }
             .distinctBy { it.activityInfo.packageName }
             .map { info ->
                 InstalledAppInfo(
@@ -102,4 +112,43 @@ class AndroidAppRepository(private val context: Context) {
 
     fun isInstalled(packageName: String): Boolean =
         context.packageManager.getLaunchIntentForPackage(packageName) != null
+
+    private companion object {
+        val UsefulSystemApps = setOf(
+            "com.android.settings",
+            "com.android.chrome",
+            "com.google.android.youtube",
+            "com.google.android.apps.youtube.music",
+            "com.android.camera",
+            "com.android.camera2",
+            "com.google.android.GoogleCamera",
+            "com.sec.android.app.camera",
+            "com.google.android.calculator",
+            "com.android.calculator2",
+            "com.google.android.calendar",
+            "com.android.calendar",
+            "com.google.android.apps.maps",
+            "com.google.android.gm",
+            "com.google.android.apps.photos",
+            "com.google.android.apps.docs",
+            "com.google.android.apps.messaging",
+            "com.android.mms",
+            "com.android.contacts",
+            "com.google.android.contacts",
+            "com.android.dialer",
+            "com.google.android.dialer",
+            "com.android.deskclock",
+            "com.google.android.deskclock",
+            "com.android.gallery3d",
+            "com.google.android.apps.wellbeing",
+            "com.google.android.play.games",
+            "com.android.vending",
+            "com.google.android.apps.nbu.files",
+            "com.google.android.documentsui",
+            "com.android.documentsui",
+            "com.google.android.music",
+            "com.android.email",
+            "com.google.android.apps.tachyon"
+        )
+    }
 }

@@ -344,6 +344,7 @@
     <string name="action_ok">ОК</string>
     <string name="home_menu_games">Игры</string>
     <string name="home_menu_files">Файлы</string>
+    <string name="home_menu_apps">Приложения</string>
     <string name="home_menu_gamesir">GameSir</string>
     <string name="home_menu_settings">Системные настройки</string>
     <string name="home_menu_power">Питание</string>
@@ -480,6 +481,9 @@
     <string name="games_android_apps_description">Выберите приложения для добавления в HorizonOS.</string>
     <string name="games_android_apps_loading">Загрузка приложений…</string>
     <string name="games_android_apps_empty">Пользовательские приложения не найдены.</string>
+    <string name="apps_title">Приложения</string>
+    <string name="apps_loading">Загрузка приложений…</string>
+    <string name="apps_empty">Приложения не найдены.</string>
     <string name="games_android_apps_selected">Выбрано: %1$d</string>
     <string name="games_error_app_not_installed">Приложение больше не установлено: %1$s</string>
     <string name="scanning_covers">Сканирование обложек…</string>

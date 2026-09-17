@@ -308,6 +308,7 @@
     <string name="action_ok">OK</string>
     <string name="home_menu_games">Games</string>
     <string name="home_menu_files">Files</string>
+    <string name="home_menu_apps">Apps</string>
     <string name="home_menu_gamesir">GameSir</string>
     <string name="home_menu_settings">System Settings</string>
     <string name="home_menu_power">Power</string>
@@ -444,6 +445,9 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_android_apps_description">Select the applications to add to HorizonOS.</string>
     <string name="games_android_apps_loading">Loading applications…</string>
     <string name="games_android_apps_empty">No user applications found.</string>
+    <string name="apps_title">Applications</string>
+    <string name="apps_loading">Loading applications…</string>
+    <string name="apps_empty">No applications found.</string>
     <string name="games_android_apps_selected">Selected: %1$d</string>
     <string name="games_error_app_not_installed">The application is no longer installed: %1$s</string>
     <string name="scanning_covers">Scanning covers…</string>
