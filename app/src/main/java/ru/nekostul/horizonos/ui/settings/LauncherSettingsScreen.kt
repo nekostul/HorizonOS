@@ -98,7 +98,8 @@ private fun settingsCategories(rootOffered: Boolean): List<SettingsCategory> = b
     add(SettingsCategory(R.string.settings_category_sleep, true))
     add(SettingsCategory(R.string.settings_category_controllers))
     add(SettingsCategory(R.string.settings_category_system))
-    add(SettingsCategory(R.string.settings_category_launcher, rootOffered))
+    add(SettingsCategory(R.string.settings_category_launcher))
+    add(SettingsCategory(R.string.settings_category_backup, rootOffered))
     if (rootOffered) add(SettingsCategory(R.string.settings_category_root))
 }
 
@@ -119,6 +120,7 @@ fun LauncherSettingsScreen(
     var rightFocus by remember { mutableStateOf(false) }
     var systemOverlayRequest by remember { mutableStateOf<Int?>(null) }
     var launcherOverlayRequest by remember { mutableStateOf<Int?>(null) }
+    var backupOverlayRequest by remember { mutableStateOf<Int?>(null) }
     val overlayVisible = remember { mutableStateOf(false) }
     val overlayBackHandlers = remember { mutableStateListOf<() -> Unit>() }
     val settingsFocusRequester = remember { FocusRequester() }
@@ -144,7 +146,8 @@ fun LauncherSettingsScreen(
         9 -> ControllerManager.connectedControllers().size + 1 + (if (ControllerManager.hasGamesirController()) 1 else 0)
         10 -> 3
         11 -> 3
-        12 -> 1
+        12 -> 2
+        13 -> 1
         else -> 8
     }
 
@@ -245,7 +248,11 @@ fun LauncherSettingsScreen(
                     1 -> repository.setScreenshotBackgroundEnabled(!settings.screenshotBackgroundEnabled)
                     2 -> launcherOverlayRequest = 2
                 }
-                12 -> {
+                12 -> when (selectedOption) {
+                    0 -> backupOverlayRequest = 0
+                    1 -> backupOverlayRequest = 1
+                }
+                13 -> {
                     val granted = withContext(Dispatchers.IO) {
                         PrivilegedSystemAccess.hasRootAccess()
                     }
@@ -465,6 +472,8 @@ fun LauncherSettingsScreen(
                             { systemOverlayRequest = null },
                             launcherOverlayRequest,
                             { launcherOverlayRequest = null },
+                            backupOverlayRequest,
+                            { backupOverlayRequest = null },
                             wifiActivationRequest,
                             sleepActivationRequest,
                             gamesirOpenRequest,
@@ -521,6 +530,8 @@ private fun SettingsContent(
     onSystemOverlayConsumed: () -> Unit,
     launcherOverlayRequest: Int?,
     onLauncherOverlayConsumed: () -> Unit,
+    backupOverlayRequest: Int?,
+    onBackupOverlayConsumed: () -> Unit,
     wifiActivationRequest: Int,
     sleepActivationRequest: Int,
     gamesirOpenRequest: Int,
@@ -538,7 +549,8 @@ private fun SettingsContent(
         2 -> ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothScreen(
             selectedIndex = selectedOption,
             onSelect = onOptionSelected,
-            onItemCountChange = onBluetoothItemCountChange
+            onItemCountChange = onBluetoothItemCountChange,
+            rootAccessGranted = settings.rootAccessGranted
         ) {
             val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
             controller.setEnabled(controller.enabled() != true)
@@ -547,7 +559,8 @@ private fun SettingsContent(
         4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiScreen(
             selectedIndex = selectedOption,
             onSelect = onOptionSelected,
-            activationRequest = wifiActivationRequest
+            activationRequest = wifiActivationRequest,
+            rootAccessGranted = settings.rootAccessGranted
         ) {
             val controller = ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context)
             controller.setEnabled(controller.enabled() != true)
@@ -585,7 +598,13 @@ private fun SettingsContent(
             openOverlayIndex = launcherOverlayRequest,
             onOverlayRequestConsumed = onLauncherOverlayConsumed
         )
-        12 -> Column {
+        12 -> ru.nekostul.horizonos.ui.settings.launcher.backup.BackupSettingsScreen(
+            selectedIndex = selectedOption,
+            onSelect = onOptionSelected,
+            openOverlayIndex = backupOverlayRequest,
+            onOverlayRequestConsumed = onBackupOverlayConsumed
+        )
+        13 -> Column {
             HorizonSettingRow(
                 row = SettingRow(
                     title = stringResource(R.string.settings_root_grant),

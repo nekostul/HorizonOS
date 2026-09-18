@@ -61,7 +61,7 @@ fun BrightnessScreen(
             },
             leadingIcon = { BrightnessGlyph() }
         )
-        if (!controller.canChangeSystemBrightness) {
+        if (!settings.rootAccessGranted && !controller.canChangeSystemBrightness) {
             SettingsCapabilitiesNote(stringResource(R.string.settings_brightness_capability))
         }
     }

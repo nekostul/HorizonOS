@@ -16,6 +16,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -242,6 +243,7 @@ class MainActivity : ComponentActivity() {
             }
             CompositionLocalProvider(
                 LocalContext provides localizedContext,
+                LocalActivityResultRegistryOwner provides this@MainActivity,
             ) {
                 HorizonOSTheme(darkTheme = settings.theme != "light") {
                     LaunchedEffect(Unit) {

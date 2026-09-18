@@ -84,7 +84,7 @@ fun SleepScreen(
             fontSize = 12.sp,
             lineHeight = 16.sp
         )
-        if (!controller.canEnterSleep) SettingsCapabilitiesNote(stringResource(R.string.settings_sleep_capability))
+        if (!settings.rootAccessGranted && !controller.canEnterSleep) SettingsCapabilitiesNote(stringResource(R.string.settings_sleep_capability))
     }
 
     if (showTimeoutPicker) {

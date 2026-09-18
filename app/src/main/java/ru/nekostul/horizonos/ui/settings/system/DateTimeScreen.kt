@@ -31,7 +31,7 @@ import ru.nekostul.horizonos.ui.settings.SettingsCapabilitiesNote
 import ru.nekostul.horizonos.ui.settings.SettingsToggleRow
 
 @Composable
-fun DateTimeScreen() {
+fun DateTimeScreen(rootAccessGranted: Boolean = false) {
     val context = LocalContext.current
     val controller = remember { DateTimeController(context) }
     val now = remember { Calendar.getInstance() }
@@ -65,7 +65,7 @@ fun DateTimeScreen() {
             enabled = false,
             onClick = {}
         )
-        if (!controller.canChange) {
+        if (!rootAccessGranted && !controller.canChange) {
             SettingsCapabilitiesNote(stringResource(R.string.settings_datetime_capability))
         }
     }

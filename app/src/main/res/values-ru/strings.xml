@@ -124,6 +124,25 @@
     <string name="settings_launcher_background_music_volume_description">Настройка громкости фоновой музыки.</string>
     <string name="settings_launcher_haptic_feedback">Виброотклик</string>
     <string name="settings_launcher_audio_hint">Навигационные звуки, фоновая музыка и нативный виброотклик.</string>
+
+    <string name="settings_category_backup">Резервная копия</string>
+    <string name="backup_create">Создать копию</string>
+    <string name="backup_create_description">Сохранить выбранные данные в файл .hos.</string>
+    <string name="backup_restore">Восстановить из копии</string>
+    <string name="backup_restore_description">Вернуть выбранные данные из файла .hos.</string>
+    <string name="backup_select_hint">Отметьте, что нужно сохранить или восстановить.</string>
+    <string name="backup_section_home_screen">Хоумскрин</string>
+    <string name="backup_section_settings">Настройки</string>
+    <string name="backup_section_api_keys">API-ключи</string>
+    <string name="backup_section_profile">Профиль</string>
+    <string name="backup_section_game_folders">Папки с играми</string>
+    <string name="backup_api_keys_warning">Файл не зашифрован. Не отправляйте его незнакомым людям, чтобы не раскрыть ваши ключи.</string>
+    <string name="backup_action_create">Создать копию</string>
+    <string name="backup_action_restore">Восстановить</string>
+    <string name="backup_created">Копия создана.</string>
+    <string name="backup_restored">Данные восстановлены.</string>
+    <string name="backup_failed">Не удалось выполнить действие.</string>
+    <string name="backup_nothing_selected">Выберите хотя бы один пункт.</string>
     <string name="files_title">Файлы</string>
     <string name="files_search_hint">Поиск…</string>
     <string name="files_copy">Копировать</string>

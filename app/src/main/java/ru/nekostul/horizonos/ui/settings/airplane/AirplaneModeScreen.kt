@@ -50,7 +50,7 @@ fun AirplaneModeScreen(
                 onClick = onToggleBluetooth
             )
         }
-        if (!controller.canControlSystemMode) {
+        if (!settings.rootAccessGranted && !controller.canControlSystemMode) {
             SettingsCapabilitiesNote(stringResource(R.string.capability_airplane))
         }
     }

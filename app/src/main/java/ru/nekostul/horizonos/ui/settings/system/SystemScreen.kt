@@ -86,7 +86,7 @@ fun SystemScreen(
             } else null
         ) {
             when (index) {
-                0 -> DateTimeScreen()
+                0 -> DateTimeScreen(rootAccessGranted = settings.rootAccessGranted)
                 1 -> LanguageSettingsScreen(
                     language = language,
                     onLanguageSelected = { selected ->

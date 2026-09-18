@@ -18,17 +18,20 @@ class UserProfileRepository(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences("user_profile", Context.MODE_PRIVATE)
 
-    private val _profile = MutableStateFlow(read())
-    val profile: StateFlow<UserProfile> = _profile.asStateFlow()
+    val profile: StateFlow<UserProfile> = profileStore.asStateFlow()
+
+    init {
+        profileStore.value = read()
+    }
 
     fun setNick(value: String) {
         prefs.edit().putString(KEY_NICK, value.trim()).apply()
-        _profile.value = read()
+        profileStore.value = read()
     }
 
     fun setAvatar(path: String) {
         prefs.edit().putString(KEY_AVATAR, path).apply()
-        _profile.value = read()
+        profileStore.value = read()
     }
 
     private fun read(): UserProfile = UserProfile(
@@ -40,5 +43,6 @@ class UserProfileRepository(context: Context) {
         const val DEFAULT_NICK = "HorizonOS"
         private const val KEY_NICK = "nick"
         private const val KEY_AVATAR = "avatar"
+        private val profileStore = MutableStateFlow(UserProfile(DEFAULT_NICK, null))
     }
 }

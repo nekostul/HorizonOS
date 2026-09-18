@@ -31,6 +31,6 @@ fun NotificationsScreen(settings: LauncherSettings, selectedIndex: Int, onToggle
             description = stringResource(R.string.settings_notifications_description),
             onClick = onToggle
         )
-        if (!controller.canPost) SettingsCapabilitiesNote(stringResource(R.string.settings_notifications_permission))
+        if (!settings.rootAccessGranted && !controller.canPost) SettingsCapabilitiesNote(stringResource(R.string.settings_notifications_permission))
     }
 }

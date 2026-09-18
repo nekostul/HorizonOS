@@ -46,6 +46,7 @@ fun WifiScreen(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     activationRequest: Int,
+    rootAccessGranted: Boolean = false,
     onToggle: () -> Unit
 ) {
     val context = LocalContext.current

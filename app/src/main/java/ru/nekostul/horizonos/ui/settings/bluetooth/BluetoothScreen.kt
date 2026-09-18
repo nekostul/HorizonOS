@@ -37,6 +37,7 @@ fun BluetoothScreen(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     onItemCountChange: (Int) -> Unit = {},
+    rootAccessGranted: Boolean = false,
     onToggle: () -> Unit
 ) {
     val context = LocalContext.current
@@ -106,7 +107,7 @@ fun BluetoothScreen(
             )
         }
         if (!controller.available) SettingsCapabilitiesNote(stringResource(R.string.settings_bluetooth_missing))
-        else if (!controller.canControl) SettingsCapabilitiesNote(stringResource(R.string.settings_bluetooth_permission))
+        else if (!rootAccessGranted && !controller.canControl) SettingsCapabilitiesNote(stringResource(R.string.settings_bluetooth_permission))
     }
     selectedDevice?.let { device ->
         val name = runCatching { device.name }.getOrNull()?.takeIf(String::isNotBlank)
