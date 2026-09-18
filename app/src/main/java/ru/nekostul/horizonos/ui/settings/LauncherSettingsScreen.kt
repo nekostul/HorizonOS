@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -62,13 +63,16 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.R
+import ru.nekostul.horizonos.ui.files.RootHelper
 import ru.nekostul.horizonos.ui.settings.airplane.AirplaneModeScreen
 import ru.nekostul.horizonos.ui.settings.brightness.BrightnessScreen
 import ru.nekostul.horizonos.ui.settings.controllers.ControllersScreen
 import ru.nekostul.horizonos.ui.settings.controllers.ControllerManager
-import ru.nekostul.horizonos.ui.settings.notifications.NotificationController
 import ru.nekostul.horizonos.ui.settings.lockscreen.LockScreenScreen
 import ru.nekostul.horizonos.ui.settings.notifications.NotificationsScreen
 import ru.nekostul.horizonos.ui.settings.sleep.SleepScreen
@@ -82,15 +86,21 @@ import ru.nekostul.horizonos.ui.audio.LauncherInputSource
 
 private data class SettingsCategory(val titleRes: Int, val dividerAfter: Boolean = false)
 
-private val settingsCategories = listOf(
-    SettingsCategory(R.string.settings_category_airplane), SettingsCategory(R.string.settings_category_brightness),
-    SettingsCategory(R.string.settings_category_bluetooth), SettingsCategory(R.string.settings_category_lock_screen, true),
-    SettingsCategory(R.string.settings_category_wifi), SettingsCategory(R.string.settings_category_storage, true),
-    SettingsCategory(R.string.settings_category_themes), SettingsCategory(R.string.settings_category_notifications),
-    SettingsCategory(R.string.settings_category_sleep, true), SettingsCategory(R.string.settings_category_controllers),
-    SettingsCategory(R.string.settings_category_system),
-    SettingsCategory(R.string.settings_category_launcher)
-)
+private fun settingsCategories(rootOffered: Boolean): List<SettingsCategory> = buildList {
+    add(SettingsCategory(R.string.settings_category_airplane))
+    add(SettingsCategory(R.string.settings_category_brightness))
+    add(SettingsCategory(R.string.settings_category_bluetooth))
+    add(SettingsCategory(R.string.settings_category_lock_screen, true))
+    add(SettingsCategory(R.string.settings_category_wifi))
+    add(SettingsCategory(R.string.settings_category_storage, true))
+    add(SettingsCategory(R.string.settings_category_themes))
+    add(SettingsCategory(R.string.settings_category_notifications))
+    add(SettingsCategory(R.string.settings_category_sleep, true))
+    add(SettingsCategory(R.string.settings_category_controllers))
+    add(SettingsCategory(R.string.settings_category_system))
+    add(SettingsCategory(R.string.settings_category_launcher, rootOffered))
+    if (rootOffered) add(SettingsCategory(R.string.settings_category_root))
+}
 
 @Composable
 fun LauncherSettingsScreen(
@@ -102,6 +112,8 @@ fun LauncherSettingsScreen(
     val repository = remember { LauncherSettingsRepository(context) }
     val settings by repository.settings.collectAsState(initial = LauncherSettings())
     val scope = rememberCoroutineScope()
+    val rootOffered = remember { RootHelper.hasSuBinary() } && !settings.rootAccessGranted
+    val categories = remember(rootOffered) { settingsCategories(rootOffered) }
     var selectedCategory by remember { mutableIntStateOf(0) }
     var selectedOption by remember { mutableIntStateOf(0) }
     var rightFocus by remember { mutableStateOf(false) }
@@ -115,6 +127,7 @@ fun LauncherSettingsScreen(
     val inputMode = remember { mutableStateOf(SettingsInputMode.TOUCH) }
     var wifiActivationRequest by remember { mutableIntStateOf(0) }
     var sleepActivationRequest by remember { mutableIntStateOf(0) }
+    var gamesirOpenRequest by remember { mutableIntStateOf(0) }
     var bluetoothItemCount by remember { mutableIntStateOf(2) }
     var sliderEditing by remember { mutableStateOf(false) }
 
@@ -124,31 +137,28 @@ fun LauncherSettingsScreen(
         2 -> bluetoothItemCount
         3 -> 1
         4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context).availableNetworkNames().size + 3
-        5 -> 10
+        5 -> 1
         6 -> 2
-        7 -> NotificationController(context).installedApps().size + 2
+        7 -> 1
         8 -> 2
-        9 -> ControllerManager.connectedControllers().size + 4
-        10 -> 4
+        9 -> ControllerManager.connectedControllers().size + 1 + (if (ControllerManager.hasGamesirController()) 1 else 0)
+        10 -> 3
         11 -> 3
+        12 -> 1
         else -> 8
     }
 
     fun controllerCount(): Int = ControllerManager.connectedControllers().size
 
+    fun hasInteractiveOptions(category: Int): Boolean = category != 5
+
     fun isSliderOption(category: Int, option: Int): Boolean = when (category) {
         1 -> option == 1
-        9 -> option == controllerCount() + 2 || option == controllerCount() + 3
         else -> false
     }
 
     fun sliderValue(category: Int, option: Int): Float = when (category) {
         1 -> settings.brightness
-        9 -> if (option == controllerCount() + 2) {
-            ((settings.controllerSensitivity - 0.5f) / 1.5f).coerceIn(0f, 1f)
-        } else {
-            (settings.controllerDeadZone / 0.5f).coerceIn(0f, 1f)
-        }
         else -> 0f
     }
 
@@ -163,11 +173,6 @@ fun LauncherSettingsScreen(
                             .setGlobalBrightness(value)
                     }
                 }
-                9 -> if (option == controllerCount() + 2) {
-                    repository.setControllerSensitivity(0.5f + value * 1.5f)
-                } else {
-                    repository.setControllerDeadZone(value * 0.5f)
-                }
             }
         }
     }
@@ -176,6 +181,10 @@ fun LauncherSettingsScreen(
         selectedOption = 0
         rightFocus = false
         sliderEditing = false
+    }
+
+    LaunchedEffect(categories.size) {
+        selectedCategory = selectedCategory.coerceIn(0, (categories.size - 1).coerceAtLeast(0))
     }
 
     fun requestRuntimePermissions(category: Int) {
@@ -229,12 +238,23 @@ fun LauncherSettingsScreen(
                     0 -> sleepActivationRequest++
                     1 -> repository.setSleepMediaEnabled(!settings.sleepMediaEnabled)
                 }
-                9 -> if (selectedOption == 1) repository.setVibrationEnabled(!settings.vibrationEnabled)
+                9 -> if (selectedOption == controllerCount() + 1) gamesirOpenRequest++
                 10 -> systemOverlayRequest = selectedOption
                 11 -> when (selectedOption) {
                     0 -> launcherOverlayRequest = 0
                     1 -> repository.setScreenshotBackgroundEnabled(!settings.screenshotBackgroundEnabled)
                     2 -> launcherOverlayRequest = 2
+                }
+                12 -> {
+                    val granted = withContext(Dispatchers.IO) {
+                        PrivilegedSystemAccess.hasRootAccess()
+                    }
+                    if (granted) {
+                        repository.setRootAccessGranted(true)
+                        selectedCategory = 0
+                        selectedOption = 0
+                        rightFocus = false
+                    }
                 }
             }
         }
@@ -244,12 +264,35 @@ fun LauncherSettingsScreen(
         selectedOption = 0
         rightFocus = false
         sliderEditing = false
-        val visible = leftListState.layoutInfo.visibleItemsInfo.any { it.index == selectedCategory }
-        if (!visible) leftListState.animateScrollToItem(selectedCategory)
+        val info = leftListState.layoutInfo
+        val firstVisible = leftListState.firstVisibleItemIndex
+        val selectedInfo = info.visibleItemsInfo.firstOrNull { it.index == selectedCategory }
+        val fullyVisible = selectedInfo != null &&
+            selectedInfo.offset >= info.viewportStartOffset &&
+            selectedInfo.offset + selectedInfo.size <= info.viewportEndOffset
+        if (!fullyVisible) {
+            val isAbove = (selectedInfo == null && selectedCategory < firstVisible) ||
+                (selectedInfo != null && selectedInfo.offset < info.viewportStartOffset)
+            if (isAbove) {
+                leftListState.animateScrollToItem(selectedCategory)
+            } else {
+                val visibleCount = info.visibleItemsInfo.count { item ->
+                    item.offset >= info.viewportStartOffset &&
+                        item.offset + item.size <= info.viewportEndOffset
+                }.coerceAtLeast(1)
+                leftListState.animateScrollToItem((selectedCategory - visibleCount + 1).coerceAtLeast(0))
+            }
+        }
         requestRuntimePermissions(selectedCategory)
     }
     LaunchedEffect(Unit) {
         settingsFocusRequester.requestFocus()
+    }
+    LaunchedEffect(overlayVisible.value) {
+        if (!overlayVisible.value) {
+            delay(60)
+            settingsFocusRequester.requestFocus()
+        }
     }
     LaunchedEffect(settings.airplaneMode) {
         if (selectedCategory == 0) selectedOption = selectedOption.coerceIn(0, optionCount(0) - 1)
@@ -280,6 +323,14 @@ fun LauncherSettingsScreen(
         .background(SettingsBackground)
         .focusRequester(settingsFocusRequester)
         .focusable()
+        .onFocusChanged { focusState ->
+            if (!focusState.hasFocus && !overlayVisible.value) {
+                scope.launch {
+                    delay(60)
+                    settingsFocusRequester.requestFocus()
+                }
+            }
+        }
         .onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         inputMode.value = SettingsInputMode.GAMEPAD
@@ -316,7 +367,7 @@ fun LauncherSettingsScreen(
                 LauncherAudioManager.playConfirm(LauncherInputSource.GAMEPAD)
                 LauncherAudioManager.performHapticFeedback(settingsView)
                 activateOption()
-            } else {
+            } else if (hasInteractiveOptions(selectedCategory)) {
                 LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
                 LauncherAudioManager.performHapticFeedback(settingsView)
                 rightFocus = true
@@ -334,12 +385,13 @@ fun LauncherSettingsScreen(
             }
             Key.DirectionDown -> {
                 if (rightFocus) selectedOption = (selectedOption + 1).coerceAtMost(optionCount(selectedCategory) - 1)
-                else selectedCategory = (selectedCategory + 1).coerceAtMost(settingsCategories.lastIndex)
+                else selectedCategory = (selectedCategory + 1).coerceAtMost(categories.lastIndex)
                 LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
                 LauncherAudioManager.performHapticFeedback(settingsView)
                 true
             }
             Key.DirectionRight -> {
+                if (!hasInteractiveOptions(selectedCategory)) return@onPreviewKeyEvent true
                 rightFocus = true
                 LauncherAudioManager.play(ru.nekostul.horizonos.ui.audio.LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
                 LauncherAudioManager.performHapticFeedback(settingsView)
@@ -382,7 +434,7 @@ fun LauncherSettingsScreen(
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 LazyColumn(state = leftListState, modifier = Modifier.fillMaxHeight().weight(0.34f).background(SettingsPanel), contentPadding = PaddingValues(vertical = 6.dp)) {
-                    itemsIndexed(settingsCategories) { index, category ->
+                    itemsIndexed(categories) { index, category ->
                         SettingsCategoryRow(stringResource(category.titleRes), selectedCategory == index, selectedCategory == index && !rightFocus) {
                             selectedCategory = index
                             rightFocus = false
@@ -415,6 +467,9 @@ fun LauncherSettingsScreen(
                             { launcherOverlayRequest = null },
                             wifiActivationRequest,
                             sleepActivationRequest,
+                            gamesirOpenRequest,
+                            { sleepActivationRequest = 0 },
+                            { gamesirOpenRequest = 0 },
                             { value -> scope.launch { repository.setSoundMode(value) } },
                             { value -> scope.launch { repository.setBackgroundMusicEnabled(value) } },
                             { value -> scope.launch { repository.setBackgroundMusicVolume(value) } },
@@ -468,6 +523,9 @@ private fun SettingsContent(
     onLauncherOverlayConsumed: () -> Unit,
     wifiActivationRequest: Int,
     sleepActivationRequest: Int,
+    gamesirOpenRequest: Int,
+    onSleepActivationConsumed: () -> Unit,
+    onGamesirOpenConsumed: () -> Unit,
     onSoundModeChange: (String) -> Unit,
     onMusicEnabledChange: (Boolean) -> Unit,
     onMusicVolumeChange: (Float) -> Unit,
@@ -494,7 +552,7 @@ private fun SettingsContent(
             val controller = ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context)
             controller.setEnabled(controller.enabled() != true)
         }
-        5 -> StorageScreen(context, selectedOption, onOptionSelected)
+        5 -> StorageScreen(context)
         6 -> ThemesScreen(settings, selectedOption, onThemeSelected)
         7 -> NotificationsScreen(settings, selectedOption) { onOptionSelected(0) }
         8 -> SleepScreen(
@@ -503,9 +561,10 @@ private fun SettingsContent(
             selectedIndex = selectedOption,
             activationRequest = sleepActivationRequest,
             onTimeoutSelected = { timeout -> scope.launch { repository.setSleepTimeoutMinutes(timeout) } },
-            onMediaToggle = { scope.launch { repository.setSleepMediaEnabled(!settings.sleepMediaEnabled) } }
+            onMediaToggle = { scope.launch { repository.setSleepMediaEnabled(!settings.sleepMediaEnabled) } },
+            onActivationConsumed = onSleepActivationConsumed
         )
-        9 -> ControllersScreen(settings, selectedOption, { scope.launch { repository.setVibrationEnabled(!settings.vibrationEnabled) } }, { value -> scope.launch { repository.setControllerSensitivity(value) } }, { value -> scope.launch { repository.setControllerDeadZone(value) } })
+        9 -> ControllersScreen(selectedOption, gamesirOpenRequest, onGamesirOpenConsumed)
         10 -> SystemScreen(
             settings = settings,
             language = settings.language,
@@ -526,6 +585,17 @@ private fun SettingsContent(
             openOverlayIndex = launcherOverlayRequest,
             onOverlayRequestConsumed = onLauncherOverlayConsumed
         )
+        12 -> Column {
+            HorizonSettingRow(
+                row = SettingRow(
+                    title = stringResource(R.string.settings_root_grant),
+                    description = stringResource(R.string.settings_root_description)
+                ),
+                selected = selectedOption == 0,
+                onClick = { onOptionSelected(0) }
+            )
+            SettingsCapabilitiesNote(stringResource(R.string.settings_root_note))
+        }
         else -> Unit
     }
 }

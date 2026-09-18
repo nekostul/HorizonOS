@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import ru.nekostul.horizonos.ui.files.RootHelper
 import ru.nekostul.horizonos.ui.files.StorageAccess
 
 enum class OnboardingPage {
@@ -40,7 +41,8 @@ data class OnboardingPermissionStep(
     val id: String,
     val permission: String? = null,
     val permissions: List<String> = emptyList(),
-    val allFilesAccess: Boolean = false
+    val allFilesAccess: Boolean = false,
+    val isRoot: Boolean = false
 )
 
 fun onboardingPermissionSteps(): List<OnboardingPermissionStep> = buildList {
@@ -77,9 +79,13 @@ fun onboardingPermissionSteps(): List<OnboardingPermissionStep> = buildList {
             )
         )
     }
+    if (RootHelper.hasSuBinary()) {
+        add(OnboardingPermissionStep(id = "root", isRoot = true))
+    }
 }
 
 fun OnboardingPermissionStep.isGranted(context: Context): Boolean {
+    if (isRoot) return false
     if (allFilesAccess) return StorageAccess.hasAllFilesAccess()
 
     val requiredPermissions = permissions.ifEmpty { listOfNotNull(permission) }

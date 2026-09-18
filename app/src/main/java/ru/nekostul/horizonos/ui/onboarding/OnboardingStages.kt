@@ -569,6 +569,8 @@ fun OnboardingPermissionStage(
     total: Int,
     focusIndex: Int,
     onGrant: () -> Unit,
+    onSkip: () -> Unit,
+    onFocus: (Int) -> Unit,
 ) {
     val palette = LocalHorizonColors.current
     val context = LocalContext.current
@@ -602,15 +604,38 @@ fun OnboardingPermissionStage(
             )
         }
         Spacer(Modifier.height(if (compactScreen) 10.dp else 18.dp))
-        OnboardingPrimaryButton(
-            title = stringResource(
-                if (alreadyGranted) R.string.onboarding_continue
-                else R.string.onboarding_permissions_grant
-            ),
-            focused = focusIndex == 0,
-            onClick = onGrant,
-            modifier = Modifier.widthIn(max = 320.dp)
-        )
+        if (step.isRoot) {
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.Top
+            ) {
+                OnboardingPrimaryButton(
+                    title = stringResource(R.string.onboarding_continue),
+                    focused = focusIndex == 0,
+                    onClick = onGrant,
+                    onFocus = { onFocus(0) },
+                    modifier = Modifier
+                )
+                Spacer(Modifier.width(14.dp))
+                OnboardingSecondaryButton(
+                    title = stringResource(R.string.onboarding_root_skip),
+                    subtitle = stringResource(R.string.onboarding_root_skip_hint),
+                    focused = focusIndex == 1,
+                    onClick = onSkip,
+                    onFocus = { onFocus(1) }
+                )
+            }
+        } else {
+            OnboardingPrimaryButton(
+                title = stringResource(
+                    if (alreadyGranted) R.string.onboarding_continue
+                    else R.string.onboarding_permissions_grant
+                ),
+                focused = focusIndex == 0,
+                onClick = onGrant,
+                modifier = Modifier.widthIn(max = 320.dp)
+            )
+        }
         if (step.allFilesAccess) {
             Spacer(Modifier.height(if (compactScreen) 6.dp else 10.dp))
             Text(
@@ -620,15 +645,17 @@ fun OnboardingPermissionStage(
                 textAlign = TextAlign.Center
             )
         }
-        Spacer(Modifier.height(if (compactScreen) 6.dp else 10.dp))
-        Text(
-            text = stringResource(R.string.onboarding_permissions_root_note),
-            color = palette.mutedText,
-            fontSize = if (compactScreen) 10.sp else 12.sp,
-            lineHeight = if (compactScreen) 14.sp else 17.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(max = 660.dp)
-        )
+        if (!step.isRoot) {
+            Spacer(Modifier.height(if (compactScreen) 6.dp else 10.dp))
+            Text(
+                text = stringResource(R.string.onboarding_permissions_root_note),
+                color = palette.mutedText,
+                fontSize = if (compactScreen) 10.sp else 12.sp,
+                lineHeight = if (compactScreen) 14.sp else 17.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 660.dp)
+            )
+        }
     }
 }
 
@@ -640,6 +667,11 @@ private data class PermissionCopy(
 
 @Composable
 private fun permissionCopy(step: OnboardingPermissionStep): PermissionCopy = when {
+    step.isRoot -> PermissionCopy(
+        title = stringResource(R.string.onboarding_permission_root_title),
+        description = stringResource(R.string.onboarding_permission_root_description),
+        detail = stringResource(R.string.onboarding_permission_root_detail)
+    )
     step.allFilesAccess -> PermissionCopy(
         title = stringResource(R.string.onboarding_permission_all_files_title),
         description = stringResource(R.string.onboarding_permission_all_files_description),

@@ -38,7 +38,8 @@ fun SleepScreen(
     selectedIndex: Int,
     activationRequest: Int,
     onTimeoutSelected: (Int) -> Unit,
-    onMediaToggle: () -> Unit
+    onMediaToggle: () -> Unit,
+    onActivationConsumed: () -> Unit
 ) {
     val controller = SleepController(context)
     var showTimeoutPicker by remember { mutableStateOf(false) }
@@ -50,7 +51,10 @@ fun SleepScreen(
     }
 
     LaunchedEffect(activationRequest) {
-        if (activationRequest > 0) openTimeoutPicker()
+        if (activationRequest > 0) {
+            openTimeoutPicker()
+            onActivationConsumed()
+        }
     }
 
     Column {

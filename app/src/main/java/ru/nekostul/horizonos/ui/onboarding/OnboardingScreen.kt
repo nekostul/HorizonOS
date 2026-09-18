@@ -41,8 +41,10 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.core.tween
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.HorizonNavigation
 import ru.nekostul.horizonos.ui.HorizonButtonGlyph
@@ -58,6 +60,7 @@ import ru.nekostul.horizonos.ui.settings.LauncherSettingsRepository
 import ru.nekostul.horizonos.ui.settings.LanguageManager
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
 import ru.nekostul.horizonos.ui.settings.LocalSettingsInputMode
+import ru.nekostul.horizonos.ui.settings.PrivilegedSystemAccess
 import ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator
 import ru.nekostul.horizonos.ui.theme.LocalHorizonColors
 import ru.nekostul.horizonos.ui.user.UserProfileRepository
@@ -225,6 +228,18 @@ fun OnboardingScreen(
 
     fun requestCurrentPermission() {
         val step = currentPermission() ?: return
+        if (step.isRoot) {
+            scope.launch {
+                val granted = withContext(Dispatchers.IO) {
+                    PrivilegedSystemAccess.hasRootAccess()
+                }
+                if (granted) {
+                    settingsRepository.setRootAccessGranted(true)
+                    advancePermission()
+                }
+            }
+            return
+        }
         if (step.isGranted(context)) {
             advancePermission()
             return
@@ -283,7 +298,14 @@ fun OnboardingScreen(
                     permissionAwaitingReturn = false
                 )
             }
-            OnboardingPage.PERMISSIONS -> requestCurrentPermission()
+            OnboardingPage.PERMISSIONS -> {
+                val step = currentPermission()
+                if (step?.isRoot == true && state.permissionFocus == 1) {
+                    advancePermission()
+                } else {
+                    requestCurrentPermission()
+                }
+            }
             OnboardingPage.GAMES -> {
                 if (!state.hasAddedGames && state.gamesFocus == 1) {
                     state = state.copy(page = OnboardingPage.TUTORIAL, tutorialIndex = 0)
@@ -327,11 +349,20 @@ fun OnboardingScreen(
             OnboardingPage.THEME -> if (key == Key.DirectionLeft || key == Key.DirectionRight) {
                 selectTheme(if (state.themeIndex == 0) 1 else 0)
             } else return false
-            OnboardingPage.PERMISSIONS -> if (key == Key.DirectionUp || key == Key.DirectionDown ||
-                key == Key.DirectionLeft || key == Key.DirectionRight
-            ) {
-                state = state.copy(permissionFocus = 0)
-            } else return false
+            OnboardingPage.PERMISSIONS -> {
+                val step = currentPermission()
+                if (step?.isRoot == true) {
+                    when (key) {
+                        Key.DirectionLeft, Key.DirectionUp -> state = state.copy(permissionFocus = 0)
+                        Key.DirectionRight, Key.DirectionDown -> state = state.copy(permissionFocus = 1)
+                        else -> return false
+                    }
+                } else if (key == Key.DirectionUp || key == Key.DirectionDown ||
+                    key == Key.DirectionLeft || key == Key.DirectionRight
+                ) {
+                    state = state.copy(permissionFocus = 0)
+                } else return false
+            }
             OnboardingPage.GAMES -> when (key) {
                 Key.DirectionUp, Key.DirectionLeft -> state = state.copy(gamesFocus = 0)
                 Key.DirectionDown, Key.DirectionRight -> state = state.copy(gamesFocus = 1)
@@ -511,7 +542,9 @@ fun OnboardingScreen(
                                     currentIndex = state.permissionIndex,
                                     total = permissionSteps.size,
                                     focusIndex = state.permissionFocus,
-                                    onGrant = ::requestCurrentPermission
+                                    onGrant = ::requestCurrentPermission,
+                                    onSkip = ::advancePermission,
+                                    onFocus = { index -> state = state.copy(permissionFocus = index) }
                                 )
                             }
                             OnboardingPage.GAMES -> OnboardingGamesStage(

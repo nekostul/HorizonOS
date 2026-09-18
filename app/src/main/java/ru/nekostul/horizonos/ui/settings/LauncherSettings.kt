@@ -35,7 +35,8 @@ data class LauncherSettings(
     val vibrationEnabled: Boolean = true,
     val controllerSensitivity: Float = 1.0f,
     val controllerDeadZone: Float = 0.15f,
-    val screenshotBackgroundEnabled: Boolean = true
+    val screenshotBackgroundEnabled: Boolean = true,
+    val rootAccessGranted: Boolean = false
 )
 
 object LauncherSoundMode {

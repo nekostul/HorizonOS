@@ -37,8 +37,7 @@ fun SystemScreen(
     val rows = listOf(
         SettingRow(stringResource(R.string.settings_system_date_time), "", stringResource(R.string.settings_system_date_time_description)),
         SettingRow(stringResource(R.string.settings_system_language), languageName, stringResource(R.string.settings_system_language_description)),
-        SettingRow(stringResource(R.string.settings_system_battery), "", stringResource(R.string.settings_system_battery_description)),
-        SettingRow(stringResource(R.string.settings_system_info), "", stringResource(R.string.settings_system_info_description))
+        SettingRow(stringResource(R.string.settings_system_battery), "", stringResource(R.string.settings_system_battery_description))
     )
     var overlayIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
     var languageChoice by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
@@ -96,8 +95,7 @@ fun SystemScreen(
                     },
                     highlightedIndex = languageChoice
                 )
-                2 -> BatterySettingsScreen()
-                else -> SystemInfoScreen()
+                else -> BatterySettingsScreen()
             }
         }
     }

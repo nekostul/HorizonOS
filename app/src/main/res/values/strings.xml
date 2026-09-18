@@ -109,6 +109,7 @@
     <string name="settings_category_controllers">Controllers</string>
     <string name="settings_category_system">System</string>
     <string name="settings_category_launcher">Launcher Settings</string>
+    <string name="settings_category_root">Root Access</string>
     <string name="settings_launcher_scanning">Scanning</string>
     <string name="settings_launcher_scanning_description">Game information sources: title, cover and screenshot.</string>
     <string name="settings_launcher_screenshot_background">Use game screenshots as background</string>
@@ -254,6 +255,8 @@
     <string name="settings_controller_gamepad">Gamepad</string>
     <string name="settings_controller_joystick_hid">Joystick / HID</string>
     <string name="settings_controller_unknown">Controller</string>
+    <string name="settings_controllers_gamesir_button">Open GameSir</string>
+    <string name="settings_controllers_gamesir_note">Your GameSir gamepad can be configured in the GameSir app.</string>
     <string name="settings_sensitivity">Sensitivity</string>
     <string name="settings_controller_setup">Controller Setup</string>
     <string name="settings_controller_setup_description">Buttons and sticks are ready for future remapping without changing the current GameSir input flow.</string>
@@ -264,7 +267,6 @@
     <string name="settings_system_accessibility">Accessibility</string>
     <string name="settings_system_apps">Apps</string>
     <string name="settings_system_battery">Battery</string>
-    <string name="settings_system_info">System Information</string>
     <string name="settings_system_date_time_description">Device time and time zone.</string>
     <string name="settings_system_language_description">HorizonOS interface language.</string>
     <string name="settings_system_display_description">HorizonOS display settings.</string>
@@ -272,7 +274,6 @@
     <string name="settings_system_accessibility_description">HorizonOS accessibility features.</string>
     <string name="settings_system_apps_description">Installed applications.</string>
     <string name="settings_system_battery_description">Battery status.</string>
-    <string name="settings_system_info_description">HorizonOS and device information.</string>
     <string name="settings_media_volume">Media Volume</string>
     <string name="settings_automatic_date_time">Automatic date &amp; time</string>
     <string name="settings_choose_date_time">Choose date and time</string>
@@ -287,11 +288,6 @@
     <string name="settings_battery_charging">Charging</string>
     <string name="settings_battery_full">Full</string>
     <string name="settings_battery_not_charging">Not charging</string>
-    <string name="settings_info_device">Device: %1$s %2$s</string>
-    <string name="settings_info_api">Android API: %1$d</string>
-    <string name="settings_info_ram">RAM: %1$d GB</string>
-    <string name="settings_info_storage">Storage: %1$d GB</string>
-    <string name="settings_info_soc">SoC: %1$s</string>
     <string name="language_english">English</string>
     <string name="language_russian">Russian</string>
     <string name="language_current">Current: %1$s</string>
@@ -304,6 +300,9 @@
     <string name="timeout_hour">1 hour</string>
     <string name="capability_airplane">System airplane mode is unavailable to an ordinary app. These Wi-Fi/Bluetooth switches define HorizonOS policy and do not fake Android state.</string>
     <string name="capability_no_system_brightness">Window brightness is available. Global brightness requires WRITE_SETTINGS.</string>
+    <string name="settings_root_grant">Grant root access</string>
+    <string name="settings_root_description">Allow HorizonOS to control system features directly.</string>
+    <string name="settings_root_note">Root lets HorizonOS control brightness, Wi-Fi, Bluetooth, airplane mode, sleep and date/time, scan games installed in Vita emulators, and use the File Manager at the system level. HorizonOS does not use root for anything else.</string>
     <string name="home_profile_name">Eden Page</string>
     <string name="action_ok">OK</string>
     <string name="home_menu_games">Games</string>
@@ -313,7 +312,7 @@
     <string name="home_menu_settings">System Settings</string>
     <string name="home_menu_power">Power</string>
     <string name="storage_gb">GB</string>
-    <string name="horizon_version">HorizonOS %1$s</string>
+    <string name="storage_tb">TB</string>
     <string name="system_display_body">Display
 HorizonOS display settings are available in the internal sections.</string>
     <string name="system_sound_body">Sound
@@ -322,7 +321,6 @@ Control HorizonOS interface sounds.</string>
 HorizonOS accessibility settings.</string>
     <string name="system_apps_body">Apps
 Installed apps are displayed inside HorizonOS.</string>
-    <string name="android_version">Android %1$s</string>
 
     <!-- Game library -->
     <string name="games_window_title">Games</string>
@@ -550,6 +548,11 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="onboarding_permission_notifications_title">Notifications</string>
     <string name="onboarding_permission_notifications_description">HorizonOS uses notifications for background game metadata scans.</string>
     <string name="onboarding_permission_notifications_detail">You will see progress while HorizonOS scans game covers and metadata in the background.</string>
+    <string name="onboarding_permission_root_title">Root access</string>
+    <string name="onboarding_permission_root_description">Unlock advanced system features.</string>
+    <string name="onboarding_permission_root_detail">Root lets HorizonOS control brightness, Wi-Fi, airplane mode and other system settings.</string>
+    <string name="onboarding_root_skip">Skip for now</string>
+    <string name="onboarding_root_skip_hint">You can grant root access later in Settings.</string>
     <string name="onboarding_games_title">Add your games</string>
     <string name="onboarding_games_description">Add games for one platform using the HorizonOS Game Library and built-in File Manager.</string>
     <string name="onboarding_games_added_title">Platform added</string>
@@ -568,7 +571,7 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="onboarding_tutorial_avatar_title">Change your avatar</string>
     <string name="onboarding_tutorial_avatar_description">Open your profile, choose the avatar action, and pick an image with the built-in File Manager.</string>
     <string name="onboarding_tutorial_nick_title">Change your nickname</string>
-    <string name="onboarding_tutorial_nick_description">Open your profile and select your nickname to use the HorizonOS keyboard.</string>
+    <string name="onboarding_tutorial_nick_description">Open your profile and select your nickname to change it with the HorizonOS keyboard.</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_opensource_title">Open source</string>
     <string name="onboarding_opensource_description">HorizonOS is built in the open and developed transparently.</string>

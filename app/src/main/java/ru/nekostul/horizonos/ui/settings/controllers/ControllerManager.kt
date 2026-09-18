@@ -28,4 +28,7 @@ object ControllerManager {
             deviceId = id
         )
     }
+
+    fun hasGamesirController(): Boolean =
+        connectedControllers().any { it.name?.contains("gamesir", ignoreCase = true) == true }
 }

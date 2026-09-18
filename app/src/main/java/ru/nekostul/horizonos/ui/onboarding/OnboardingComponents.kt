@@ -293,6 +293,83 @@ fun OnboardingPrimaryButton(
 }
 
 @Composable
+fun OnboardingSecondaryButton(
+    title: String,
+    subtitle: String? = null,
+    focused: Boolean,
+    onClick: () -> Unit,
+    onFocus: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalHorizonColors.current
+    val view = LocalView.current
+    val compactScreen = LocalConfiguration.current.screenHeightDp < 400
+    val shape = RoundedCornerShape(0.dp)
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (focused) palette.accent else palette.divider.copy(alpha = 0.60f),
+        animationSpec = tween(240),
+        label = "onboardingSecondaryBorderColor"
+    )
+    val animatedBackground by animateColorAsState(
+        targetValue = palette.panel.copy(alpha = if (focused) 0.92f else 0.62f),
+        animationSpec = tween(240),
+        label = "onboardingSecondaryBackground"
+    )
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(shape)
+                .background(animatedBackground)
+                .border(if (focused) 2.dp else 1.dp, animatedBorderColor, shape)
+                .clickable {
+                    if (focused) {
+                        LauncherAudioManager.playConfirm(LauncherInputSource.TOUCH)
+                    } else {
+                        LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.TOUCH)
+                    }
+                    LauncherAudioManager.performHapticFeedback(view)
+                    if (focused) {
+                        onClick()
+                    } else {
+                        onFocus()
+                    }
+                }
+                .padding(horizontal = 14.dp, vertical = if (compactScreen) 5.dp else 7.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                color = palette.text,
+                fontSize = if (compactScreen) 15.sp else 16.sp,
+                fontWeight = if (focused) FontWeight.SemiBold else FontWeight.Normal
+            )
+        }
+        subtitle?.let { hint ->
+            AnimatedVisibility(
+                visible = focused,
+                enter = fadeIn(tween(160)) + expandVertically(tween(220)),
+                exit = fadeOut(tween(120)) + shrinkVertically(tween(180))
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = hint,
+                        color = palette.mutedText,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun OnboardingControlHints(
     backLabel: String,
     confirmLabel: String,

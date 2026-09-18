@@ -109,6 +109,7 @@
     <string name="settings_category_controllers">Контроллеры</string>
     <string name="settings_category_system">Система</string>
     <string name="settings_category_launcher">Настройки лаунчера</string>
+    <string name="settings_category_root">Root-доступ</string>
     <string name="settings_launcher_scanning">Сканирование</string>
     <string name="settings_launcher_scanning_description">Источники информации об играх: название, обложка и скриншот.</string>
     <string name="settings_launcher_screenshot_background">Заменять фон скриншотом игры</string>
@@ -290,6 +291,8 @@
     <string name="settings_controller_gamepad">Геймпад</string>
     <string name="settings_controller_joystick_hid">Джойстик / HID</string>
     <string name="settings_controller_unknown">Контроллер</string>
+    <string name="settings_controllers_gamesir_button">Открыть GameSir</string>
+    <string name="settings_controllers_gamesir_note">Геймпад GameSir можно настроить в приложении GameSir.</string>
     <string name="settings_sensitivity">Чувствительность</string>
     <string name="settings_controller_setup">Настройка контроллера</string>
     <string name="settings_controller_setup_description">Кнопки и стики готовы к дальнейшему remapping без изменения текущего input-потока GameSir.</string>
@@ -300,7 +303,6 @@
     <string name="settings_system_accessibility">Специальные возможности</string>
     <string name="settings_system_apps">Приложения</string>
     <string name="settings_system_battery">Батарея</string>
-    <string name="settings_system_info">Информация о системе</string>
     <string name="settings_system_date_time_description">Время устройства и часовой пояс.</string>
     <string name="settings_system_language_description">Язык интерфейса HorizonOS.</string>
     <string name="settings_system_display_description">Настройки отображения HorizonOS.</string>
@@ -308,7 +310,6 @@
     <string name="settings_system_accessibility_description">Возможности доступности HorizonOS.</string>
     <string name="settings_system_apps_description">Установленные приложения.</string>
     <string name="settings_system_battery_description">Состояние аккумулятора.</string>
-    <string name="settings_system_info_description">Информация о HorizonOS и устройстве.</string>
     <string name="settings_media_volume">Громкость мультимедиа</string>
     <string name="settings_automatic_date_time">Автоматические дата и время</string>
     <string name="settings_choose_date_time">Выбор даты и времени</string>
@@ -323,11 +324,6 @@
     <string name="settings_battery_charging">Заряжается</string>
     <string name="settings_battery_full">Полностью заряжена</string>
     <string name="settings_battery_not_charging">Не заряжается</string>
-    <string name="settings_info_device">Устройство: %1$s %2$s</string>
-    <string name="settings_info_api">Android API: %1$d</string>
-    <string name="settings_info_ram">ОЗУ: %1$d ГБ</string>
-    <string name="settings_info_storage">Хранилище: %1$d ГБ</string>
-    <string name="settings_info_soc">SoC: %1$s</string>
     <string name="language_english">Английский</string>
     <string name="language_russian">Русский</string>
     <string name="language_current">Текущий: %1$s</string>
@@ -340,6 +336,9 @@
     <string name="timeout_hour">1 час</string>
     <string name="capability_airplane">Системный режим полёта недоступен обычному приложению. Переключатели Wi-Fi/Bluetooth задают политику HorizonOS и не подменяют состояние Android.</string>
     <string name="capability_no_system_brightness">Изменение яркости окна доступно. Глобальная яркость требует WRITE_SETTINGS.</string>
+    <string name="settings_root_grant">Предоставить рутправа</string>
+    <string name="settings_root_description">Разрешите HorizonOS напрямую управлять системными функциями.</string>
+    <string name="settings_root_note">Root позволяет HorizonOS управлять яркостью, Wi-Fi, Bluetooth, режимом полёта, спящим режимом и датой/временем, сканировать игры, установленные в эмуляторах Vita, и работать с File Manager на уровне системы. HorizonOS не использует root ни для чего другого.</string>
     <string name="home_profile_name">Страница Eden</string>
     <string name="action_ok">ОК</string>
     <string name="home_menu_games">Игры</string>
@@ -349,7 +348,7 @@
     <string name="home_menu_settings">Системные настройки</string>
     <string name="home_menu_power">Питание</string>
     <string name="storage_gb">ГБ</string>
-    <string name="horizon_version">HorizonOS %1$s</string>
+    <string name="storage_tb">ТБ</string>
     <string name="system_display_body">Экран
 Настройки отображения HorizonOS доступны во внутренних разделах.</string>
     <string name="system_sound_body">Звук
@@ -358,7 +357,6 @@
 Настройки доступности HorizonOS.</string>
     <string name="system_apps_body">Приложения
 Список приложений будет отображаться внутри HorizonOS.</string>
-    <string name="android_version">Android %1$s</string>
 
     <!-- Библиотека игр -->
     <string name="games_window_title">Игры</string>
@@ -550,6 +548,11 @@
     <string name="onboarding_permission_notifications_title">Уведомления</string>
     <string name="onboarding_permission_notifications_description">HorizonOS использует уведомления для фонового сканирования игр.</string>
     <string name="onboarding_permission_notifications_detail">Вы увидите прогресс, пока HorizonOS сканирует обложки и метаданные игр в фоне.</string>
+    <string name="onboarding_permission_root_title">Root-доступ</string>
+    <string name="onboarding_permission_root_description">Откройте расширенные системные возможности.</string>
+    <string name="onboarding_permission_root_detail">Root нужен, чтобы HorizonOS управлял яркостью, Wi-Fi, режимом полёта и другими системными настройками.</string>
+    <string name="onboarding_root_skip">Пропустить сейчас</string>
+    <string name="onboarding_root_skip_hint">Root-доступ можно будет предоставить позже в настройках.</string>
     <string name="onboarding_games_title">Добавьте игры</string>
     <string name="onboarding_games_description">Добавьте игры одной платформы через Game Library и встроенный File Manager HorizonOS.</string>
     <string name="onboarding_games_added_title">Платформа добавлена</string>
@@ -568,7 +571,7 @@
     <string name="onboarding_tutorial_avatar_title">Изменить аватарку</string>
     <string name="onboarding_tutorial_avatar_description">Откройте профиль, выберите действие аватарки и укажите изображение через встроенный File Manager.</string>
     <string name="onboarding_tutorial_nick_title">Изменить ник</string>
-    <string name="onboarding_tutorial_nick_description">Откройте профиль и выберите ник, чтобы воспользоваться клавиатурой HorizonOS.</string>
+    <string name="onboarding_tutorial_nick_description">Откройте профиль и выберите ник, чтобы изменить его с помощью клавиатуры HorizonOS.</string>
     <string name="onboarding_next">Далее</string>
     <string name="onboarding_opensource_title">Open source</string>
     <string name="onboarding_opensource_description">HorizonOS создаётся открыто и развивается прозрачно.</string>
