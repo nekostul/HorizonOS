@@ -18,7 +18,8 @@ data class Game(
     val isScreenshotManuallySet: Boolean = false,
     val packageName: String? = null,
     val launchActivity: String? = null,
-    val iconPath: String? = null
+    val iconPath: String? = null,
+    val fromDownload: Boolean = false
 ) {
     val identityKey: String
         get() = "${emulator.name}|$romUri"

@@ -1,6 +1,7 @@
 package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
 import android.util.Log
+import kotlinx.coroutines.flow.first
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLibrary
 import java.io.File
@@ -122,6 +123,11 @@ class GameMetadataScraper(
             val screenshotDone = screenshotLocked || screenshotPath != null
             if (titleDone && coverDone && screenshotDone) break
 
+            if (!gameStillExists(game)) {
+                diag("[${game.displayTitle}] aborted: removed from library")
+                return null
+            }
+
             val query = game.searchName()
             val result = runCatching { source.searchMetadata(game, settings) }
                 .onFailure { diag("[${game.displayTitle}] ${enabledId.storageKey}: error ${it.javaClass.simpleName}") }
@@ -143,12 +149,20 @@ class GameMetadataScraper(
             }
             if (!coverLocked && coverPath == null) {
                 result.coverUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                    if (!gameStillExists(game)) {
+                        diag("[${game.displayTitle}] aborted: removed from library")
+                        return null
+                    }
                     coverPath = imageProcessor.storeCover(game.id, url)
                     diag("[${game.displayTitle}] cover <- ${enabledId.storageKey}: ${if (coverPath != null) "saved" else "download failed"}")
                 }
             }
             if (!screenshotLocked && screenshotPath == null) {
                 result.screenshotUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                    if (!gameStillExists(game)) {
+                        diag("[${game.displayTitle}] aborted: removed from library")
+                        return null
+                    }
                     screenshotPath = imageProcessor.storeScreenshot(game.id, url)
                     diag("[${game.displayTitle}] screenshot <- ${enabledId.storageKey}: ${if (screenshotPath != null) "saved" else "download failed"}")
                 }
@@ -161,6 +175,11 @@ class GameMetadataScraper(
         if (!changed) return null
         return GameScrapeResult(fullTitle, coverPath, screenshotPath, changed)
     }
+
+    private suspend fun gameStillExists(game: Game): Boolean =
+        runCatching { gameLibrary.games.first() }
+            .getOrDefault(emptyList())
+            .any { it.id == game.id }
 
     private data class GameScrapeResult(
         val fullTitle: String?,

@@ -128,6 +128,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        ru.nekostul.horizonos.ui.games.DownloadTracker.init(this)
+
         runtimePermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { permissionRevision.value += 1 }
@@ -217,6 +219,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(settings) {
                 LauncherAudioManager.setOnboardingActive(!settings.firstSetupCompleted)
                 LauncherAudioManager.updateSettings(this@MainActivity, settings)
+                ru.nekostul.horizonos.ui.games.DownloadTracker.setEnabled(settings.showDownloadProgress)
             }
             LaunchedEffect(settings.firstSetupCompleted) {
                 if (!settings.firstSetupCompleted) return@LaunchedEffect
@@ -381,6 +384,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         permissionRevision.value += 1
+        ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator.init(this)
     }
 
     private fun isDeviceInteractive(): Boolean = runCatching {

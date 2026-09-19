@@ -81,6 +81,7 @@ class LauncherSettingsRepository(
         val controllerSensitivity = floatPreferencesKey("controller_sensitivity")
         val controllerDeadZone = floatPreferencesKey("controller_dead_zone")
         val screenshotBackgroundEnabled = booleanPreferencesKey("screenshot_background_enabled")
+        val showDownloadProgress = booleanPreferencesKey("show_download_progress")
         val rootAccessGranted = booleanPreferencesKey("root_access_granted")
     }
 
@@ -150,6 +151,7 @@ class LauncherSettingsRepository(
                 ,controllerSensitivity = preferences[Keys.controllerSensitivity] ?: 1.0f
                 ,controllerDeadZone = preferences[Keys.controllerDeadZone] ?: 0.15f
                 ,screenshotBackgroundEnabled = preferences[Keys.screenshotBackgroundEnabled] ?: true
+                ,showDownloadProgress = preferences[Keys.showDownloadProgress] ?: true
                 ,rootAccessGranted = preferences[Keys.rootAccessGranted] ?: false
             )
         }
@@ -242,6 +244,7 @@ class LauncherSettingsRepository(
     suspend fun setControllerSensitivity(value: Float) = update { it[Keys.controllerSensitivity] = value.coerceIn(0.5f, 2f) }
     suspend fun setControllerDeadZone(value: Float) = update { it[Keys.controllerDeadZone] = value.coerceIn(0f, 0.5f) }
     suspend fun setScreenshotBackgroundEnabled(value: Boolean) = update { it[Keys.screenshotBackgroundEnabled] = value }
+    suspend fun setShowDownloadProgress(value: Boolean) = update { it[Keys.showDownloadProgress] = value }
     suspend fun setRootAccessGranted(value: Boolean) = update { it[Keys.rootAccessGranted] = value }
     suspend fun setBackgroundMusicEnabled(value: Boolean) = update { it[Keys.backgroundMusicEnabled] = value }
     suspend fun setBackgroundMusicVolume(value: Float) = update {

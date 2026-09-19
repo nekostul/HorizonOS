@@ -43,7 +43,7 @@ fun LauncherSettingsHubScreen(
         openOverlayIndex?.let {
             when (it) {
                 0 -> showAudio = true
-                2 -> showScanning = true
+                3 -> showScanning = true
             }
             onOverlayRequestConsumed()
         }
@@ -70,14 +70,21 @@ fun LauncherSettingsHubScreen(
             description = stringResource(R.string.settings_launcher_screenshot_background_description),
             onClick = { onSelect(1) }
         )
+        SettingsToggleRow(
+            title = stringResource(R.string.settings_launcher_show_download_progress),
+            checked = settings.showDownloadProgress,
+            selected = selectedIndex == 2,
+            description = stringResource(R.string.settings_launcher_show_download_progress_description),
+            onClick = { onSelect(2) }
+        )
         HorizonSettingRow(
             SettingRow(
                 title = stringResource(R.string.settings_launcher_scanning),
                 description = stringResource(R.string.settings_launcher_scanning_description)
             ),
-            selected = selectedIndex == 2,
+            selected = selectedIndex == 3,
             onClick = {
-                onSelect(2)
+                onSelect(3)
                 showScanning = true
             }
         )

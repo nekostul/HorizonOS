@@ -84,6 +84,7 @@ class GameRepository(context: Context) {
                     game.packageName?.let { put("packageName", it) }
                     game.launchActivity?.let { put("launchActivity", it) }
                     game.iconPath?.let { put("iconPath", it) }
+                    put("fromDownload", game.fromDownload)
                 }
             )
         }
@@ -130,7 +131,8 @@ class GameRepository(context: Context) {
                             isScreenshotManuallySet = item.optBoolean("isScreenshotManuallySet", false),
                             packageName = item.optString("packageName").takeIf { it.isNotBlank() },
                             launchActivity = item.optString("launchActivity").takeIf { it.isNotBlank() },
-                            iconPath = item.optString("iconPath").takeIf { it.isNotBlank() }
+                            iconPath = item.optString("iconPath").takeIf { it.isNotBlank() },
+                            fromDownload = item.optBoolean("fromDownload", false)
                         )
                     )
                 }

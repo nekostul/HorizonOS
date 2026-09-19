@@ -114,6 +114,8 @@
     <string name="settings_launcher_scanning_description">Game information sources: title, cover and screenshot.</string>
     <string name="settings_launcher_screenshot_background">Use game screenshots as background</string>
     <string name="settings_launcher_screenshot_background_description">Show the selected game\'s screenshot as the Home background.</string>
+    <string name="settings_launcher_show_download_progress">Show download progress of new games</string>
+    <string name="settings_launcher_show_download_progress_description">Show downloading apps in empty Home slots with a progress bar.</string>
     <string name="settings_launcher_audio_title">Sounds &amp; Feedback</string>
     <string name="settings_launcher_sound_mode">Sounds</string>
     <string name="settings_launcher_sound_mode_all">On</string>

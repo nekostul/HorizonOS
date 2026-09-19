@@ -84,7 +84,12 @@ object ScanCoordinator {
             workerRunning = true
         }
         _scanning.value = true
-        ScanService.start(ctx)
+        val started = runCatching { ScanService.start(ctx) }.isSuccess
+        if (!started) {
+            synchronized(this) { workerRunning = false }
+            _scanning.value = false
+            return
+        }
         scope.launch { runWorker(ctx) }
     }
 
@@ -127,7 +132,10 @@ object ScanCoordinator {
         val ids = synchronized(this) { runIds.toSet() }
         val after = runCatching { library.games.first() }.getOrDefault(emptyList())
         val missing = after.filter { it.id in ids && it.coverPath == null }
-        if (missing.isNotEmpty()) _hint.value = missing.map { it.displayTitle }
+        val failedDownloads = missing.filter { it.fromDownload }
+        failedDownloads.forEach { library.remove(it) }
+        val remainingMissing = missing.filter { !it.fromDownload }
+        if (remainingMissing.isNotEmpty()) _hint.value = remainingMissing.map { it.displayTitle }
 
         val more = synchronized(this) {
             workerRunning = false

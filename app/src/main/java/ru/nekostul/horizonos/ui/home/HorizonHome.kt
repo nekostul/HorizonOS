@@ -130,6 +130,7 @@ import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLaunchResult
 import ru.nekostul.horizonos.ui.games.GameLauncher
 import ru.nekostul.horizonos.ui.games.GameLibrary
+import ru.nekostul.horizonos.ui.games.DownloadTracker
 import ru.nekostul.horizonos.ui.games.GamesScreen
 import ru.nekostul.horizonos.ui.games.FolderRescan
 import ru.nekostul.horizonos.ui.games.NewGamesNotifier
@@ -399,9 +400,15 @@ fun HorizonHome(
     val launcherSettingsRepository = remember { LauncherSettingsRepository(context) }
     val launcherSettings by launcherSettingsRepository.settings.collectAsState(initial = LauncherSettings())
     val visibleGames = games.filterNot { it.hidden }
+    val downloadingApps by DownloadTracker.downloading.collectAsState()
+    val downloadingGames = downloadingApps.map { app ->
+        Game.fromAndroidApp(app.label, app.packageName, null, app.iconPath)
+    }
+    val displayGames = visibleGames + downloadingGames
+    val downloadingProgress = downloadingApps.associate { it.packageName to it.progress }
     val gameLauncher = remember { GameLauncher() }
 
-    val slotCount = maxOf(HomeCardSlotCount, visibleGames.size)
+    val slotCount = maxOf(HomeCardSlotCount, displayGames.size)
 
     var selectedGame by remember {
         mutableIntStateOf(0)
@@ -1105,12 +1112,13 @@ fun launchGame(game: Game, source: LauncherInputSource) {
                 contentAlignment = Alignment.CenterStart
             ) {
                 HorizonGameCarousel(
-                    games = visibleGames,
+                    games = displayGames,
                     slotCount = slotCount,
                     selectedIndex = selectedGame,
-                    selectedTitle = visibleGames.getOrNull(selectedGame)?.displayTitle,
+                    selectedTitle = displayGames.getOrNull(selectedGame)?.displayTitle,
                     selectionActive = tappedGameIndex == selectedGame && tappedGameIndex >= 0,
                     showSelectedTitle = tappedGameIndex == selectedGame && tappedGameIndex >= 0,
+                    downloadingProgress = downloadingProgress,
                     cardSize = cardSize,
                     cardGap = cardGap,
                     startOffset = cardStartOffset,
@@ -1546,6 +1554,7 @@ private fun HorizonGameCarousel(
     selectedTitle: String?,
     selectionActive: Boolean,
     showSelectedTitle: Boolean,
+    downloadingProgress: Map<String, Float> = emptyMap(),
     cardSize: Dp,
     cardGap: Dp,
     startOffset: Dp,
@@ -1748,6 +1757,7 @@ private fun HorizonGameCarousel(
                             selected = cardSelected,
                             size = cardSize,
                             selectionPulse = selectionPulse,
+                            downloadProgress = downloadingProgress[game.packageName],
                             onClick = {
                                 flingVelocityPx = 0f
                                 bringCardIntoView(index)
@@ -1932,6 +1942,7 @@ private fun HorizonGameCard(
     selected: Boolean,
     size: Dp,
     selectionPulse: Float,
+    downloadProgress: Float? = null,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -2007,6 +2018,32 @@ private fun HorizonGameCard(
                     .padding(2.dp),
                 contentScale = ContentScale.Crop
             )
+        }
+
+        if (downloadProgress != null) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(downloadProgress.coerceIn(0f, 1f))
+                            .height(5.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(HorizonBlue)
+                    )
+                }
+            }
         }
     }
 }

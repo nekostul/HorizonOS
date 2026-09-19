@@ -114,6 +114,8 @@
     <string name="settings_launcher_scanning_description">Источники информации об играх: название, обложка и скриншот.</string>
     <string name="settings_launcher_screenshot_background">Заменять фон скриншотом игры</string>
     <string name="settings_launcher_screenshot_background_description">Показывать скриншот выбранной игры на фоне главного экрана.</string>
+    <string name="settings_launcher_show_download_progress">Показывать процесс загрузки новых игр</string>
+    <string name="settings_launcher_show_download_progress_description">Показывать скачиваемые приложения в пустых ячейках главного экрана с прогресс-баром.</string>
     <string name="settings_launcher_audio_title">Звуки и отклик</string>
     <string name="settings_launcher_sound_mode">Звуки</string>
     <string name="settings_launcher_sound_mode_all">Вкл.</string>

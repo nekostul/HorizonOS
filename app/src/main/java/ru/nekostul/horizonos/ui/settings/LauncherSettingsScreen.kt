@@ -145,7 +145,7 @@ fun LauncherSettingsScreen(
         8 -> 2
         9 -> ControllerManager.connectedControllers().size + 1 + (if (ControllerManager.hasGamesirController()) 1 else 0)
         10 -> 3
-        11 -> 3
+        11 -> 4
         12 -> 2
         13 -> 1
         else -> 8
@@ -246,7 +246,8 @@ fun LauncherSettingsScreen(
                 11 -> when (selectedOption) {
                     0 -> launcherOverlayRequest = 0
                     1 -> repository.setScreenshotBackgroundEnabled(!settings.screenshotBackgroundEnabled)
-                    2 -> launcherOverlayRequest = 2
+                    2 -> repository.setShowDownloadProgress(!settings.showDownloadProgress)
+                    3 -> launcherOverlayRequest = 3
                 }
                 12 -> when (selectedOption) {
                     0 -> backupOverlayRequest = 0
