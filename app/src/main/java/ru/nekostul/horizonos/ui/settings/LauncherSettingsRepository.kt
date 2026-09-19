@@ -139,7 +139,7 @@ class LauncherSettingsRepository(
                 ,airplaneBluetoothAllowed = preferences[Keys.airplaneBluetoothAllowed] ?: false
                 ,autoBrightness = preferences[Keys.autoBrightness] ?: false
                 ,brightness = preferences[Keys.brightness] ?: 0.7f
-                ,lockScreenEnabled = preferences[Keys.lockScreenEnabled] ?: true
+                ,lockScreenEnabled = preferences[Keys.lockScreenEnabled] ?: false
                 ,lockScreenTimeoutMinutes = preferences[Keys.lockScreenTimeoutMinutes] ?: 5
                 ,wifiEnabled = preferences[Keys.wifiEnabled] ?: true
                 ,notificationsEnabled = preferences[Keys.notificationsEnabled] ?: true

@@ -25,7 +25,7 @@ data class LauncherSettings(
     val airplaneBluetoothAllowed: Boolean = false,
     val autoBrightness: Boolean = false,
     val brightness: Float = 0.7f,
-    val lockScreenEnabled: Boolean = true,
+    val lockScreenEnabled: Boolean = false,
     val lockScreenTimeoutMinutes: Int = 5,
     val wifiEnabled: Boolean = true,
     val notificationsEnabled: Boolean = true,
