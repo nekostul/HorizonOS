@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -93,9 +94,11 @@ fun AndroidAppsScreen(onDismiss: () -> Unit) {
         loading = false
     }
 
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(40)
-        focusRequester.requestFocus()
+    LaunchedEffect(loading, apps.isNotEmpty()) {
+        if (!loading && apps.isNotEmpty()) {
+            kotlinx.coroutines.delay(40)
+            focusRequester.requestFocus()
+        }
     }
 
     fun launchApp(app: InstalledAppInfo, source: LauncherInputSource) {
@@ -133,8 +136,8 @@ fun AndroidAppsScreen(onDismiss: () -> Unit) {
 
         fun moveGrid(deltaColumns: Int, deltaRows: Int) {
             if (apps.isEmpty()) return
-            val next = (focusedIndex + deltaColumns + deltaRows * columns)
-                .coerceIn(0, apps.lastIndex)
+            val next = focusedIndex + deltaColumns + deltaRows * columns
+            if (next < 0 || next > apps.lastIndex) return
             focusedIndex = next
             LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
         }
@@ -194,6 +197,14 @@ fun AndroidAppsScreen(onDismiss: () -> Unit) {
                         .weight(1f)
                         .focusRequester(focusRequester)
                         .focusable()
+                        .onFocusChanged { focusState ->
+                            if (!focusState.hasFocus) {
+                                scope.launch {
+                                    kotlinx.coroutines.delay(60)
+                                    focusRequester.requestFocus()
+                                }
+                            }
+                        }
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             when {

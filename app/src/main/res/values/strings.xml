@@ -330,6 +330,7 @@
     <string name="home_menu_gamesir">GameSir</string>
     <string name="home_menu_settings">System Settings</string>
     <string name="home_menu_power">Power</string>
+    <string name="home_menu_google_play">Google Play</string>
     <string name="storage_gb">GB</string>
     <string name="storage_tb">TB</string>
     <string name="system_display_body">Display

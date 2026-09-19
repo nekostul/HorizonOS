@@ -366,6 +366,7 @@
     <string name="home_menu_gamesir">GameSir</string>
     <string name="home_menu_settings">Системные настройки</string>
     <string name="home_menu_power">Питание</string>
+    <string name="home_menu_google_play">Google Play</string>
     <string name="storage_gb">ГБ</string>
     <string name="storage_tb">ТБ</string>
     <string name="system_display_body">Экран

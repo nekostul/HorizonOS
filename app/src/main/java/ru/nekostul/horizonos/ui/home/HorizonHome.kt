@@ -550,7 +550,7 @@ fun HorizonHome(
 
     fun moveMenuSelection(direction: Int) {
         cancelMenuOpening()
-        selectedMenu = (selectedMenu + direction + 6) % 6
+        selectedMenu = (selectedMenu + direction + 7) % 7
         menuSelectionArmed = true
         tappedGameIndex = -1
         LauncherAudioManager.play(LauncherSound.CLICK, LauncherInputSource.GAMEPAD)
@@ -593,6 +593,29 @@ fun HorizonHome(
             }
     }
 
+    fun openGooglePlay(source: LauncherInputSource = LauncherInputSource.TOUCH) {
+        LauncherAudioManager.performHapticFeedback(homeView)
+        val launchIntent = runCatching {
+            context.packageManager.getLaunchIntentForPackage("com.android.vending")
+        }.getOrNull()?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        val web = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("https://play.google.com/store/apps")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        runCatching {
+            if (launchIntent != null) {
+                context.startActivity(launchIntent)
+            } else {
+                context.startActivity(web)
+            }
+        }.recoverCatching { context.startActivity(web) }
+            .onFailure {
+                LauncherAudioManager.playHint(source)
+            }
+    }
+
     fun openGamesirStore() {
         gamesirMissing = false
         val market = Intent(
@@ -625,7 +648,7 @@ fun HorizonHome(
 
         menuOpeningIndex = index
         menuOpeningJob = coroutineScope.launch {
-            delay(640)
+            delay(660)
             if (menuOpeningIndex != index) return@launch
             menuSelectionArmed = false
             menuOpeningIndex = -1
@@ -636,33 +659,39 @@ fun HorizonHome(
                 0 -> {
                     LauncherAudioManager.playConfirm(source)
                     LauncherAudioManager.performHapticFeedback(homeView)
-                    showGames = true
+                    openGooglePlay(source)
                 }
 
                 1 -> {
                     LauncherAudioManager.playConfirm(source)
                     LauncherAudioManager.performHapticFeedback(homeView)
-                    showFiles = true
+                    showGames = true
                 }
 
                 2 -> {
                     LauncherAudioManager.playConfirm(source)
                     LauncherAudioManager.performHapticFeedback(homeView)
-                    showApps = true
+                    showFiles = true
                 }
 
                 3 -> {
+                    LauncherAudioManager.playConfirm(source)
+                    LauncherAudioManager.performHapticFeedback(homeView)
+                    showApps = true
+                }
+
+                4 -> {
                     LauncherAudioManager.performHapticFeedback(homeView)
                     openGamesir(source)
                 }
 
-                4 -> {
+                5 -> {
                     LauncherAudioManager.playConfirm(source)
                     LauncherAudioManager.performHapticFeedback(homeView)
                     showLauncherSettings = true
                 }
 
-                5 -> {
+                6 -> {
                     LauncherAudioManager.playConfirm(source)
                     LauncherAudioManager.performHapticFeedback(homeView)
                     poweringOff = true
@@ -1110,71 +1139,82 @@ fun launchGame(game: Game, source: LauncherInputSource) {
                 verticalAlignment = Alignment.Top
             ) {
                 HorizonMenuButton(
-                    icon = HorizonMenuIconType.GAMES,
-                    iconColor = Color(0xFFFF0033),
+                    icon = HorizonMenuIconType.STORE,
+                    iconColor = Color(0xFF00E8C8),
                     size = h * 0.105f,
                     entryProgress = homeEntryProgress,
                     entryIndex = 0,
                     selected = menuSelectionArmed && selectedMenu == 0 || menuOpeningIndex == 0,
                     showLabel = menuSelectionArmed && selectedMenu == 0 || menuOpeningIndex == 0,
-                    label = stringResource(R.string.home_menu_games),
+                    label = stringResource(R.string.home_menu_google_play),
                     opening = menuOpeningIndex == 0
                 ) { activateMenu(0, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
-                    icon = HorizonMenuIconType.FILES,
-                    iconColor = Color(0xFF35D060),
+                    icon = HorizonMenuIconType.GAMES,
+                    iconColor = Color(0xFFFF0033),
                     size = h * 0.105f,
                     entryProgress = homeEntryProgress,
                     entryIndex = 1,
                     selected = menuSelectionArmed && selectedMenu == 1 || menuOpeningIndex == 1,
                     showLabel = menuSelectionArmed && selectedMenu == 1 || menuOpeningIndex == 1,
-                    label = stringResource(R.string.home_menu_files),
+                    label = stringResource(R.string.home_menu_games),
                     opening = menuOpeningIndex == 1
                 ) { activateMenu(1, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
-                    icon = HorizonMenuIconType.APPS,
-                    iconColor = Color(0xFFB26BFF),
+                    icon = HorizonMenuIconType.FILES,
+                    iconColor = Color(0xFF35D060),
                     size = h * 0.105f,
                     entryProgress = homeEntryProgress,
                     entryIndex = 2,
                     selected = menuSelectionArmed && selectedMenu == 2 || menuOpeningIndex == 2,
                     showLabel = menuSelectionArmed && selectedMenu == 2 || menuOpeningIndex == 2,
-                    label = stringResource(R.string.home_menu_apps),
+                    label = stringResource(R.string.home_menu_files),
                     opening = menuOpeningIndex == 2
                 ) { activateMenu(2, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
-                    icon = HorizonMenuIconType.GAMESIR,
-                    iconColor = Color(0xFF20BFFF),
+                    icon = HorizonMenuIconType.APPS,
+                    iconColor = Color(0xFFB26BFF),
                     size = h * 0.105f,
                     entryProgress = homeEntryProgress,
                     entryIndex = 3,
                     selected = menuSelectionArmed && selectedMenu == 3 || menuOpeningIndex == 3,
                     showLabel = menuSelectionArmed && selectedMenu == 3 || menuOpeningIndex == 3,
-                    label = stringResource(R.string.home_menu_gamesir),
+                    label = stringResource(R.string.home_menu_apps),
                     opening = menuOpeningIndex == 3
                 ) { activateMenu(3, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
-                    icon = HorizonMenuIconType.SETTINGS,
-                    iconColor = HorizonWhite,
+                    icon = HorizonMenuIconType.GAMESIR,
+                    iconColor = Color(0xFF20BFFF),
                     size = h * 0.105f,
                     entryProgress = homeEntryProgress,
                     entryIndex = 4,
                     selected = menuSelectionArmed && selectedMenu == 4 || menuOpeningIndex == 4,
                     showLabel = menuSelectionArmed && selectedMenu == 4 || menuOpeningIndex == 4,
-                    label = stringResource(R.string.home_menu_settings),
+                    label = stringResource(R.string.home_menu_gamesir),
                     opening = menuOpeningIndex == 4
                 ) { activateMenu(4, LauncherInputSource.TOUCH) }
                 HorizonMenuButton(
-                    icon = HorizonMenuIconType.POWER,
+                    icon = HorizonMenuIconType.SETTINGS,
                     iconColor = HorizonWhite,
                     size = h * 0.105f,
                     entryProgress = homeEntryProgress,
                     entryIndex = 5,
                     selected = menuSelectionArmed && selectedMenu == 5 || menuOpeningIndex == 5,
                     showLabel = menuSelectionArmed && selectedMenu == 5 || menuOpeningIndex == 5,
-                    label = stringResource(R.string.home_menu_power),
+                    label = stringResource(R.string.home_menu_settings),
                     opening = menuOpeningIndex == 5
                 ) { activateMenu(5, LauncherInputSource.TOUCH) }
+                HorizonMenuButton(
+                    icon = HorizonMenuIconType.POWER,
+                    iconColor = HorizonWhite,
+                    size = h * 0.105f,
+                    entryProgress = homeEntryProgress,
+                    entryIndex = 6,
+                    selected = menuSelectionArmed && selectedMenu == 6 || menuOpeningIndex == 6,
+                    showLabel = menuSelectionArmed && selectedMenu == 6 || menuOpeningIndex == 6,
+                    label = stringResource(R.string.home_menu_power),
+                    opening = menuOpeningIndex == 6
+                ) { activateMenu(6, LauncherInputSource.TOUCH) }
             }
 
             Spacer(Modifier.weight(1f))
@@ -2096,6 +2136,7 @@ private enum class HorizonMenuIconType {
     GAMES,
     FILES,
     APPS,
+    STORE,
     GAMESIR,
     SETTINGS,
     POWER
@@ -2124,7 +2165,7 @@ private fun HorizonMenuButton(
     val selectionAlpha = 1f
     val iconReveal by animateFloatAsState(
         targetValue = if (opening) 1f else 0f,
-        animationSpec = tween(620, easing = FastOutSlowInEasing),
+        animationSpec = tween(640, easing = FastOutSlowInEasing),
         label = "menuIconReveal"
     )
     val iconProgress = if (opening) iconReveal else 1f
@@ -2328,6 +2369,36 @@ private fun HorizonMenuGlyph(
                         )
                     }
                 }
+            }
+
+            HorizonMenuIconType.STORE -> {
+                val tip = Offset(size.width * 0.94f, size.height * 0.50f)
+                val topLeft = Offset(size.width * 0.22f, size.height * 0.06f)
+                val bottomLeft = Offset(size.width * 0.22f, size.height * 0.94f)
+                val meetPoint = Offset(size.width * 0.46f, size.height * 0.50f)
+
+                fun partial(start: Offset, end: Offset, t: Float): Offset = Offset(
+                    start.x + (end.x - start.x) * t,
+                    start.y + (end.y - start.y) * t
+                )
+
+                val s0 = launchStaggerProgress(progress, 0, firstDelay = 0f, stagger = 0f, duration = 0.18f)
+                drawLine(iconColor, topLeft, partial(topLeft, tip, s0), strokeWidth)
+
+                val s1 = launchStaggerProgress(progress, 1, firstDelay = 0.16f, stagger = 0f, duration = 0.16f)
+                drawLine(iconColor, tip, partial(tip, bottomLeft, s1), strokeWidth)
+
+                val s2 = launchStaggerProgress(progress, 2, firstDelay = 0.30f, stagger = 0f, duration = 0.14f)
+                drawLine(iconColor, bottomLeft, partial(bottomLeft, topLeft, s2), strokeWidth)
+
+                val s3 = launchStaggerProgress(progress, 3, firstDelay = 0.44f, stagger = 0f, duration = 0.14f)
+                drawLine(iconColor, meetPoint, partial(meetPoint, topLeft, s3), strokeWidth)
+
+                val s4 = launchStaggerProgress(progress, 4, firstDelay = 0.54f, stagger = 0f, duration = 0.14f)
+                drawLine(iconColor, meetPoint, partial(meetPoint, bottomLeft, s4), strokeWidth)
+
+                val s5 = launchStaggerProgress(progress, 5, firstDelay = 0.64f, stagger = 0f, duration = 0.14f)
+                drawLine(iconColor, meetPoint, partial(meetPoint, tip, s5), strokeWidth)
             }
 
             HorizonMenuIconType.GAMESIR -> {

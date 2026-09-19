@@ -29,6 +29,7 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <package android:name="com.android.vending" />
         <package android:name="com.github.stenzek.duckstation" />
         <package android:name="org.ppsspp.ppsspp" />
         <package android:name="org.ppsspp.ppssppgold" />
