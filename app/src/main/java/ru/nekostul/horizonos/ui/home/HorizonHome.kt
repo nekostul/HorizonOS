@@ -823,6 +823,8 @@ fun launchGame(game: Game, source: LauncherInputSource) {
                             gamesirChoice = (gamesirChoice - 1).coerceAtLeast(0)
                             true
                         }
+                        // The gamepad B button is inert on the home screen.
+                        Key.ButtonB, Key.Back -> true
                         else -> false
                     }
                 }
@@ -929,9 +931,7 @@ fun launchGame(game: Game, source: LauncherInputSource) {
                             profileFocused = false
                             showUserPage = true
                         }
-                        event.key == Key.DirectionDown ||
-                            event.key == Key.ButtonB ||
-                            event.key == Key.Back -> {
+                        event.key == Key.DirectionDown -> {
                             LauncherAudioManager.play(LauncherSound.BACK, LauncherInputSource.GAMEPAD)
                             LauncherAudioManager.performHapticFeedback(homeView)
                             profileFocused = false
@@ -990,10 +990,19 @@ fun launchGame(game: Game, source: LauncherInputSource) {
                         true
                     }
 
+                    // The gamepad B button is intentionally inert on the home screen:
+                    // consume it without any action or feedback.
+                    Key.ButtonB, Key.Back -> true
+
                     else -> false
                 }
             }
     ) {
+
+        DisposableEffect(Unit) {
+            HorizonNavigation.homeScreenActive = true
+            onDispose { HorizonNavigation.homeScreenActive = false }
+        }
 
         val h = maxHeight
         val cardSize = h * 0.364f

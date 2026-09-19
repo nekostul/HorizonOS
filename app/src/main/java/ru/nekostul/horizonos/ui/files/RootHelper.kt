@@ -4,14 +4,23 @@ import java.io.File
 
 object RootHelper {
 
+    @Volatile
     var cachedRoot: Boolean? = null
 
     fun isRootAvailable(): Boolean {
         cachedRoot?.let { return it }
-        val result = runBlockingShell(500, "id")
-        val available = result?.contains("uid=0") == true
+        val available = runCatching {
+            val process = ProcessBuilder("su", "-c", "id").redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().readText()
+            process.waitFor()
+            process.exitValue() == 0 && (output.contains("uid=0") || output.contains("uid: 0"))
+        }.getOrDefault(false)
         cachedRoot = available
         return available
+    }
+
+    fun setRootAvailable() {
+        cachedRoot = true
     }
 
     fun hasSuBinary(): Boolean {

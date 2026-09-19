@@ -235,6 +235,8 @@ fun OnboardingScreen(
                 }
                 if (granted) {
                     settingsRepository.setRootAccessGranted(true)
+                    ru.nekostul.horizonos.ui.files.RootHelper.setRootAvailable()
+                    ru.nekostul.horizonos.ui.settings.PrivilegedSystemAccess.resetRootCache()
                     advancePermission()
                 }
             }

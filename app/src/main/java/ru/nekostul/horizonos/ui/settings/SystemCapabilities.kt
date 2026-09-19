@@ -36,8 +36,8 @@ object SystemCapabilitiesDetector {
 
         return SystemCapabilities(
             canControlAirplaneMode = isPrivilegedApp || isDeviceOwner || hasRoot,
-            canControlWifi = isPrivilegedApp || isDeviceOwner || hasRoot,
-            canControlBluetooth = isPrivilegedApp || hasRoot,
+            canControlWifi = true,
+            canControlBluetooth = true,
             canChangeSystemBrightness = canBrightness,
             canChangeSystemTimeout = canBrightness,
             canControlNotifications = isPrivilegedApp || isDeviceOwner || hasRoot,

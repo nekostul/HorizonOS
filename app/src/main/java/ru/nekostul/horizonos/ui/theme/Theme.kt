@@ -8,6 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 
 data class HorizonColorPalette(
     val background: Color,
@@ -68,8 +70,12 @@ fun HorizonOSTheme(
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     val horizonColors = if (darkTheme) DarkHorizonColors else LightHorizonColors
+    val currentDensity = LocalDensity.current
 
-    CompositionLocalProvider(LocalHorizonColors provides horizonColors) {
+    CompositionLocalProvider(
+        LocalDensity provides Density(currentDensity.density, 1f),
+        LocalHorizonColors provides horizonColors
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,

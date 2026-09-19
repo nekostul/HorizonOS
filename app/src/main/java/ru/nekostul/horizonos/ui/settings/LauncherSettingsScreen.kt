@@ -131,6 +131,8 @@ fun LauncherSettingsScreen(
     var sleepActivationRequest by remember { mutableIntStateOf(0) }
     var gamesirOpenRequest by remember { mutableIntStateOf(0) }
     var bluetoothItemCount by remember { mutableIntStateOf(2) }
+    var wifiItemCount by remember { mutableIntStateOf(3) }
+    var bluetoothOpenRequest by remember { mutableIntStateOf(0) }
     var sliderEditing by remember { mutableStateOf(false) }
 
     fun optionCount(category: Int): Int = when (category) {
@@ -138,7 +140,7 @@ fun LauncherSettingsScreen(
         1 -> 2
         2 -> bluetoothItemCount
         3 -> 1
-        4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context).availableNetworkNames().size + 3
+        4 -> wifiItemCount
         5 -> 1
         6 -> 2
         7 -> 1
@@ -170,6 +172,11 @@ fun LauncherSettingsScreen(
         scope.launch {
             when (category) {
                 1 -> {
+                    val activity = settingsView.context as? android.app.Activity
+                    activity?.let {
+                        ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
+                            .setWindowBrightness(it.window, value)
+                    }
                     repository.setBrightness(value)
                     runCatching {
                         ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
@@ -209,7 +216,8 @@ fun LauncherSettingsScreen(
                     0 -> {
                         val controller = ru.nekostul.horizonos.ui.settings.AirplaneModeController(context)
                         val next = !(controller.currentState() ?: false)
-                        if (controller.setEnabled(next)) repository.setAirplaneMode(next)
+                        val changed = withContext(Dispatchers.IO) { controller.setEnabled(next) }
+                        if (changed) repository.setAirplaneMode(next)
                     }
                     1 -> repository.setAirplaneWifiAllowed(!settings.airplaneWifiAllowed)
                     2 -> repository.setAirplaneBluetoothAllowed(!settings.airplaneBluetoothAllowed)
@@ -219,9 +227,12 @@ fun LauncherSettingsScreen(
                     val controller = ru.nekostul.horizonos.ui.settings.brightness.BrightnessController(context)
                     if (controller.setAutomaticBrightnessEnabled(enabled)) repository.setAutoBrightness(enabled)
                 }
-                2 -> if (selectedOption == 0) {
-                    val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
-                    controller.setEnabled(controller.enabled() != true)
+                2 -> when (selectedOption) {
+                    0 -> {
+                        val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
+                        withContext(Dispatchers.IO) { controller.setEnabled(controller.enabled() != true) }
+                    }
+                    1 -> bluetoothOpenRequest++
                 }
                 3 -> if (selectedOption == 0) {
                     repository.setLockScreenEnabled(!settings.lockScreenEnabled)
@@ -229,10 +240,15 @@ fun LauncherSettingsScreen(
                 4 -> when (selectedOption) {
                     0 -> {
                         val controller = ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context)
-                        val next = controller.enabled() != true
-                        if (controller.setEnabled(next)) repository.setWifiEnabled(next)
+                        val result = withContext(Dispatchers.IO) {
+                            val next = controller.enabled() != true
+                            next to controller.setEnabled(next)
+                        }
+                        if (result.second) repository.setWifiEnabled(result.first)
                     }
-                    2 -> ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context).scan()
+                    2 -> withContext(Dispatchers.IO) {
+                        ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context).scan()
+                    }
                     in 3..Int.MAX_VALUE -> wifiActivationRequest++
                 }
                 6 -> repository.setTheme(if (selectedOption == 0) "dark" else "light")
@@ -259,6 +275,8 @@ fun LauncherSettingsScreen(
                     }
                     if (granted) {
                         repository.setRootAccessGranted(true)
+                        ru.nekostul.horizonos.ui.files.RootHelper.setRootAvailable()
+                        ru.nekostul.horizonos.ui.settings.PrivilegedSystemAccess.resetRootCache()
                         selectedCategory = 0
                         selectedOption = 0
                         rightFocus = false
@@ -476,6 +494,7 @@ fun LauncherSettingsScreen(
                             backupOverlayRequest,
                             { backupOverlayRequest = null },
                             wifiActivationRequest,
+                            bluetoothOpenRequest,
                             sleepActivationRequest,
                             gamesirOpenRequest,
                             { sleepActivationRequest = 0 },
@@ -483,9 +502,13 @@ fun LauncherSettingsScreen(
                             { value -> scope.launch { repository.setSoundMode(value) } },
                             { value -> scope.launch { repository.setBackgroundMusicEnabled(value) } },
                             { value -> scope.launch { repository.setBackgroundMusicVolume(value) } },
-                            { value -> scope.launch { repository.setHapticFeedbackEnabled(value) } },
+{ value -> scope.launch { repository.setHapticFeedbackEnabled(value) } },
                             { count ->
                                 bluetoothItemCount = count
+                                selectedOption = selectedOption.coerceIn(0, (count - 1).coerceAtLeast(0))
+                            },
+                            { count ->
+                                wifiItemCount = count
                                 selectedOption = selectedOption.coerceIn(0, (count - 1).coerceAtLeast(0))
                             }
                         )
@@ -533,7 +556,8 @@ private fun SettingsContent(
     onLauncherOverlayConsumed: () -> Unit,
     backupOverlayRequest: Int?,
     onBackupOverlayConsumed: () -> Unit,
-    wifiActivationRequest: Int,
+wifiActivationRequest: Int,
+    bluetoothOpenRequest: Int,
     sleepActivationRequest: Int,
     gamesirOpenRequest: Int,
     onSleepActivationConsumed: () -> Unit,
@@ -542,7 +566,8 @@ private fun SettingsContent(
     onMusicEnabledChange: (Boolean) -> Unit,
     onMusicVolumeChange: (Float) -> Unit,
     onHapticChange: (Boolean) -> Unit,
-    onBluetoothItemCountChange: (Int) -> Unit
+    onBluetoothItemCountChange: (Int) -> Unit,
+    onWifiItemCountChange: (Int) -> Unit
 ) {
     when (category) {
         0 -> AirplaneModeScreen(context, settings, selectedOption, { onOptionSelected(0) }, { onOptionSelected(1) }, { onOptionSelected(2) })
@@ -550,17 +575,16 @@ private fun SettingsContent(
         2 -> ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothScreen(
             selectedIndex = selectedOption,
             onSelect = onOptionSelected,
+            openRequest = bluetoothOpenRequest,
             onItemCountChange = onBluetoothItemCountChange,
             rootAccessGranted = settings.rootAccessGranted
-        ) {
-            val controller = ru.nekostul.horizonos.ui.settings.bluetooth.BluetoothSettingsController(context)
-            controller.setEnabled(controller.enabled() != true)
-        }
+        )
         3 -> LockScreenScreen(settings, selectedOption) { onOptionSelected(0) }
         4 -> ru.nekostul.horizonos.ui.settings.wifi.WifiScreen(
             selectedIndex = selectedOption,
             onSelect = onOptionSelected,
             activationRequest = wifiActivationRequest,
+            onItemCountChange = onWifiItemCountChange,
             rootAccessGranted = settings.rootAccessGranted
         ) {
             val controller = ru.nekostul.horizonos.ui.settings.wifi.WifiSettingsController(context)

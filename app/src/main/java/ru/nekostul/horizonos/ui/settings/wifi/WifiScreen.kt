@@ -19,6 +19,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.settings.HorizonOverlay
 import ru.nekostul.horizonos.ui.settings.HorizonOverlayChoice
@@ -30,6 +33,8 @@ import ru.nekostul.horizonos.ui.settings.SettingsGray
 import ru.nekostul.horizonos.ui.settings.SettingsToggleRow
 import ru.nekostul.horizonos.ui.settings.SettingsWhite
 import ru.nekostul.horizonos.ui.keyboard.HorizonKeyboardDialog
+
+private const val WIFI_REFRESH_MILLIS = 800L
 
 @Composable
 private fun WifiSecurity.label(): String = stringResource(
@@ -46,24 +51,51 @@ fun WifiScreen(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     activationRequest: Int,
+    onItemCountChange: (Int) -> Unit = {},
     rootAccessGranted: Boolean = false,
     onToggle: () -> Unit
 ) {
     val context = LocalContext.current
     val controller = remember { WifiSettingsController(context) }
-    val networks = controller.availableNetworks()
+    var networks by remember { mutableStateOf<List<WifiNetworkInfo>>(emptyList()) }
+    var enabled by remember { mutableStateOf<Boolean?>(null) }
+    var connected by remember { mutableStateOf<String?>(null) }
     var selectedNetwork by remember { mutableStateOf<WifiNetworkInfo?>(null) }
     var password by remember { mutableStateOf("") }
     var connectionState by remember { mutableStateOf<WifiConnectionState?>(null) }
 
+    suspend fun refresh() {
+        val currentEnabled = withContext(Dispatchers.IO) { controller.enabled() }
+        val currentSsid = withContext(Dispatchers.IO) {
+            controller.connectedSsid()?.takeUnless { it == "<unknown ssid>" }
+        }
+        val currentNetworks = withContext(Dispatchers.IO) { controller.availableNetworks() }
+        enabled = currentEnabled
+        connected = currentSsid
+        networks = currentNetworks
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            refresh()
+            delay(WIFI_REFRESH_MILLIS)
+        }
+    }
+
+    LaunchedEffect(networks.size) {
+        onItemCountChange(networks.size + 3)
+    }
+
     LaunchedEffect(activationRequest) {
-        if (activationRequest > 0 && selectedIndex >= 3) {
+        if (activationRequest <= 0) return@LaunchedEffect
+        withContext(Dispatchers.IO) { controller.scan() }
+        delay(1_500)
+        refresh()
+        if (selectedIndex >= 3) {
             selectedNetwork = networks.getOrNull(selectedIndex - 3)
         }
     }
 
-    val enabled = controller.enabled()
-    val connected = controller.connectedSsid()?.takeUnless { it == "<unknown ssid>" }
     Column {
         Text(stringResource(R.string.settings_wifi_title), color = SettingsWhite, fontSize = 25.sp)
         Spacer(Modifier.height(12.dp))
@@ -108,7 +140,9 @@ fun WifiScreen(
 
     selectedNetwork?.let { network ->
         val needsPassword = network.security != WifiSecurity.OPEN
-        var dialogIndex by remember { mutableIntStateOf(if (needsPassword) 0 else 1) }
+        var dialogIndex by remember(network.ssid) {
+            mutableIntStateOf(if (needsPassword) 0 else 1)
+        }
         var showKeyboard by remember(network.ssid) { mutableStateOf(false) }
         HorizonOverlay(
             title = stringResource(R.string.settings_wifi_connect_title, network.ssid),

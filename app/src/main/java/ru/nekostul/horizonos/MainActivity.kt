@@ -354,8 +354,10 @@ class MainActivity : ComponentActivity() {
                     LauncherAudioManager.performHapticFeedback(window.decorView)
                 }
                 KeyEvent.KEYCODE_BUTTON_B -> {
-                    LauncherAudioManager.play(LauncherSound.BACK, LauncherInputSource.GAMEPAD)
-                    LauncherAudioManager.performHapticFeedback(window.decorView)
+                    if (!HorizonNavigation.homeScreenActive) {
+                        LauncherAudioManager.play(LauncherSound.BACK, LauncherInputSource.GAMEPAD)
+                        LauncherAudioManager.performHapticFeedback(window.decorView)
+                    }
                 }
             }
         }

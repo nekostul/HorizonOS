@@ -203,7 +203,8 @@ internal fun SettingsSliderRow(
     description: String = "",
     valueLabel: String = "${(value * 100).toInt()}%",
     leadingIcon: (@Composable () -> Unit)? = null,
-    onValueChange: (Float) -> Unit
+    onValueChange: (Float) -> Unit,
+    onValueCommit: (Float) -> Unit = {}
 ) {
     val activeTrackColor = SettingsBlue
     val inactiveTrackColor = SettingsTrack
@@ -265,6 +266,7 @@ internal fun SettingsSliderRow(
                     inputMode?.value = SettingsInputMode.TOUCH
                     onValueChange(it)
                 },
+                onValueChangeFinished = { onValueCommit(value) },
                 enabled = enabled,
                 valueRange = 0f..1f,
                 modifier = Modifier.weight(1f),

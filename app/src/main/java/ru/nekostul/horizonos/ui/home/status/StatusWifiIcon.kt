@@ -1,7 +1,6 @@
 package ru.nekostul.horizonos.ui.home.status
 
 import android.content.Context
-import android.net.wifi.WifiManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -19,10 +18,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.delay
+import ru.nekostul.horizonos.ui.settings.SystemRadioState
 
-private fun isWifiEnabled(context: Context): Boolean = runCatching {
-    (context.getSystemService(Context.WIFI_SERVICE) as WifiManager).isWifiEnabled
-}.getOrDefault(false)
+private fun isWifiEnabled(context: Context): Boolean =
+    SystemRadioState.wifiEnabled(context) == true
 
 @Composable
 fun rememberWifiEnabled(): Boolean {
@@ -31,7 +30,7 @@ fun rememberWifiEnabled(): Boolean {
     LaunchedEffect(Unit) {
         while (true) {
             enabled = isWifiEnabled(context)
-            delay(2000)
+            delay(1_000)
         }
     }
     return enabled

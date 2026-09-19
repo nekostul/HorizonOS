@@ -3,16 +3,21 @@ package ru.nekostul.horizonos.ui.settings.brightness
 import android.app.Activity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.size
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import ru.nekostul.horizonos.R
 import ru.nekostul.horizonos.ui.settings.LauncherSettings
 import ru.nekostul.horizonos.ui.settings.SettingsCapabilitiesNote
@@ -35,6 +40,11 @@ fun BrightnessScreen(
     val activity = view.context as? Activity
     val automaticBrightness = controller.isAutomaticBrightnessEnabled() ?: settings.autoBrightness
 
+    var dragValue by remember { mutableFloatStateOf(settings.brightness) }
+    LaunchedEffect(settings.brightness) {
+        dragValue = settings.brightness
+    }
+
     Column {
         SettingsToggleRow(
             title = stringResource(R.string.settings_auto_brightness),
@@ -45,7 +55,7 @@ fun BrightnessScreen(
         )
         SettingsSliderRow(
             title = "",
-            value = settings.brightness,
+            value = dragValue,
             selected = selectedIndex == 1,
             enabled = !automaticBrightness,
             description = if (automaticBrightness) {
@@ -53,11 +63,14 @@ fun BrightnessScreen(
             } else {
                 stringResource(R.string.settings_brightness_window_description)
             },
-            onValueChange = {
-                onBrightnessChange(it)
+            onValueChange = { value ->
+                dragValue = value
                 activity?.let { currentActivity ->
-                    controller.setWindowBrightness(currentActivity.window, it)
+                    controller.setWindowBrightness(currentActivity.window, value)
                 }
+            },
+            onValueCommit = { finalValue ->
+                onBrightnessChange(finalValue)
             },
             leadingIcon = { BrightnessGlyph() }
         )

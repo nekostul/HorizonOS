@@ -207,6 +207,16 @@
     <string name="settings_bluetooth_unpair">Remove pairing</string>
     <string name="settings_bluetooth_permission">Bluetooth requires the BLUETOOTH_CONNECT permission. Changing system state requires a system role or privilege.</string>
     <string name="settings_bluetooth_missing">Bluetooth is not available on this device.</string>
+    <string name="settings_bluetooth_category_audio">Audio</string>
+    <string name="settings_bluetooth_category_tv">TV</string>
+    <string name="settings_bluetooth_category_computer">Computers</string>
+    <string name="settings_bluetooth_category_phone">Phones</string>
+    <string name="settings_bluetooth_category_peripheral">Peripherals</string>
+    <string name="settings_bluetooth_category_other">Other</string>
+    <string name="settings_bluetooth_connected">CONNECTED</string>
+    <string name="settings_bluetooth_connecting">CONNECTING…</string>
+    <string name="settings_bluetooth_no_devices">No devices found</string>
+    <string name="settings_bluetooth_tap_to_connect">Select a device to pair and connect.</string>
     <string name="settings_lock_title">Lock Screen</string>
     <string name="settings_auto_lock">Screen lock</string>
     <string name="settings_auto_lock_description">After the console wakes from sleep, press the same button three times to use the console.</string>

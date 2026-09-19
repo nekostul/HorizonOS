@@ -243,6 +243,16 @@
     <string name="settings_bluetooth_unpair">Удалить сопряжение</string>
     <string name="settings_bluetooth_permission">Для работы Bluetooth требуется разрешение BLUETOOTH_CONNECT. Изменение системного состояния требует системной роли или привилегии.</string>
     <string name="settings_bluetooth_missing">Bluetooth отсутствует на этом устройстве.</string>
+    <string name="settings_bluetooth_category_audio">Аудио</string>
+    <string name="settings_bluetooth_category_tv">Телевизоры</string>
+    <string name="settings_bluetooth_category_computer">Компьютеры</string>
+    <string name="settings_bluetooth_category_phone">Телефоны</string>
+    <string name="settings_bluetooth_category_peripheral">Периферия</string>
+    <string name="settings_bluetooth_category_other">Другие</string>
+    <string name="settings_bluetooth_connected">ПОДКЛЮЧЕНО</string>
+    <string name="settings_bluetooth_connecting">ПОДКЛЮЧЕНИЕ…</string>
+    <string name="settings_bluetooth_no_devices">Устройства не найдены</string>
+    <string name="settings_bluetooth_tap_to_connect">Выберите устройство для сопряжения и подключения.</string>
     <string name="settings_lock_title">Экран блокировки</string>
     <string name="settings_auto_lock">Блокировка экрана</string>
     <string name="settings_auto_lock_description">После выхода консоли из режима ожидания нажмите одну и ту же кнопку три раза, чтобы использовать консоль.</string>

@@ -60,10 +60,25 @@ internal class HorizonKeyboardImeView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        requestFocus()
+        if (isFocusable) requestFocus()
+    }
+
+    fun acquireGamepadFocus() {
+        isFocusable = true
+        isFocusableInTouchMode = true
+        if (!hasFocus()) requestFocus()
+    }
+
+    fun releaseGamepadFocus() {
+        clearFocus()
+        isFocusable = false
+        isFocusableInTouchMode = false
+        lastStickHorizontal = 0
+        lastStickVertical = 0
     }
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (!isFocusable) return super.onKeyDown(keyCode, event)
         if (event.repeatCount > 0 && keyCode !in dpadKeyCodes) return true
         when (keyCode) {
             android.view.KeyEvent.KEYCODE_DPAD_LEFT -> moveSelection(-1, 0)
@@ -90,10 +105,12 @@ internal class HorizonKeyboardImeView(
     }
 
     override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (!isFocusable) return super.onKeyUp(keyCode, event)
         return if (keyCode in gamepadKeyCodes) true else super.onKeyUp(keyCode, event)
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (!isFocusable) return super.onGenericMotionEvent(event)
         val source = event.source
         val isController =
             (source and InputDevice.SOURCE_JOYSTICK) != 0 ||

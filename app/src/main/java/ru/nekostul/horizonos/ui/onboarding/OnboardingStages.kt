@@ -617,12 +617,13 @@ fun OnboardingPermissionStage(
                     modifier = Modifier
                 )
                 Spacer(Modifier.width(14.dp))
-                OnboardingSecondaryButton(
+                OnboardingChoice(
                     title = stringResource(R.string.onboarding_root_skip),
                     subtitle = stringResource(R.string.onboarding_root_skip_hint),
                     focused = focusIndex == 1,
                     onClick = onSkip,
-                    onFocus = { onFocus(1) }
+                    onFocus = { onFocus(1) },
+                    minHeight = 54.dp
                 )
             }
         } else {

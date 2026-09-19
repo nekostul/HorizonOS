@@ -48,19 +48,47 @@ class HorizonKeyboardService : InputMethodService() {
         super.onStartInput(attribute, restarting)
     }
 
+    override fun onStartInputView(attribute: EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(attribute, restarting)
+        keyboardView?.acquireGamepadFocus()
+    }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        keyboardView?.releaseGamepadFocus()
+        super.onFinishInputView(finishingInput)
+    }
+
+    override fun onWindowShown() {
+        super.onWindowShown()
+        if (isInputViewShown) keyboardView?.acquireGamepadFocus()
+    }
+
+    override fun onWindowHidden() {
+        keyboardView?.releaseGamepadFocus()
+        super.onWindowHidden()
+    }
+
+    override fun onFinishInput() {
+        keyboardView?.releaseGamepadFocus()
+        super.onFinishInput()
+    }
+
     override fun onEvaluateInputViewShown(): Boolean = true
 
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (!isInputViewShown) return super.onKeyDown(keyCode, event)
         return keyboardView?.onKeyDown(keyCode, event) == true || super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (!isInputViewShown) return super.onKeyUp(keyCode, event)
         return keyboardView?.onKeyUp(keyCode, event) == true || super.onKeyUp(keyCode, event)
     }
 
     override fun onGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        if (!isInputViewShown) return super.onGenericMotionEvent(event)
         return keyboardView?.onGenericMotionEvent(event) == true || super.onGenericMotionEvent(event)
     }
 

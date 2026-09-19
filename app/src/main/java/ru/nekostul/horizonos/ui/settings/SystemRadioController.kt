@@ -10,6 +10,40 @@ interface SystemRadioController {
     fun setEnabled(enabled: Boolean): Boolean
 }
 
+/**
+ * Fast, world-readable radio on/off flags. Reading [Settings.Global] does not
+ * require any runtime permission and reflects the real service state
+ * immediately, unlike the deprecated WifiManager/BluetoothAdapter getters which
+ * can report a stale value.
+ */
+object SystemRadioState {
+    fun wifiEnabled(context: Context): Boolean? =
+        globalFlag(context, "wifi_on")
+            ?: runCatching {
+                @Suppress("DEPRECATION")
+                (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager)
+                    ?.isWifiEnabled
+            }.getOrNull()
+
+    fun bluetoothEnabled(context: Context): Boolean? {
+        globalFlag(context, "bluetooth_on")?.let { return it }
+        if (!BluetoothPermission.hasConnect(context)) return null
+        return runCatching {
+            context.applicationContext
+                .getSystemService(android.bluetooth.BluetoothManager::class.java)
+                ?.adapter?.isEnabled
+        }.getOrNull()
+    }
+
+    private fun globalFlag(context: Context, key: String): Boolean? = runCatching {
+        when (Settings.Global.getInt(context.contentResolver, key, -1)) {
+            1 -> true
+            0 -> false
+            else -> null
+        }
+    }.getOrNull()
+}
+
 class AirplaneModeController(private val context: Context) : SystemRadioController {
     override val capability: Boolean
         get() = SystemCapabilitiesDetector.detect(context).canControlAirplaneMode
