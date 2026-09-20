@@ -202,6 +202,7 @@
     <string name="settings_bluetooth_scanning">Scanning…</string>
     <string name="settings_bluetooth_discovered">Discovered device</string>
     <string name="settings_bluetooth_unknown_device">Unknown device</string>
+    <string name="settings_bluetooth_device_address">Device %1$s</string>
     <string name="settings_bluetooth_device_actions">Device: %1$s</string>
     <string name="settings_bluetooth_pair">Pair device</string>
     <string name="settings_bluetooth_unpair">Remove pairing</string>
@@ -217,6 +218,10 @@
     <string name="settings_bluetooth_connecting">CONNECTING…</string>
     <string name="settings_bluetooth_no_devices">No devices found</string>
     <string name="settings_bluetooth_tap_to_connect">Select a device to pair and connect.</string>
+    <string name="settings_bluetooth_searching">Searching for devices…</string>
+    <string name="settings_bluetooth_rescan">Search again</string>
+    <string name="settings_bluetooth_scan_permission">Bluetooth search permission is required. Allow it and press search again.</string>
+    <string name="settings_bluetooth_disabled">Turn on Bluetooth to search for devices.</string>
     <string name="settings_lock_title">Lock Screen</string>
     <string name="settings_auto_lock">Screen lock</string>
     <string name="settings_auto_lock_description">After the console wakes from sleep, press the same button three times to use the console.</string>

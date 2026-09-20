@@ -1,6 +1,7 @@
 package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -52,6 +53,8 @@ internal object HttpClient {
             val code = connection.responseCode
             if (code !in 200..299) return@withContext null
             connection.inputStream.use { it.readBytes() }
+        } catch (error: CancellationException) {
+            throw error
         } catch (_: IOException) {
             null
         } catch (_: Exception) {
@@ -74,6 +77,8 @@ internal object HttpClient {
                 setRequestProperty("User-Agent", "HorizonOS/1.0")
             }
             connection.responseCode in 100..599
+        } catch (error: CancellationException) {
+            throw error
         } catch (_: Exception) {
             false
         } finally {

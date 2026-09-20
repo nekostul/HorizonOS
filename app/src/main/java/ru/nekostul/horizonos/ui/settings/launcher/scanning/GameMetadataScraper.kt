@@ -1,6 +1,9 @@
 package ru.nekostul.horizonos.ui.settings.launcher.scanning
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLibrary
@@ -108,6 +111,7 @@ class GameMetadataScraper(
         val screenshotLocked = game.isScreenshotManuallySet && screenshotPath != null
 
         for (enabledId in ScraperSourceId.entries) {
+            currentCoroutineContext().ensureActive()
             if (!settings.isEnabled(enabledId)) {
                 diag("[${game.displayTitle}] ${enabledId.storageKey}: skipped (disabled)")
                 continue
@@ -129,9 +133,18 @@ class GameMetadataScraper(
             }
 
             val query = game.searchName()
-            val result = runCatching { source.searchMetadata(game, settings) }
-                .onFailure { diag("[${game.displayTitle}] ${enabledId.storageKey}: error ${it.javaClass.simpleName}") }
-                .getOrNull()
+            val result = try {
+                source.searchMetadata(game, settings)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                diag("[${game.displayTitle}] ${enabledId.storageKey}: error ${error.javaClass.simpleName}")
+                null
+            }
+            if (!gameStillExists(game)) {
+                diag("[${game.displayTitle}] aborted: removed from library")
+                return null
+            }
             if (result == null) {
                 diag("[${game.displayTitle}] ${enabledId.storageKey}: query='$query' -> no response")
                 continue
@@ -173,6 +186,10 @@ class GameMetadataScraper(
             coverPath != game.coverPath ||
             screenshotPath != game.screenshotPath
         if (!changed) return null
+        if (!gameStillExists(game)) {
+            diag("[${game.displayTitle}] aborted: removed from library")
+            return null
+        }
         return GameScrapeResult(fullTitle, coverPath, screenshotPath, changed)
     }
 

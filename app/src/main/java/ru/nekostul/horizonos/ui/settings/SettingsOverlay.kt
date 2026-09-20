@@ -132,6 +132,8 @@ internal fun HorizonOverlay(
     onFooterBack: (() -> Unit)? = null,
     scrollState: androidx.compose.foundation.ScrollState? = null,
     onDirectionalKey: ((Key) -> Boolean)? = null,
+    footerAction: (@Composable () -> Unit)? = null,
+    centered: Boolean = false,
     content: @Composable () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
@@ -462,8 +464,11 @@ internal fun HorizonOverlay(
                             Column(
                                 Modifier
                                     .fillMaxWidth(0.58f)
-                                    .align(Alignment.TopCenter)
-                                    .verticalScroll(scrollState ?: rememberScrollState())
+                                    .align(if (centered) Alignment.Center else Alignment.TopCenter)
+                                    .then(
+                                        if (centered) Modifier
+                                        else Modifier.verticalScroll(scrollState ?: rememberScrollState())
+                                    )
                                     .padding(top = 8.dp, bottom = 16.dp)
                             ) {
                                 content()
@@ -477,7 +482,8 @@ internal fun HorizonOverlay(
                                 .background(SettingsDivider)
                         )
                         HorizonOverlayFooter(
-                            onBack = onFooterBack ?: { dismissAnimated() }
+                            onBack = onFooterBack ?: { dismissAnimated() },
+                            leading = footerAction
                         )
                     }
                 }
@@ -499,7 +505,10 @@ private fun isExternalGamepadConnected(): Boolean {
 }
 
 @Composable
-private fun HorizonOverlayFooter(onBack: () -> Unit) {
+private fun HorizonOverlayFooter(
+    onBack: () -> Unit,
+    leading: (@Composable () -> Unit)? = null
+) {
     val context = LocalContext.current
     var gamepadConnected by remember { mutableStateOf(isExternalGamepadConnected()) }
 
@@ -527,11 +536,11 @@ private fun HorizonOverlayFooter(onBack: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        Row(
             Modifier
                 .padding(start = 28.dp)
                 .fillMaxHeight(),
-            contentAlignment = Alignment.Center
+            verticalAlignment = Alignment.CenterVertically
         ) {
             if (gamepadConnected) {
                 Column(
@@ -556,6 +565,10 @@ private fun HorizonOverlayFooter(onBack: () -> Unit) {
                         colorFilter = ColorFilter.tint(SettingsWhite)
                     )
                 }
+            }
+            if (leading != null) {
+                Spacer(Modifier.width(20.dp))
+                leading()
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -593,6 +606,47 @@ private fun HorizonOverlayFooterButton(
             contentColor = SettingsOverlayPanel
         )
         Spacer(Modifier.width(7.dp))
+        Text(label, color = SettingsWhite, fontSize = 16.sp)
+    }
+}
+
+@Composable
+internal fun HorizonOverlayFooterAction(
+    label: String,
+    onClick: () -> Unit
+) {
+    val inputMode = LocalSettingsInputMode.current
+    var hasFocus by remember { mutableStateOf(false) }
+    val pulse = rememberInfiniteTransition(label = "overlayFooterActionPulse")
+    val pulseValue by pulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(SelectionPulseDurationMillis, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "overlayFooterActionPulseValue"
+    )
+    Row(
+        Modifier
+            .height(44.dp)
+            .border(
+                width = 2.dp,
+                color = if (hasFocus) {
+                    SelectionFrameBlue.copy(alpha = 0.35f + pulseValue * 0.65f)
+                } else {
+                    SettingsDivider
+                },
+                shape = RoundedCornerShape(6.dp)
+            )
+            .clickable {
+                inputMode?.value = SettingsInputMode.TOUCH
+                onClick()
+            }
+            .onFocusChanged { hasFocus = it.hasFocus }
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(label, color = SettingsWhite, fontSize = 16.sp)
     }
 }

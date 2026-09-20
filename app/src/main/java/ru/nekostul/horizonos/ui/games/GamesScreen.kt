@@ -727,6 +727,7 @@ fun GamesScreen(
                 detailsGame = null
                 scope.launch {
                     withContext(Dispatchers.IO) { deletedRoms.markDeleted(game.romUri) }
+                    ScanCoordinator.removeGame(game.id)
                     library.remove(game)
                     message = context.getString(R.string.games_removed)
                 }

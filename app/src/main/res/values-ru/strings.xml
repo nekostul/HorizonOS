@@ -238,6 +238,7 @@
     <string name="settings_bluetooth_scanning">Поиск…</string>
     <string name="settings_bluetooth_discovered">Найденное устройство</string>
     <string name="settings_bluetooth_unknown_device">Неизвестное устройство</string>
+    <string name="settings_bluetooth_device_address">Устройство %1$s</string>
     <string name="settings_bluetooth_device_actions">Устройство: %1$s</string>
     <string name="settings_bluetooth_pair">Сопрячь устройство</string>
     <string name="settings_bluetooth_unpair">Удалить сопряжение</string>
@@ -253,6 +254,10 @@
     <string name="settings_bluetooth_connecting">ПОДКЛЮЧЕНИЕ…</string>
     <string name="settings_bluetooth_no_devices">Устройства не найдены</string>
     <string name="settings_bluetooth_tap_to_connect">Выберите устройство для сопряжения и подключения.</string>
+    <string name="settings_bluetooth_searching">Идёт поиск устройств…</string>
+    <string name="settings_bluetooth_rescan">Повторить поиск</string>
+    <string name="settings_bluetooth_scan_permission">Нужно разрешение на поиск Bluetooth. Разреши и нажми «Повторить поиск».</string>
+    <string name="settings_bluetooth_disabled">Включи Bluetooth, чтобы искать устройства.</string>
     <string name="settings_lock_title">Экран блокировки</string>
     <string name="settings_auto_lock">Блокировка экрана</string>
     <string name="settings_auto_lock_description">После выхода консоли из режима ожидания нажмите одну и ту же кнопку три раза, чтобы использовать консоль.</string>

@@ -3,13 +3,17 @@ package ru.nekostul.horizonos.ui.settings.launcher.scanning
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
 import ru.nekostul.horizonos.ui.games.Game
 import ru.nekostul.horizonos.ui.games.GameLibrary
@@ -41,11 +45,16 @@ object ScanCoordinator {
     private var done = 0
     private var appContext: Context? = null
     private var workerRunning = false
+    private var workerJob: Job? = null
 
     fun init(context: Context) {
         val ctx = context.applicationContext
+        val firstInit = appContext == null
         appContext = ctx
         if (!workerRunning) resumeIfNeeded(ctx)
+        if (firstInit) {
+            scope.launch { cleanupFailedDownloads(ctx) }
+        }
     }
 
     private val Game.needsScanning: Boolean
@@ -72,6 +81,45 @@ object ScanCoordinator {
         }
     }
 
+    /**
+     * Removes a game from the active metadata scan as soon as it is deleted
+     * from the library. The current worker is cancelled so it cannot continue
+     * downloading metadata for the removed ROM; remaining games are resumed
+     * from the adjusted queue.
+     */
+    fun removeGame(gameId: String) {
+        val ctx = appContext ?: return
+        var restart = false
+        var stop = false
+
+        synchronized(this) {
+            val removedIndex = runIds.indexOf(gameId)
+            if (removedIndex < 0) return
+
+            runIds.removeAt(removedIndex)
+            runIdSet.remove(gameId)
+            if (removedIndex < done) done--
+            done = done.coerceIn(0, runIds.size)
+            persist()
+
+            workerJob?.cancel()
+            workerJob = null
+            workerRunning = false
+            restart = runIds.isNotEmpty()
+            stop = !restart
+        }
+
+        _progress.value = null
+        if (stop) {
+            clearState()
+            _scanning.value = false
+            ScanService.stop(ctx)
+        } else if (restart) {
+            _scanning.value = true
+            startIfNeeded()
+        }
+    }
+
     fun consumeHint() {
         _hint.value = emptyList()
     }
@@ -90,7 +138,11 @@ object ScanCoordinator {
             _scanning.value = false
             return
         }
-        scope.launch { runWorker(ctx) }
+        synchronized(this) {
+            if (workerRunning) {
+                workerJob = scope.launch { runWorker(ctx) }
+            }
+        }
     }
 
     private suspend fun runWorker(ctx: Context) {
@@ -100,6 +152,7 @@ object ScanCoordinator {
             val scraper = GameMetadataScraper(library, ctx.filesDir)
 
             while (true) {
+                currentCoroutineContext().ensureActive()
                 val snapshot = synchronized(this) {
                     if (done >= runIds.size) null
                     else runIds[done] to runIds.size
@@ -112,8 +165,16 @@ object ScanCoordinator {
 
                 if (game != null) {
                     _progress.value = ScraperProgress(done + 1, total, game.displayTitle)
-                    runCatching { scraper.scrapeSingle(settings, game) }
+                    try {
+                        scraper.scrapeSingle(settings, game)
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Throwable) {
+                        Log.d(TAG, "Skipping failed game ${game.id}", error)
+                    }
                 }
+
+                currentCoroutineContext().ensureActive()
 
                 synchronized(this) {
                     done++
@@ -122,6 +183,8 @@ object ScanCoordinator {
             }
 
             finish(ctx, library)
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Throwable) {
             Log.e(TAG, "Metadata scan failed", error)
             abort(ctx)
@@ -139,6 +202,7 @@ object ScanCoordinator {
 
         val more = synchronized(this) {
             workerRunning = false
+            workerJob = null
             if (done >= runIds.size) {
                 clearState()
                 _scanning.value = false
@@ -155,14 +219,16 @@ object ScanCoordinator {
         }
     }
 
-    private fun abort(ctx: Context) {
+private fun abort(ctx: Context) {
         synchronized(this) {
             workerRunning = false
+            workerJob = null
             clearState()
             _scanning.value = false
             _progress.value = null
         }
         runCatching { ScanService.stop(ctx) }
+        scope.launch { cleanupFailedDownloads(ctx) }
     }
 
     private fun resumeIfNeeded(ctx: Context) {
@@ -212,4 +278,13 @@ object ScanCoordinator {
             }
         }
     }.getOrDefault(emptyList())
+
+    private suspend fun cleanupFailedDownloads(ctx: Context) {
+        val library = GameLibrary(ctx)
+        val all = runCatching { library.games.first() }.getOrDefault(emptyList())
+        val broken = all.filter { it.fromDownload && it.coverPath == null }
+        if (broken.isEmpty()) return
+        broken.forEach { library.remove(it) }
+        Log.d(TAG, "Cleaned up ${broken.size} broken download-sourced game(s)")
+    }
 }

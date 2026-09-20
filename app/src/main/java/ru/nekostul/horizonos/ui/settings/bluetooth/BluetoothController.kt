@@ -4,15 +4,39 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.le.ScanCallback
 import android.content.Context
+import android.os.Build
 import ru.nekostul.horizonos.ui.settings.BluetoothPermission
 import ru.nekostul.horizonos.ui.settings.PrivilegedSystemAccess
 import ru.nekostul.horizonos.ui.settings.SystemCapabilitiesDetector
 import ru.nekostul.horizonos.ui.settings.SystemRadioState
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 enum class BluetoothDeviceCategory { AUDIO, TV, COMPUTER, PHONE, PERIPHERAL, OTHER }
 
 class BluetoothSettingsController(private val context: Context) {
+    init {
+        loadPersistedNames()
+    }
+
+    private fun loadPersistedNames() {
+        if (nameCacheLoaded) return
+        synchronized(nameCache) {
+            if (nameCacheLoaded) return
+            val prefs = context.applicationContext
+                .getSharedPreferences(NAME_CACHE_PREFS, Context.MODE_PRIVATE)
+            prefs.all.forEach { (address, name) ->
+                (name as? String)?.takeIf(String::isNotBlank)?.let {
+                    nameCache[address] = it
+                }
+            }
+            nameCacheLoaded = true
+            if (nameCache.isNotEmpty()) nameCacheRevision.incrementAndGet()
+        }
+    }
+
     private val adapter: BluetoothAdapter?
         get() = context.applicationContext
             .getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
@@ -21,7 +45,9 @@ class BluetoothSettingsController(private val context: Context) {
     val canControl: Boolean
         get() = SystemCapabilitiesDetector.detect(context).canControlBluetooth && BluetoothPermission.hasConnect(context)
     val canScan: Boolean
-        get() = available && BluetoothPermission.hasScan(context)
+        get() = available &&
+            BluetoothPermission.hasScan(context) &&
+            BluetoothPermission.hasConnect(context)
 
     fun enabled(): Boolean? = SystemRadioState.bluetoothEnabled(context)
 
@@ -35,9 +61,33 @@ class BluetoothSettingsController(private val context: Context) {
         .mapNotNull { nameOf(it)?.takeIf(String::isNotBlank) }
         .sorted()
 
-    fun nameOf(device: BluetoothDevice): String? = runCatching {
-        if (!BluetoothPermission.hasConnect(context)) null else device.name
-    }.getOrNull()
+    fun nameOf(device: BluetoothDevice, advertisedName: String? = null): String? {
+        nameCache[device.address]?.let { return it }
+
+        advertisedName?.takeIf(String::isNotBlank)?.let { storeName(device.address, it); return it }
+
+        val fromApi = runCatching {
+            if (!BluetoothPermission.hasConnect(context)) null
+            else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) device.alias?.takeIf(String::isNotBlank)
+            else null
+        }.getOrNull()
+
+        if (fromApi != null) {
+            storeName(device.address, fromApi)
+            return fromApi
+        }
+
+        val name = runCatching {
+            if (!BluetoothPermission.hasConnect(context)) null
+            else device.name?.takeIf { it.isNotBlank() }
+                ?: fetchNameViaReflection(device)
+        }.getOrNull()
+
+        if (name != null) {
+            storeName(device.address, name)
+        }
+        return name
+    }
 
     fun isBonded(device: BluetoothDevice): Boolean = runCatching {
         if (!BluetoothPermission.hasConnect(context)) return@runCatching false
@@ -93,15 +143,29 @@ class BluetoothSettingsController(private val context: Context) {
     }
 
     fun startDiscovery(): Boolean = runCatching {
-        if (!canScan || !BluetoothPermission.hasConnect(context)) return@runCatching false
+        if (!canScan) return@runCatching false
         val current = adapter ?: return@runCatching false
-        if (current.isDiscovering) current.cancelDiscovery()
+        if (!current.isEnabled) return@runCatching false
+        if (current.isDiscovering) {
+            current.cancelDiscovery()
+            Thread.sleep(150)
+        }
         current.startDiscovery()
     }.getOrDefault(false)
 
     fun cancelDiscovery(): Boolean = runCatching { adapter?.cancelDiscovery() == true }.getOrDefault(false)
 
     fun isDiscovering(): Boolean = runCatching { adapter?.isDiscovering == true }.getOrDefault(false)
+
+    fun startLeScan(callback: ScanCallback): Boolean = runCatching {
+        if (!canScan) return@runCatching false
+        adapter?.bluetoothLeScanner?.startScan(callback)
+        adapter?.bluetoothLeScanner != null
+    }.getOrDefault(false)
+
+    fun stopLeScan(callback: ScanCallback) {
+        runCatching { adapter?.bluetoothLeScanner?.stopScan(callback) }
+    }
 
     fun createBond(device: BluetoothDevice): Boolean = runCatching {
         if (!BluetoothPermission.hasConnect(context)) return@runCatching false
@@ -114,10 +178,6 @@ class BluetoothSettingsController(private val context: Context) {
         device.javaClass.getMethod("removeBond").invoke(device) as? Boolean ?: false
     }.getOrDefault(false)
 
-    /**
-     * Pairs the device if needed and connects the A2DP/headset profiles so
-     * audio is routed through e.g. Bluetooth headphones.
-     */
     fun connect(device: BluetoothDevice): Boolean {
         if (!BluetoothPermission.hasConnect(context)) return false
         if (!isBonded(device)) return createBond(device)
@@ -155,7 +215,55 @@ class BluetoothSettingsController(private val context: Context) {
         }.getOrDefault(false)
     }
 
+    fun cacheName(address: String, name: String) {
+        name.takeIf(String::isNotBlank)?.let { storeName(address, it) }
+    }
+
+    fun getNameCacheRevision(): Int = nameCacheRevision.get()
+
+    suspend fun resolveNames(): Int {
+        if (!canScan) return 0
+        val targetAddresses = bondedDevices()
+            .filter { nameOf(it) == null }
+            .map { it.address }
+            .toSet()
+        if (targetAddresses.isEmpty()) return 0
+        val before = nameCache.size
+        startDiscovery()
+        try {
+            kotlinx.coroutines.delay(4_000L)
+        } finally {
+            cancelDiscovery()
+        }
+        return nameCache.size - before
+    }
+
+    private fun fetchNameViaReflection(device: BluetoothDevice): String? {
+        return runCatching {
+            val field = BluetoothDevice::class.java.getDeclaredField("mName")
+            field.isAccessible = true
+            (field.get(device) as? String)?.takeIf { it.isNotBlank() }
+        }.getOrNull()
+    }
+
+    private fun storeName(address: String, name: String) {
+        nameCache[address] = name
+        nameCacheRevision.incrementAndGet()
+        context.applicationContext
+            .getSharedPreferences(NAME_CACHE_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(address, name)
+            .apply()
+    }
+
     private companion object {
+        private const val NAME_CACHE_PREFS = "bluetooth_names"
+
+        val nameCache = ConcurrentHashMap<String, String>()
+        val nameCacheRevision = AtomicInteger(0)
+        @Volatile
+        private var nameCacheLoaded = false
+
         val AUDIO_KEYWORDS = listOf(
             "headphone", "headset", "earphone", "earbud", "buds", "speaker", "soundbar",
             "airpods", "beats", "soundcore", "jbl", "bose", "sennheiser", "wh-", "wf-",

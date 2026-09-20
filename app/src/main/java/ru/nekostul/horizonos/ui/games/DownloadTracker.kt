@@ -136,17 +136,21 @@ object DownloadTracker {
             }
 
             if (existing != null) {
-                library.update(
-                    existing.copy(
-                        hidden = false,
-                        launchActivity = existing.launchActivity ?: launchActivity(ctx, app.packageName),
-                        iconPath = app.iconPath ?: existing.iconPath
-                    )
+                val updated = existing.copy(
+                    hidden = false,
+                    launchActivity = existing.launchActivity ?: launchActivity(ctx, app.packageName),
+                    iconPath = app.iconPath ?: existing.iconPath,
+                    fromDownload = true
                 )
+                library.update(updated)
+                ScanCoordinator.init(ctx)
+                ScanCoordinator.enqueue(listOf(updated))
                 return@launch
             }
 
-            val label = resolveAppLabel(ctx, app.packageName) ?: app.label
+            val label = resolveAppLabel(ctx, app.packageName)
+                    ?: app.label.takeUnless { isPlaceholderLabel(it) }
+                    ?: app.packageName
             val game = Game.fromAndroidApp(
                 label,
                 app.packageName,
@@ -161,8 +165,17 @@ object DownloadTracker {
 
     private fun resolveAppLabel(ctx: Context, packageName: String): String? = runCatching {
         val info = ctx.packageManager.getApplicationInfo(packageName, 0)
-        ctx.packageManager.getApplicationLabel(info)?.toString()?.takeIf { it.isNotBlank() }
+        ctx.packageManager.getApplicationLabel(info)?.toString()
+            ?.takeIf { it.isNotBlank() }
+            ?.takeIf { !isPlaceholderLabel(it) }
     }.getOrNull()
+
+    private fun isPlaceholderLabel(label: String): Boolean {
+        val lower = label.trim().lowercase()
+        val placeholders = listOf("pending", "downloading", "waiting", "installing", "updating",
+            "ожидание", "загрузка", "установка", "обновление", "ожидается")
+        return placeholders.any { lower.contains(it) } || label.length <= 2
+    }
 
     private fun launchActivity(ctx: Context, packageName: String): String? = runCatching {
         ctx.packageManager.getLaunchIntentForPackage(packageName)?.component?.className

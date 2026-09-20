@@ -9,7 +9,9 @@
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -111,6 +113,7 @@
             android:name=".ime.HorizonKeyboardService"
             android:label="@string/ime_name"
             android:permission="android.permission.BIND_INPUT_METHOD"
+            android:directBootAware="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
