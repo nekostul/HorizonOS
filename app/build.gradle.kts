@@ -12,7 +12,10 @@ android {
     defaultConfig {
         applicationId = "ru.nekostul.horizonos"
         minSdk = 29
-        targetSdk = 37
+        // Keep 36 so the PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY opt-out
+        // below still applies; targeting 37 removes the orientation opt-out and
+        // large screens (tablets/foldables) would be allowed to rotate.
+        targetSdk = 36
         versionCode = 1
         versionName = "0.7"
 

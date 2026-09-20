@@ -16,6 +16,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
@@ -135,6 +136,15 @@ class MainActivity : ComponentActivity() {
         ) { permissionRevision.value += 1 }
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+        // The launcher is a terminal UI: the system back gesture/button must never
+        // navigate away. Sub-screens keep their own Compose BackHandlers for
+        // in-app navigation; this callback is the fallback that swallows back.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // Intentionally consumed.
+            }
+        })
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -385,6 +395,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE &&
+            requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        ) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
         permissionRevision.value += 1
         ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator.init(this)
     }

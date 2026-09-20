@@ -128,7 +128,12 @@ fun GamesScreen(
     val folderRepository = remember { GameFolderRepository(context) }
     val deletedRoms = remember { DeletedRomRepository(context) }
     val focusRequester = remember { FocusRequester() }
-    val rootAvailable = remember { RootHelper.isRootAvailable() }
+    var rootAvailable by remember { mutableStateOf(RootHelper.cachedRoot == true) }
+    LaunchedEffect(Unit) {
+        if (!rootAvailable) {
+            rootAvailable = withContext(Dispatchers.IO) { RootHelper.isRootAvailable() }
+        }
+    }
 
     var page by remember { mutableIntStateOf(LibraryPage) }
     var focusIndex by remember { mutableIntStateOf(0) }

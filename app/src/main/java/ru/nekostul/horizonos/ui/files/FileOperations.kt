@@ -13,8 +13,11 @@ object FileOperations {
         return children.map { it.toEntry() }.sortedWith(FileSorting.byName)
     }
 
-    fun listRoot(path: String): List<FileEntry> =
-        if (RootHelper.isRootAvailable()) RootHelper.listRoot(path) else list(File(path))
+    fun listRoot(path: String): List<FileEntry> = runCatching {
+        val direct = list(File(path))
+        if (direct.isNotEmpty()) return@runCatching direct
+        if (RootHelper.isRootAvailable()) RootHelper.listRoot(path) else direct
+    }.getOrDefault(emptyList())
 
     fun listWithHidden(parent: File): List<FileEntry> {
         val children = parent.listFiles() ?: return emptyList()

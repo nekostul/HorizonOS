@@ -103,7 +103,12 @@ fun FilesScreen(
     var query by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<FileSearch.SearchHit>>(emptyList()) }
 
-    val rootAvailable = remember { RootHelper.isRootAvailable() }
+    var rootAvailable by remember { mutableStateOf(RootHelper.cachedRoot == true) }
+    LaunchedEffect(Unit) {
+        if (!rootAvailable) {
+            rootAvailable = withContext(Dispatchers.IO) { RootHelper.isRootAvailable() }
+        }
+    }
 
     fun refresh() {
         val path = currentPath ?: return

@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.lerp as colorLerp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +44,24 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.nekostul.horizonos.ui.settings.SettingsInputMode
+
+private fun decodeSampledBitmap(path: String, targetSize: Int): ImageBitmap? = try {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        null
+    } else {
+        val requested = targetSize.coerceAtLeast(64)
+        var sample = 1
+        while (bounds.outWidth / sample > requested * 2 || bounds.outHeight / sample > requested * 2) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        BitmapFactory.decodeFile(path, options)?.asImageBitmap()
+    }
+} catch (_: Throwable) {
+    null
+}
 
 @Composable
 internal fun FileGridItem(
@@ -55,13 +74,13 @@ internal fun FileGridItem(
     onFocus: () -> Unit = {}
 ) {
     val active = inputMode == SettingsInputMode.GAMEPAD && focused
+    val density = LocalDensity.current
 
     var preview by remember(entry.path) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(entry.path) {
         if (entry.kind == FileKind.IMAGE) {
-            preview = withContext(Dispatchers.IO) {
-                BitmapFactory.decodeFile(entry.path)?.asImageBitmap()
-            }
+            val target = with(density) { iconSize.roundToPx() }
+            preview = withContext(Dispatchers.IO) { decodeSampledBitmap(entry.path, target) }
         }
     }
 

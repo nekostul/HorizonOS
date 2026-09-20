@@ -1,21 +1,27 @@
 package ru.nekostul.horizonos.ui.files
 
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
+import ru.nekostul.horizonos.ui.settings.PrivilegedSystemAccess
 
 object RootHelper {
+
+    private const val COMMAND_TIMEOUT_MS = 8_000L
 
     @Volatile
     var cachedRoot: Boolean? = null
 
+    /**
+     * Delegates to [PrivilegedSystemAccess], which bounds the probe and never
+     * caches a negative result forever. Call this off the main thread: a freshly
+     * granted root permission may show the root manager prompt and block.
+     */
     fun isRootAvailable(): Boolean {
         cachedRoot?.let { return it }
-        val available = runCatching {
-            val process = ProcessBuilder("su", "-c", "id").redirectErrorStream(true).start()
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-            process.exitValue() == 0 && (output.contains("uid=0") || output.contains("uid: 0"))
-        }.getOrDefault(false)
-        cachedRoot = available
+        val available = PrivilegedSystemAccess.hasRootAccess()
+        if (available) cachedRoot = true
         return available
     }
 
@@ -33,60 +39,59 @@ object RootHelper {
     private fun isExecutableInPath(name: String): Boolean =
         System.getenv("PATH")?.split(':')?.any { File(it, name).canExecute() } == true
 
-    fun runRoot(command: String, timeoutMs: Int = 8000): Pair<Int, String> {
+    fun runRoot(command: String, timeoutMs: Int = COMMAND_TIMEOUT_MS.toInt()): Pair<Int, String> {
         return if (cachedRoot ?: isRootAvailable()) {
-            runShellCommand(command, timeoutMs)
+            runShellCommand(command, timeoutMs.toLong())
         } else {
             Int.MIN_VALUE to ""
         }
     }
 
-    private fun runShellCommand(command: String, timeoutMs: Int): Pair<Int, String> {
+    private fun runShellCommand(command: String, timeoutMs: Long): Pair<Int, String> {
         return try {
             val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-            val code = if (process.isAlive) {
-                process.destroyForcibly(); -1
-            } else {
-                process.exitValue()
+            val output = StringBuilder()
+            val drain = Thread {
+                try {
+                    BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                        reader.forEachLine { line ->
+                            synchronized(output) { output.appendLine(line) }
+                        }
+                    }
+                } catch (_: Exception) {
+                }
             }
-            code to output
+            drain.isDaemon = true
+            drain.start()
+            val finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+            if (!finished) {
+                process.destroyForcibly()
+                return -1 to ""
+            }
+            drain.join(300)
+            process.exitValue() to output.toString().trim()
         } catch (_: Exception) {
             -1 to ""
         }
     }
 
-    private fun runBlockingShell(timeoutMs: Int, cmd: String): String? {
-        return try {
-            val process = Runtime.getRuntime().exec(cmd)
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-            output
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    fun readRootBytes(path: String, timeoutMs: Int = 8000): ByteArray? {
-        return if (cachedRoot ?: isRootAvailable()) {
-            runCatching {
-                val process = ProcessBuilder("su", "-c", "cat \"$path\"")
-                    .redirectErrorStream(true)
-                    .start()
-                val bytes = process.inputStream.readBytes()
-                process.waitFor()
-                if (process.exitValue() == 0) bytes else null
-            }.getOrNull()
-        } else {
-            null
-        }
+    fun readRootBytes(path: String, timeoutMs: Int = COMMAND_TIMEOUT_MS.toInt()): ByteArray? {
+        if (!(cachedRoot ?: isRootAvailable())) return null
+        return runCatching {
+            val process = ProcessBuilder("su", "-c", "cat \"$path\"")
+                .redirectErrorStream(true)
+                .start()
+            val bytes = process.inputStream.readBytes()
+            if (!process.waitFor(timeoutMs.toLong(), TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly()
+                return null
+            }
+            if (process.exitValue() == 0) bytes else null
+        }.getOrNull()
     }
 
     fun listRoot(path: String): List<FileEntry> {
-        val (code, out) = runRoot(
-            "ls -laH \"$path\""
-        )
+        val (code, out) = runRoot("ls -laH \"$path\"")
         if (code != 0 && code != Int.MIN_VALUE) return emptyList()
         val entries = mutableListOf<FileEntry>()
         out.lineSequence().forEach { line ->
@@ -94,7 +99,7 @@ object RootHelper {
             val entry = parseLsLine(path, line) ?: return@forEach
             entries += entry
         }
-        return entries
+        return entries.distinctBy { it.path }
     }
 
     private fun parseLsLine(parent: String, line: String): FileEntry? {
@@ -107,7 +112,7 @@ object RootHelper {
         val isDir = perms[0] == 'd'
         val size = fields.getOrNull(4)?.toLongOrNull() ?: -1L
         val nameStart = if (fields.size >= 9) 8 else 7
-        val name = fields.drop(nameStart).joinToString(" ")
+        val name = fields.drop(nameStart).joinToString(" ").substringBefore(" -> ")
         if (name.isBlank() || name == "." || name == "..") return null
         val full = if (parent == "/") "/$name" else "$parent/$name"
         return FileEntry(
