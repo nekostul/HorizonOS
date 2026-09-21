@@ -3,6 +3,7 @@ package ru.nekostul.horizonos.ui.games.emulators
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.content.FileProvider
 import ru.nekostul.horizonos.R
@@ -33,33 +34,69 @@ class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLaun
             )
         }
 
+        // Try explicit activity with TECH_DISCOVERED
+        val baseFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+            Intent.FLAG_ACTIVITY_SINGLE_TOP or
+            Intent.FLAG_ACTIVITY_NO_ANIMATION
+
         val explicit = Intent(ACTION_TECH_DISCOVERED).apply {
             component = ComponentName(target.packageName, target.activity)
             setDataAndType(uri, "*/*")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            addFlags(baseFlags)
         }
         if (startSafely(context, explicit)) return GameLaunchResult.Launched
 
-        val implicit = Intent(Intent.ACTION_VIEW).apply {
+        // Try VIEW with known extra
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "*/*")
             setPackage(target.packageName)
             putExtra("AutoStartFile", game.romUri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(baseFlags)
         }
-        if (startSafely(context, implicit)) return GameLaunchResult.Launched
+        if (startSafely(context, viewIntent)) return GameLaunchResult.Launched
 
-        return if (openSettings(context, emulator)) {
-            GameLaunchResult.Launched
-        } else {
-            GameLaunchResult.Failed(context.getString(R.string.games_error_switch_not_installed))
+        // Try dynamic activity discovery — query which activities can handle VIEW with the file
+        val discoveryIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "*/*")
+            setPackage(target.packageName)
         }
+        val matchingActivities = context.packageManager.queryIntentActivities(
+            discoveryIntent, PackageManager.MATCH_DEFAULT_ONLY
+        )
+        for (resolveInfo in matchingActivities) {
+            val launchIntent = Intent(Intent.ACTION_VIEW).apply {
+                component = ComponentName(
+                    resolveInfo.activityInfo.packageName,
+                    resolveInfo.activityInfo.name
+                )
+                setDataAndType(uri, "*/*")
+                putExtra("AutoStartFile", game.romUri)
+                putExtra("GamePath", game.romUri)
+                addFlags(baseFlags)
+            }
+            if (startSafely(context, launchIntent)) return GameLaunchResult.Launched
+        }
+
+        // Try MAIN activity with extras
+        val mainIntent = context.packageManager.getLaunchIntentForPackage(target.packageName)
+            ?.apply {
+                setDataAndType(uri, "*/*")
+                putExtra("AutoStartFile", game.romUri)
+                putExtra("GamePath", game.romUri)
+                putExtra("file", game.romUri)
+                addFlags(baseFlags)
+            }
+        if (mainIntent != null && startSafely(context, mainIntent)) return GameLaunchResult.Launched
+
+        // Last resort: try to open emulator app (game will not be auto-started)
+        if (openSettings(context, emulator)) {
+            return GameLaunchResult.Failed(
+                context.getString(R.string.games_error_launch_failed)
+            )
+        }
+        return GameLaunchResult.Failed(context.getString(R.string.games_error_switch_not_installed))
     }
 
     private fun resolveUri(context: Context, game: Game): Uri? {
@@ -91,8 +128,9 @@ class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLaun
 
         private val TARGETS: Map<Emulator, List<Target>> = mapOf(
             Emulator.EDEN to listOf(
-                Target("dev.eden.eden_emulator", "dev.eden.eden_emulator.activities.EmulationActivity"),
-                Target("org.eden.eden_emulator", "org.eden.eden_emulator.activities.EmulationActivity")
+                Target("dev.eden.eden_emulator", "org.yuzu.yuzu_emu.activities.EmulationActivity"),
+                Target("dev.legacy.eden_emulator", "org.yuzu.yuzu_emu.activities.EmulationActivity"),
+                Target("com.miHoYo.Yuanshen", "org.yuzu.yuzu_emu.activities.EmulationActivity")
             ),
             Emulator.YUZU to listOf(
                 Target("org.yuzu.yuzu_emu", "org.yuzu.yuzu_emu.activities.EmulationActivity"),
@@ -103,11 +141,39 @@ class SwitchEmulatorLauncher(override val emulator: Emulator) : EmulatorGameLaun
             )
         )
 
-        private fun findInstalledTarget(context: Context, emulator: Emulator): Target? =
-            TARGETS[emulator]?.firstOrNull {
+        private fun findInstalledTarget(context: Context, emulator: Emulator): Target? {
+            val configured = TARGETS[emulator]?.firstOrNull {
                 runCatching { context.packageManager.getLaunchIntentForPackage(it.packageName) != null }
                     .getOrDefault(false)
             }
+            if (configured != null) return configured
+
+            // Auto-detect: scan installed packages for emulator-specific markers
+            if (emulator == Emulator.EDEN) {
+                return findEdenPackage(context)
+            }
+            return null
+        }
+
+        private fun findEdenPackage(context: Context): Target? {
+            val pm = context.packageManager
+            val edenPackages = listOf(
+                "dev.eden.eden_emulator",
+                "dev.legacy.eden_emulator",
+                "com.miHoYo.Yuanshen"
+            )
+            for (pkg in edenPackages) {
+                val launchIntent = runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull()
+                if (launchIntent != null) {
+                    return Target(
+                        pkg,
+                        launchIntent.component?.className
+                            ?: "org.yuzu.yuzu_emu.activities.EmulationActivity"
+                    )
+                }
+            }
+            return null
+        }
 
         fun openSettings(context: Context, emulator: Emulator): Boolean {
             val target = findInstalledTarget(context, emulator) ?: return false

@@ -42,7 +42,8 @@
         <package android:name="xyz.aethersx2.cturnip" />
         <package android:name="org.dolphinemu.dolphinemu" />
         <package android:name="dev.eden.eden_emulator" />
-        <package android:name="org.eden.eden_emulator" />
+        <package android:name="dev.legacy.eden_emulator" />
+        <package android:name="com.miHoYo.Yuanshen" />
         <package android:name="org.yuzu.yuzu_emu" />
         <package android:name="org.sudachi.sudachi_emu" />
         <package android:name="com.xiaoji.xtouch.google" />
