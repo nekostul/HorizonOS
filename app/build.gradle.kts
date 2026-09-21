@@ -17,7 +17,7 @@ android {
         // large screens (tablets/foldables) would be allowed to rotate.
         targetSdk = 36
         versionCode = 1
-        versionName = "0.7"
+        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
