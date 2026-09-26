@@ -60,8 +60,9 @@ internal fun launchRomIntent(
             context.getString(R.string.games_error_emulator_not_installed, packageName)
         )
 
-    val explicitIntent = intent.setComponent(ComponentName(packageName, activityName))
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val explicitIntent = intent.setComponent(ComponentName(packageName, activityName))
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
         .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -74,7 +75,8 @@ internal fun launchRomIntent(
         context.grantUriPermission(
             packageName,
             uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         )
     }
 

@@ -69,7 +69,7 @@ class RomContentProvider : ContentProvider() {
     ): Int = throw UnsupportedOperationException("ROM provider is read-only")
 
     private fun fileForUri(uri: Uri): File? {
-        if (uri.authority != AUTHORITY || uri.pathSegments.size != 2 ||
+        if (uri.authority != AUTHORITY || uri.pathSegments.size < 2 ||
             uri.pathSegments[0] != PATH_PREFIX
         ) {
             return null
@@ -78,7 +78,17 @@ class RomContentProvider : ContentProvider() {
             val encoded = uri.pathSegments[1]
             val padding = "=".repeat((4 - encoded.length % 4) % 4)
             val bytes = Base64.decode(encoded + padding, Base64.URL_SAFE or Base64.NO_WRAP)
-            File(String(bytes, StandardCharsets.UTF_8))
+            val baseFile = File(String(bytes, StandardCharsets.UTF_8)).canonicalFile
+            if (uri.pathSegments.size == 2) return@runCatching baseFile
+
+            // DuckStation resolves relative M3U entries by appending them to
+            // the playlist URI. Resolve those virtual path segments beside
+            // the playlist's real file.
+            val parent = baseFile.parentFile?.canonicalFile ?: return@runCatching null
+            val relative = uri.pathSegments.drop(2).joinToString(File.separator)
+            val child = File(parent, relative).canonicalFile
+            val parentPath = parent.path + File.separator
+            child.takeIf { it.path.startsWith(parentPath) }
         }.getOrNull()
     }
 

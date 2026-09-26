@@ -41,6 +41,8 @@
         <package android:name="xyz.aethersx2.tturnip" />
         <package android:name="xyz.aethersx2.cturnip" />
         <package android:name="org.dolphinemu.dolphinemu" />
+        <package android:name="org.dolphinemu.mmjr" />
+        <package android:name="org.dolphinemu.mmjr2" />
         <package android:name="dev.eden.eden_emulator" />
         <package android:name="dev.legacy.eden_emulator" />
         <package android:name="com.miHoYo.Yuanshen" />
