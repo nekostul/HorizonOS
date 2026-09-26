@@ -26,7 +26,8 @@ class TheGamesDbSource : GameMetadataSource {
         Platform.PLAYSTATION_2 to listOf(11),
         Platform.GAMECUBE_WII to listOf(2, 9),
         Platform.NINTENDO_SWITCH to listOf(4971),
-        Platform.ANDROID to listOf(4916)
+        Platform.ANDROID to listOf(4916),
+        Platform.WINDOWS to listOf(1)
     )
 
     override suspend fun searchMetadata(game: Game, settings: ScraperSettings): ScraperResult {

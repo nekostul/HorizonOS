@@ -425,6 +425,7 @@
     <string name="games_platform_psvita">PS Vita</string>
     <string name="games_platform_psvita_description">Сканировать установленные игры из эмулятора.</string>
     <string name="games_platform_android">Android</string>
+    <string name="games_platform_windows">Windows</string>
     <string name="games_emulator_duckstation">DuckStation</string>
     <string name="games_emulator_ppsspp">PPSSPP</string>
     <string name="games_emulator_nethersx2">NetherSX2</string>
@@ -434,11 +435,15 @@
     <string name="games_emulator_sudachi">Sudachi</string>
     <string name="games_emulator_vita3k">Vita3K</string>
     <string name="games_emulator_emucorev">EmuCoreV</string>
+    <string name="games_emulator_gamehub">GameHub</string>
+    <string name="games_emulator_gamenative">GameNative</string>
+    <string name="games_emulator_winlator">Winlator</string>
     <string name="games_vita_root_required">Для добавления игр Vita нужны root-права.</string>
     <string name="games_vita_confirm_title">Добавление игр Vita</string>
     <string name="games_vita_confirm_hint">Сначала добавьте игры в эмуляторе %1$s, затем HorizonOS отсканирует папку игр эмулятора.</string>
     <string name="games_vita_scan">Сканировать эмулятор</string>
     <string name="games_vita_scan_description">Сканировать установленные игры из эмулятора и добавить их в библиотеку.</string>
+    
     <string name="games_selection_summary">%1$s · %2$s</string>
     <string name="games_choose_file">Выбрать ROM-файл</string>
     <string name="games_choose_file_description">Выберите один поддерживаемый ROM через Файлы Android.</string>
@@ -521,6 +526,7 @@
     <string name="apps_empty">Приложения не найдены.</string>
     <string name="games_android_apps_selected">Выбрано: %1$d</string>
     <string name="games_error_app_not_installed">Приложение больше не установлено: %1$s</string>
+    <string name="games_error_shortcut_unavailable">Ярлык больше недоступен.</string>
     <string name="scanning_covers">Сканирование обложек…</string>
     <string name="scanning_covers_progress">Сканирование обложек… %1$d/%2$d</string>
     <string name="scan_notification_channel">Сканирование обложек</string>

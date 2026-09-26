@@ -17,5 +17,8 @@ enum class Emulator(
     SUDACHI(R.string.games_emulator_sudachi, Platform.NINTENDO_SWITCH, requiresConfiguration = true),
     VITA3K(R.string.games_emulator_vita3k, Platform.PSVITA),
     EMUCOREV(R.string.games_emulator_emucorev, Platform.PSVITA),
-    ANDROID(R.string.games_platform_android, Platform.ANDROID)
+    ANDROID(R.string.games_platform_android, Platform.ANDROID),
+    GAMEHUB(R.string.games_emulator_gamehub, Platform.WINDOWS),
+    GAMENATIVE(R.string.games_emulator_gamenative, Platform.WINDOWS),
+    WINLATOR(R.string.games_emulator_winlator, Platform.WINDOWS)
 }

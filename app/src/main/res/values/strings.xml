@@ -389,6 +389,7 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_platform_psvita">PS Vita</string>
     <string name="games_platform_psvita_description">Scan installed games from the emulator.</string>
     <string name="games_platform_android">Android</string>
+    <string name="games_platform_windows">Windows</string>
     <string name="games_emulator_duckstation">DuckStation</string>
     <string name="games_emulator_ppsspp">PPSSPP</string>
     <string name="games_emulator_nethersx2">NetherSX2</string>
@@ -398,11 +399,15 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="games_emulator_sudachi">Sudachi</string>
     <string name="games_emulator_vita3k">Vita3K</string>
     <string name="games_emulator_emucorev">EmuCoreV</string>
+    <string name="games_emulator_gamehub">GameHub</string>
+    <string name="games_emulator_gamenative">GameNative</string>
+    <string name="games_emulator_winlator">Winlator</string>
     <string name="games_vita_root_required">Root access is required to add Vita games.</string>
     <string name="games_vita_confirm_title">Add Vita games</string>
     <string name="games_vita_confirm_hint">Add games in the %1$s emulator first, then HorizonOS will scan the emulator\'s games folder.</string>
     <string name="games_vita_scan">Scan emulator</string>
     <string name="games_vita_scan_description">Scan installed games from the emulator and add them to the library.</string>
+    
     <string name="games_selection_summary">%1$s · %2$s</string>
     <string name="games_choose_file">Choose ROM file</string>
     <string name="games_choose_file_description">Select one supported ROM through Android Files.</string>
@@ -485,6 +490,7 @@ Installed apps are displayed inside HorizonOS.</string>
     <string name="apps_empty">No applications found.</string>
     <string name="games_android_apps_selected">Selected: %1$d</string>
     <string name="games_error_app_not_installed">The application is no longer installed: %1$s</string>
+    <string name="games_error_shortcut_unavailable">The shortcut is no longer available.</string>
     <string name="scanning_covers">Scanning covers…</string>
     <string name="scanning_covers_progress">Scanning covers… %1$d/%2$d</string>
     <string name="scan_notification_channel">Cover scanning</string>

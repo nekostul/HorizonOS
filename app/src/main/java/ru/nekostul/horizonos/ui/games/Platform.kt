@@ -33,6 +33,10 @@ enum class Platform(
     ANDROID(
         titleRes = R.string.games_platform_android,
         romExtensions = emptySet()
+    ),
+    WINDOWS(
+        titleRes = R.string.games_platform_windows,
+        romExtensions = emptySet()
     );
 
     fun supportsFileName(name: String?): Boolean {

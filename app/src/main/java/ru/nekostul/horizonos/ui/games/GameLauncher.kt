@@ -11,6 +11,7 @@ import ru.nekostul.horizonos.ui.games.emulators.NetherSx2Launcher
 import ru.nekostul.horizonos.ui.games.emulators.PpssppLauncher
 import ru.nekostul.horizonos.ui.games.emulators.SwitchEmulatorLauncher
 import ru.nekostul.horizonos.ui.games.emulators.Vita3KLauncher
+import ru.nekostul.horizonos.ui.games.emulators.WindowsShortcutLauncher
 
 class GameLauncher(
     launchers: List<EmulatorGameLauncher> = listOf(
@@ -23,7 +24,10 @@ class GameLauncher(
         SwitchEmulatorLauncher(Emulator.SUDACHI),
         Vita3KLauncher(),
         EmuCoreVLauncher(),
-        AndroidAppLauncher()
+        AndroidAppLauncher(),
+        WindowsShortcutLauncher(Emulator.GAMEHUB),
+        WindowsShortcutLauncher(Emulator.GAMENATIVE),
+        WindowsShortcutLauncher(Emulator.WINLATOR)
     )
 ) {
     private val launchersByEmulator = launchers.associateBy { it.emulator }

@@ -52,6 +52,12 @@
         <package android:name="com.xiaoji.gamemiracle" />
         <package android:name="com.gamesir.virtualtouchutil" />
         <package android:name="com.gamesir" />
+        <package android:name="app.gamenative" />
+        <package android:name="gamehub.lite" />
+        <package android:name="banner.hub" />
+        <package android:name="com.xiaoji.egggame" />
+        <package android:name="com.winlator" />
+        <package android:name="com.winlator.cmod" />
     </queries>
 
     <application
@@ -89,6 +95,17 @@
             <property
                 android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY"
                 android:value="true" />
+        </activity>
+
+        <activity
+            android:name=".ui.games.ShortcutPinActivity"
+            android:exported="true"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+            </intent-filter>
         </activity>
 
         <provider

@@ -26,7 +26,8 @@ class ScreenScraperSource : GameMetadataSource {
         Platform.PSP to listOf(61),
         Platform.PLAYSTATION_2 to listOf(58),
         Platform.GAMECUBE_WII to listOf(13, 16),
-        Platform.NINTENDO_SWITCH to listOf(225)
+        Platform.NINTENDO_SWITCH to listOf(225),
+        Platform.WINDOWS to listOf(135)
     )
 
     override suspend fun searchMetadata(game: Game, settings: ScraperSettings): ScraperResult {

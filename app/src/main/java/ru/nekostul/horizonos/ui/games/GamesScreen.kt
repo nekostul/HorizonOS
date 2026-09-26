@@ -111,6 +111,9 @@ private const val VitaConfirmPage = 7
 private const val BiosWarningPreferences = "game_bios_warnings"
 private const val ConfigWarningPreferences = "game_config_warnings"
 
+/** Platforms offered in the Games tab. Windows games arrive from launcher shortcuts instead. */
+private val SelectablePlatforms = Platform.values().filterNot { it == Platform.WINDOWS }
+
 private enum class RomSource {
     FOLDER
 }
@@ -401,13 +404,12 @@ fun GamesScreen(
         }
     }
 
-    fun orderedGames(): List<Game> = games.sortedWith(
-        compareBy({ it.emulator.ordinal }, { it.displayTitle.lowercase() })
-    )
+    fun orderedGames(): List<Game> = games
+        .sortedWith(compareBy({ it.emulator.ordinal }, { it.displayTitle.lowercase() }))
 
     fun currentItemCount(): Int = when (page) {
         LibraryPage -> orderedGames().size + 1
-        PlatformPage -> Platform.values().size
+        PlatformPage -> SelectablePlatforms.size
         EmulatorPage -> Emulator.values().count { it.platform == selectedPlatform }
         SourcePage -> 2
         ConfirmPage -> 2
@@ -448,7 +450,7 @@ fun GamesScreen(
             }
 
             PlatformPage -> {
-                Platform.values().getOrNull(focusIndex)?.let { platform ->
+                SelectablePlatforms.getOrNull(focusIndex)?.let { platform ->
                     if (platform == Platform.PSVITA && !rootAvailable) return@let
                     selectedPlatform = platform
                     if (platform == Platform.ANDROID) {
@@ -560,7 +562,7 @@ fun GamesScreen(
                     .indexOf(selectedEmulator)
                     .coerceAtLeast(0)
             }
-        }
+            }
         return true
     }
 
@@ -1023,7 +1025,7 @@ private fun PlatformContent(
     rootAvailable: Boolean,
     onSelect: (Platform) -> Unit
 ) {
-    Platform.values().forEachIndexed { index, platform ->
+    SelectablePlatforms.forEachIndexed { index, platform ->
         val disabled = platform == Platform.PSVITA && !rootAvailable
         GameOptionRow(
             title = platformLabel(platform),
@@ -1472,6 +1474,7 @@ private fun platformLabel(platform: Platform): String = when (platform) {
     Platform.NINTENDO_SWITCH -> stringResource(R.string.games_platform_switch)
     Platform.PSVITA -> stringResource(R.string.games_platform_psvita)
     Platform.ANDROID -> stringResource(R.string.games_platform_android)
+    Platform.WINDOWS -> stringResource(R.string.games_platform_windows)
 }
 
 @Composable

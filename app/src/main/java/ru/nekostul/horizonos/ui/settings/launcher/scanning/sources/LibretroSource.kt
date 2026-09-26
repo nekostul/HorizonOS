@@ -25,6 +25,7 @@ class LibretroSource : GameMetadataSource {
         Platform.NINTENDO_SWITCH -> listOf("Nintendo - Nintendo Switch")
         Platform.PSVITA -> listOf("Sony - PlayStation Vita")
         Platform.ANDROID -> emptyList()
+        Platform.WINDOWS -> emptyList()
     }
 
     override suspend fun searchMetadata(game: Game, settings: ScraperSettings): ScraperResult {

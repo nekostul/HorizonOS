@@ -55,6 +55,7 @@ private fun platformNames(platforms: List<Platform>): String {
             Platform.NINTENDO_SWITCH -> stringResource(R.string.games_platform_switch)
             Platform.PSVITA -> stringResource(R.string.games_platform_psvita)
             Platform.ANDROID -> stringResource(R.string.games_platform_android)
+            Platform.WINDOWS -> stringResource(R.string.games_platform_windows)
         }
     }
     return names.joinToString(", ")

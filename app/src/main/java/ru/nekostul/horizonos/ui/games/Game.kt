@@ -28,6 +28,8 @@ data class Game(
         get() = fullTitle?.takeIf { it.isNotBlank() } ?: title
 
     companion object {
+        const val SHORTCUT_URI_PREFIX = "shortcut:"
+
         fun fromRom(
             title: String,
             platform: Platform,
@@ -39,6 +41,28 @@ data class Game(
                 "${emulator.name}|$romUri".toByteArray(Charsets.UTF_8)
             ).toString()
             return Game(stableId, title, platform, emulator, romUri, romName)
+        }
+
+        fun fromWindowsShortcut(
+            label: String,
+            emulator: Emulator,
+            packageName: String,
+            shortcutId: String
+        ): Game {
+            val romUri = "$SHORTCUT_URI_PREFIX$packageName/$shortcutId"
+            val stableId = UUID.nameUUIDFromBytes(
+                "${emulator.name}|$romUri".toByteArray(Charsets.UTF_8)
+            ).toString()
+            return Game(
+                id = stableId,
+                title = label,
+                platform = Platform.WINDOWS,
+                emulator = emulator,
+                romUri = romUri,
+                romName = label,
+                packageName = packageName,
+                launchActivity = shortcutId
+            )
         }
 
         fun fromAndroidApp(

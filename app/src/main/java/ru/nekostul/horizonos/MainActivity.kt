@@ -402,6 +402,7 @@ class MainActivity : ComponentActivity() {
         }
         permissionRevision.value += 1
         ru.nekostul.horizonos.ui.settings.launcher.scanning.ScanCoordinator.init(this)
+        ru.nekostul.horizonos.ui.games.WindowsShortcutSync.syncAsync(this)
     }
 
     private fun isDeviceInteractive(): Boolean = runCatching {

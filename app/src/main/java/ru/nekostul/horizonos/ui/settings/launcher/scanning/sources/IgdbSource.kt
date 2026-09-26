@@ -28,7 +28,8 @@ class IgdbSource : GameMetadataSource {
         Platform.PLAYSTATION_2 to listOf(8),
         Platform.GAMECUBE_WII to listOf(21, 5),
         Platform.NINTENDO_SWITCH to listOf(130),
-        Platform.ANDROID to listOf(34)
+        Platform.ANDROID to listOf(34),
+        Platform.WINDOWS to listOf(6)
     )
 
     override suspend fun searchMetadata(game: Game, settings: ScraperSettings): ScraperResult {
